@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Precificação — Energtech Engenharia Solar</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --amarelo: #FFC107;
+    --amarelo-dim: #e6ac00;
+    --preto: #111;
+    --bg: #0f0f0f;
+    --card: #1a1a1a;
+    --card2: #222;
+    --borda: #2e2e2e;
+    --texto: #e0e0e0;
+    --muted: #777;
+    --verde: #4ade80;
+    --vermelho: #f87171;
+    --azul: #60a5fa;
+  }
+  body { background: var(--bg); font-family: 'Barlow', sans-serif; color: var(--texto); min-height: 100vh; padding: 0 0 60px; }
+
+  /* ── HEADER ── */
+  .header { background: var(--amarelo); padding: 18px 28px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  .logo-area { display: flex; align-items: center; gap: 13px; }
+  .logo-icon { width: 46px; height: 46px; background: var(--preto); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .brand-name { font-family: 'Barlow Condensed', sans-serif; font-size: 26px; font-weight: 900; color: var(--preto); line-height: 1; }
+  .brand-sub { font-size: 10px; font-weight: 600; color: var(--preto); letter-spacing: 0.2em; text-transform: uppercase; opacity: 0.6; margin-top: 2px; }
+  .header-title { text-align: right; }
+  .header-title h1 { font-family: 'Barlow Condensed', sans-serif; font-size: 17px; font-weight: 700; color: var(--preto); text-transform: uppercase; letter-spacing: 0.05em; }
+  .header-title p { font-size: 11px; color: var(--preto); opacity: 0.55; margin-top: 3px; }
+
+  /* ── PAGE ── */
+  .page { max-width: 1060px; margin: 0 auto; padding: 24px 16px; }
+
+  /* ── ABAS ── */
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+  .tab-btn {
+    flex: 1; padding: 12px 16px; border: 2px solid var(--borda); background: var(--card);
+    color: var(--muted); font-family: 'Barlow Condensed', sans-serif; font-size: 15px;
+    font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; border-radius: 10px;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .tab-btn:hover { border-color: var(--amarelo); color: var(--amarelo); }
+  .tab-btn.ativo { background: var(--amarelo); color: var(--preto); border-color: var(--amarelo); }
+  .tab-btn .finame-badge { font-size: 9px; background: var(--preto); color: var(--amarelo); padding: 2px 7px; border-radius: 4px; margin-left: 8px; letter-spacing: 0.1em; vertical-align: middle; }
+  .tab-btn.ativo .finame-badge { background: var(--preto); color: var(--amarelo); }
+
+  /* ── PAINEL DE NEGOCIAÇÃO ── */
+  .negociacao-card {
+    background: var(--card); border: 1px solid var(--borda); border-radius: 14px;
+    padding: 22px 24px; margin-bottom: 20px;
+  }
+  .neg-titulo { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 18px; }
+
+  .neg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 640px) { .neg-grid { grid-template-columns: 1fr; } }
+
+  .neg-bloco label { display: block; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+
+  /* Slider custom */
+  .slider-wrap { position: relative; }
+  .slider-val-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .slider-val { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 700; color: var(--amarelo); }
+  .slider-val.negativo { color: var(--vermelho); }
+  .slider-val.neutro { color: var(--muted); }
+  .slider-sublabel { font-size: 11px; color: var(--muted); }
+
+  input[type=range] {
+    -webkit-appearance: none; width: 100%; height: 6px;
+    border-radius: 3px; outline: none; cursor: pointer;
+    background: linear-gradient(to right, var(--amarelo) 0%, var(--amarelo) 50%, var(--borda) 50%, var(--borda) 100%);
+  }
+  input[type=range].desconto-range {
+    background: linear-gradient(to right, var(--borda) 0%, var(--borda) 50%, var(--vermelho) 50%, var(--vermelho) 100%);
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%;
+    background: var(--amarelo); border: 3px solid var(--preto); box-shadow: 0 0 0 2px var(--amarelo);
+    transition: transform 0.1s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+  input[type=range].desconto-range::-webkit-slider-thumb { background: var(--vermelho); box-shadow: 0 0 0 2px var(--vermelho); }
+  .slider-legenda { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-top: 4px; }
+
+  /* Split comissão */
+  .split-info { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .split-pill {
+    flex: 1; min-width: 120px; background: var(--card2); border: 1px solid var(--borda);
+    border-radius: 8px; padding: 10px 14px;
+  }
+  .split-pill .sp-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+  .split-pill .sp-val { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 700; margin-top: 2px; }
+  .sp-vendedor { color: var(--verde); }
+  .sp-empresa { color: var(--azul); }
+  .sp-desconto { color: var(--vermelho); }
+
+  /* ── RESUMO LINHA ── */
+  .resumo-bar {
+    background: var(--card2); border: 1px solid var(--borda); border-radius: 12px;
+    padding: 16px 22px; margin-bottom: 20px;
+    display: flex; gap: 24px; flex-wrap: wrap; align-items: center;
+  }
+  .res-item { text-align: center; }
+  .res-val { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 700; line-height: 1; }
+  .res-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 3px; }
+  .res-destaque .res-val { color: var(--amarelo); font-size: 28px; }
+  .res-verde .res-val { color: var(--verde); }
+  .res-vermelho .res-val { color: var(--vermelho); }
+  .res-azul .res-val { color: var(--azul); }
+  .res-sep { width: 1px; height: 40px; background: var(--borda); align-self: center; }
+
+  /* ── TABELA ── */
+  .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--borda); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 720px; }
+  thead tr { background: #1f1f1f; }
+  thead th {
+    color: var(--muted); font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.1em; padding: 12px 14px; text-align: center;
+    border-bottom: 1px solid var(--borda); white-space: nowrap;
+  }
+  thead th:first-child { text-align: left; }
+  tbody tr { border-bottom: 1px solid #1e1e1e; transition: background 0.12s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: #1f1f1f; }
+  tbody td { padding: 13px 14px; text-align: center; vertical-align: middle; }
+  tbody td:first-child { text-align: left; }
+
+  .td-sistema { font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 700; color: var(--amarelo); white-space: nowrap; }
+  .tag-top { display: inline-block; background: var(--amarelo); color: var(--preto); font-size: 8px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; margin-left: 7px; vertical-align: middle; }
+  .tag-finame { display: inline-block; background: #1e3a5f; color: var(--azul); font-size: 8px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; margin-left: 5px; vertical-align: middle; }
+  .td-original { color: var(--muted); font-size: 12px; text-decoration: line-through; }
+  .td-final { color: #fff; font-weight: 600; font-size: 14px; }
+  .td-final.ajustado { color: var(--verde); }
+  .td-final.descontado { color: var(--vermelho); }
+  .td-comissao { color: var(--verde); font-weight: 600; }
+  .td-muted { color: var(--muted); font-size: 12px; }
+  .td-azul { color: var(--azul); }
+
+  /* ── FOOTER ── */
+  .footer-bar {
+    max-width: 1060px; margin: 28px auto 0; padding: 0 16px;
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;
+  }
+  .footer-bar a { color: #555; font-size: 11px; text-decoration: none; }
+  .footer-bar a:hover { color: var(--amarelo); }
+  .footer-bar .copy { font-size: 11px; color: #444; font-style: italic; }
+
+  /* ── DASHBOARD ECONOMIA (Nacional) ── */
+  .dash-economia { background: var(--card); border: 1px solid var(--borda); border-radius: 14px; padding: 22px 24px; margin-bottom: 20px; display: none; }
+  .dash-economia.visivel { display: block; animation: fadeUp 0.35s ease both; }
+  .dash-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+  .dash-titulo { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .dash-sistema-nome { font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 700; color: var(--amarelo); }
+  .tarifa-config { display: flex; align-items: center; gap: 10px; background: var(--card2); border: 1px solid var(--borda); border-radius: 8px; padding: 8px 14px; }
+  .tarifa-config label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap; }
+  .tarifa-config input[type=number] { background: transparent; border: none; border-bottom: 1px solid var(--borda); color: var(--amarelo); font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 700; width: 72px; text-align: center; outline: none; padding: 2px 4px; }
+  .tarifa-config input[type=number]:focus { border-bottom-color: var(--amarelo); }
+  .tarifa-config span { font-size: 13px; color: var(--muted); }
+  .fin-selector { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+  .fin-btn { flex: 1; min-width: 150px; padding: 10px 14px; border: 2px solid var(--borda); background: var(--card2); color: var(--muted); font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; border-radius: 8px; cursor: pointer; transition: all 0.18s; text-align: center; }
+  .fin-btn:hover { border-color: var(--azul); color: var(--azul); }
+  .fin-btn.ativo { background: #1e3a5f; color: var(--azul); border-color: var(--azul); }
+  .fin-btn .fin-detalhe { display: block; font-size: 10px; font-weight: 400; opacity: 0.75; margin-top: 2px; text-transform: none; letter-spacing: 0; }
+  .dash-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
+  @media (max-width: 640px) { .dash-cards { grid-template-columns: 1fr; } }
+  .dash-card { border-radius: 12px; padding: 18px 20px; text-align: center; border: 1px solid var(--borda); }
+  .dash-card.card-parcela { background: #182818; border-color: #2a4a2a; }
+  .dash-card.card-conta  { background: #281818; border-color: #4a2a2a; }
+  .dash-card.card-eco    { background: #18283a; border-color: #2a4a6a; }
+  .dash-card-icon { font-size: 20px; margin-bottom: 4px; }
+  .dash-card-lbl { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 6px; }
+  .dash-card-val { font-family: 'Barlow Condensed', sans-serif; font-size: 34px; font-weight: 900; line-height: 1; }
+  .dash-card-val.verde { color: var(--verde); }
+  .dash-card-val.vermelho { color: var(--vermelho); }
+  .dash-card-val.azul { color: var(--azul); }
+  .dash-card-sub { font-size: 11px; color: var(--muted); margin-top: 5px; }
+  .dash-barra-titulo { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }
+  .dash-barra-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .dash-barra-label { font-size: 12px; color: var(--texto); width: 155px; flex-shrink: 0; }
+  .dash-barra-track { flex: 1; height: 24px; background: var(--card2); border-radius: 4px; overflow: hidden; }
+  .dash-barra-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; display: flex; align-items: center; padding-left: 10px; }
+  .dash-barra-fill span { font-size: 11px; font-weight: 700; color: #fff; white-space: nowrap; }
+  .fill-verde { background: var(--verde); }
+  .fill-vermelho { background: #f87171; }
+
+  /* animate */
+  @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+  .fadein { animation: fadeUp 0.35s ease both; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo-area">
+    <div class="logo-icon">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="13" fill="#FFC107"/><path d="M16 3L8 15h7l-3 10 10-13h-7l1-9z" fill="#111"/></svg>
+    </div>
+    <div>
+      <div class="brand-name">Energtech</div>
+      <div class="brand-sub">Engenharia Solar</div>
+    </div>
+  </div>
+  <div class="header-title">
+    <h1>Ferramenta de Precificação</h1>
+    <p>Uso interno — representantes e vendedores</p>
+  </div>
+</div>
+
+<div class="page">
+
+  <!-- ABAS -->
+  <div class="tabs">
+    <button class="tab-btn ativo" onclick="trocarAba('importado', this)">
+      Kits Importados
+    </button>
+    <button class="tab-btn" onclick="trocarAba('nacional', this)">
+      Kits Nacionais
+      <span class="finame-badge">FINAME</span>
+    </button>
+  </div>
+
+  <!-- PAINEL NEGOCIAÇÃO -->
+  <div class="negociacao-card fadein">
+    <div class="neg-titulo">⚙️ Régua de Negociação — Ajuste em Tempo Real</div>
+    <div class="neg-grid">
+
+      <!-- ADICIONAL -->
+      <div class="neg-bloco">
+        <label>Adicional de Margem (R$ por sistema)</label>
+        <div class="slider-val-row">
+          <span class="slider-val" id="val-adicional">R$ 0</span>
+          <span class="slider-sublabel">50% vendedor · 50% empresa</span>
+        </div>
+        <div class="slider-wrap">
+          <input type="range" id="slider-adicional" min="0" max="2000" step="50" value="0" oninput="atualizar()">
+          <div class="slider-legenda"><span>R$ 0</span><span>R$ 1.000</span><span>R$ 2.000</span></div>
+        </div>
+        <div class="split-info">
+          <div class="split-pill">
+            <div class="sp-lbl">Sua comissão (+)</div>
+            <div class="sp-val sp-vendedor" id="add-vendedor">R$ 0</div>
+          </div>
+          <div class="split-pill">
+            <div class="sp-lbl">Empresa (+)</div>
+            <div class="sp-val sp-empresa" id="add-empresa">R$ 0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DESCONTO -->
+      <div class="neg-bloco">
+        <label>Desconto ao Cliente (%)</label>
+        <div class="slider-val-row">
+          <span class="slider-val neutro" id="val-desconto">0%</span>
+          <span class="slider-sublabel" id="desc-sublabel">Até 3% gratuito · acima desconta 50/50</span>
+        </div>
+        <div class="slider-wrap">
+          <input type="range" id="slider-desconto" min="0" max="7" step="0.5" value="0" class="desconto-range" oninput="atualizar()">
+          <div class="slider-legenda"><span>0%</span><span id="desc-livre-label">↑ gratuito até 3%</span><span id="desc-max-label">máx 7%</span></div>
+        </div>
+        <div class="split-info">
+          <div class="split-pill">
+            <div class="sp-lbl">Deduzido da sua comissão</div>
+            <div class="sp-val sp-desconto" id="desc-vendedor">R$ 0</div>
+          </div>
+          <div class="split-pill">
+            <div class="sp-lbl">Deduzido da empresa</div>
+            <div class="sp-val sp-desconto" id="desc-empresa">R$ 0</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- RESUMO SELECIONADO -->
+  <div class="resumo-bar fadein" id="resumo-bar" style="display:none">
+    <div class="res-item res-destaque">
+      <div class="res-val" id="res-sistema">—</div>
+      <div class="res-lbl">Sistema selecionado</div>
+    </div>
+    <div class="res-sep"></div>
+    <div class="res-item">
+      <div class="res-val" id="res-original" style="color:var(--muted);text-decoration:line-through">—</div>
+      <div class="res-lbl">Valor tabela</div>
+    </div>
+    <div class="res-item res-destaque">
+      <div class="res-val" id="res-final">—</div>
+      <div class="res-lbl">Valor final cliente</div>
+    </div>
+    <div class="res-sep"></div>
+    <div class="res-item res-verde">
+      <div class="res-val" id="res-comissao">—</div>
+      <div class="res-lbl">Sua comissão total</div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD ECONOMIA NACIONAL -->
+  <div class="dash-economia" id="dash-economia">
+    <div class="dash-header">
+      <div>
+        <div class="dash-titulo">📊 Comparativo de Economia — Kit Nacional</div>
+        <div class="dash-sistema-nome" id="dash-nome-sistema">—</div>
+      </div>
+      <div class="tarifa-config">
+        <label>Tarifa Celesc</label>
+        <input type="number" id="input-tarifa" value="0.89" step="0.01" min="0.10" max="2.00" oninput="atualizarDash()">
+        <span>R$/kWh</span>
+      </div>
+    </div>
+    <div class="fin-selector">
+      <button class="fin-btn ativo" id="fin-btn-8" onclick="selecionarFin(8, this)">
+        Linha A — 8 anos / Juros Zero
+        <span class="fin-detalhe">96 parcelas mensais sem juros</span>
+      </button>
+      <button class="fin-btn" id="fin-btn-10" onclick="selecionarFin(10, this)">
+        Linha B — 10 anos / 3% a.a.
+        <span class="fin-detalhe">120 parcelas com juros de 3% ao ano</span>
+      </button>
+    </div>
+    <div class="dash-cards">
+      <div class="dash-card card-parcela">
+        <div class="dash-card-icon">💳</div>
+        <div class="dash-card-lbl">Parcela do Financiamento</div>
+        <div class="dash-card-val verde" id="dash-parcela">—</div>
+        <div class="dash-card-sub" id="dash-parcela-sub">por mês</div>
+      </div>
+      <div class="dash-card card-conta">
+        <div class="dash-card-icon">⚡</div>
+        <div class="dash-card-lbl">Conta de Energia Atual</div>
+        <div class="dash-card-val vermelho" id="dash-conta">—</div>
+        <div class="dash-card-sub" id="dash-conta-sub">por mês (estimado)</div>
+      </div>
+      <div class="dash-card card-eco">
+        <div class="dash-card-icon">✅</div>
+        <div class="dash-card-lbl">Economia Mensal</div>
+        <div class="dash-card-val azul" id="dash-economia-val">—</div>
+        <div class="dash-card-sub" id="dash-eco-sub">diferença mensal</div>
+      </div>
+    </div>
+    <div class="dash-barra-titulo">Comparativo visual</div>
+    <div class="dash-barra-row">
+      <div class="dash-barra-label">Parcela financiamento</div>
+      <div class="dash-barra-track"><div class="dash-barra-fill fill-verde" id="barra-parcela"><span id="barra-parcela-txt"></span></div></div>
+    </div>
+    <div class="dash-barra-row">
+      <div class="dash-barra-label">Conta de energia atual</div>
+      <div class="dash-barra-track"><div class="dash-barra-fill fill-vermelho" id="barra-conta"><span id="barra-conta-txt"></span></div></div>
+    </div>
+  </div>
+
+  <!-- TABELA -->
+  <div class="table-wrap fadein" id="tabela-importado">
+    <table id="t-importado">
+      <thead>
+        <tr>
+          <th>Sistema</th>
+          <th>Potência</th>
+          <th>Módulos</th>
+          <th>Inversor</th>
+          <th>Geração/mês</th>
+          <th>Valor Tabela</th>
+          <th>Valor Final Cliente</th>
+          <th>Entrada</th>
+          <th>Saldo 10×</th>
+          <th>Parcela</th>
+          <th>Sua Comissão</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-importado"></tbody>
+    </table>
+  </div>
+
+  <div class="table-wrap fadein" id="tabela-nacional" style="display:none">
+    <table id="t-nacional">
+      <thead>
+        <tr>
+          <th>Sistema</th>
+          <th>Potência</th>
+          <th>Módulos</th>
+          <th>Inversor</th>
+          <th>Geração/mês</th>
+          <th>Valor Tabela</th>
+          <th>Valor Final Cliente</th>
+          <th>Parcela Anual</th>
+          <th>Parcela Mensal</th>
+          <th>Sua Comissão</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-nacional"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- FOOTER -->
+<div class="footer-bar">
+  <div><a href="https://energtechsolar.com.br" target="_blank">energtechsolar.com.br</a> &nbsp;·&nbsp; <a href="mailto:energtechsolar@gmail.com">energtechsolar@gmail.com</a> &nbsp;·&nbsp; <a>CNPJ 40.297.488/0001-85</a></div>
+  <div class="copy">Uso interno — não compartilhar com clientes</div>
+</div>
+
+<script>
+// ── DADOS ──────────────────────────────────────────────────────────────────
+const IMPORTADO = [
+  { nome:"Sistema 2", top:true,  kwp:4.96, mod:8,  inv:"3 kW",    kwh:528,  inv_r:12733.20, entrada:7860,    com_pct:0.06 },
+  { nome:"Sistema 3", top:false, kwp:6.20, mod:10, inv:"5 kW",    kwh:660,  inv_r:15880.86, entrada:9803,    com_pct:0.06 },
+  { nome:"Sistema 4", top:false, kwp:7.44, mod:12, inv:"5 kW",    kwh:792,  inv_r:18135.90, entrada:11195,   com_pct:0.06 },
+  { nome:"Sistema 5", top:false, kwp:8.68, mod:14, inv:"6 kW",    kwh:924,  inv_r:20546.46, entrada:2568.31, com_pct:0.06 },
+  { nome:"Sistema 6", top:false, kwp:9.92, mod:16, inv:"2×3 kW",  kwh:1056, inv_r:25050.06, entrada:12683,   com_pct:0.06 },
+  { nome:"Sistema 7", top:false, kwp:11.16,mod:18, inv:"3+4 kW",  kwh:1188, inv_r:28051.92, entrada:15463,   com_pct:0.06 },
+  { nome:"Sistema 8", top:false, kwp:12.40,mod:20, inv:"3+4 kW",  kwh:1320, inv_r:30169.26, entrada:17316,   com_pct:0.06 },
+];
+
+const NACIONAL = [
+  { nome:"Sistema 2", top:true,  kwp:4.44, mod:8,  inv:"3 kW",    kwh:504,  inv_r:13564.65, parc_a:1695.58,  parc_m:141.30,  com_pct:0.06 },
+  { nome:"Sistema 3", top:false, kwp:5.55, mod:10, inv:"5 kW",    kwh:630,  inv_r:18093.90, parc_a:2261.74,  parc_m:188.48,  com_pct:0.06 },
+  { nome:"Sistema 4", top:false, kwp:6.66, mod:12, inv:"5 kW",    kwh:756,  inv_r:20380.80, parc_a:2038.08,  parc_m:212.30,  com_pct:0.06 },
+  { nome:"Sistema 5", top:false, kwp:7.77, mod:14, inv:"6 kW",    kwh:882,  inv_r:22935.00, parc_a:2866.88,  parc_m:238.91,  com_pct:0.06 },
+  { nome:"Sistema 6", top:false, kwp:8.88, mod:16, inv:"2×3 kW",  kwh:1008, inv_r:26400.00, parc_a:3300.00,  parc_m:275.00,  com_pct:0.06 },
+  { nome:"Sistema 7", top:false, kwp:9.99, mod:18, inv:"3+4 kW",  kwh:1134, inv_r:29048.25, parc_a:3631.03,  parc_m:302.59,  com_pct:0.06 },
+  { nome:"Sistema 8", top:false, kwp:11.10,mod:20, inv:"3+4 kW",  kwh:1260, inv_r:34737.45, parc_a:4342.18,  parc_m:361.85,  com_pct:0.06 },
+];
+
+// ── CONFIGURAÇÕES (ajustáveis) ──────────────────────────────────────────────
+const CFG = {
+  desconto_livre: 3,
+  desconto_max: 7,
+  split_adicional: 0.50,
+  split_desconto_extra: 0.50,
+};
+
+let abaAtual = 'importado';
+let linhaFoco = null;
+let finAnos = 8; // linha de financiamento selecionada
+
+// ── FORMATAÇÃO ──────────────────────────────────────────────────────────────
+function fmt(v) {
+  return 'R$ ' + v.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function fmtShort(v) {
+  return 'R$ ' + Math.round(v).toLocaleString('pt-BR');
+}
+
+// ── CÁLCULO PARCELA FINANCIAMENTO ───────────────────────────────────────────
+function calcParcelaMensal(valorFinanciado, anos) {
+  if (anos === 8) {
+    // Juros zero: divide igualmente em 96 meses
+    return valorFinanciado / 96;
+  } else {
+    // 10 anos, 3% a.a. → taxa mensal = (1.03)^(1/12) - 1
+    const n = 120;
+    const i = Math.pow(1.03, 1/12) - 1;
+    return valorFinanciado * (i * Math.pow(1+i, n)) / (Math.pow(1+i, n) - 1);
+  }
+}
+
+// ── CALCULA LINHA ───────────────────────────────────────────────────────────
+function calcLinha(item, adicional, descPct) {
+  const base = item.inv_r;
+  const comBase = base * item.com_pct;
+  const addVendedor = adicional * CFG.split_adicional;
+  const addEmpresa  = adicional * (1 - CFG.split_adicional);
+  const descPctExtra = Math.max(0, descPct - CFG.desconto_livre);
+  const valorFinal = (base + adicional) * (1 - descPct / 100);
+  const descExtra  = (base + adicional) * (descPctExtra / 100);
+  const descVendedor = descExtra * CFG.split_desconto_extra;
+  const descEmpresa  = descExtra * (1 - CFG.split_desconto_extra);
+  const comissao = comBase + addVendedor - descVendedor;
+  return { base, valorFinal, comissao, comBase, addVendedor, addEmpresa, descVendedor, descEmpresa };
+}
+
+// ── RENDER TABELA ───────────────────────────────────────────────────────────
+function renderTabela(dados, tbodyId, tipo) {
+  const adicional = +document.getElementById('slider-adicional').value;
+  const descPct   = +document.getElementById('slider-desconto').value;
+  const tbody = document.getElementById(tbodyId);
+  tbody.innerHTML = '';
+
+  dados.forEach((item, idx) => {
+    const c = calcLinha(item, adicional, descPct);
+    const ajustado  = adicional > 0 || descPct > 0;
+    const subiu     = adicional > 0 && descPct === 0;
+    const descontou = descPct > 0;
+    let finalClass = 'td-final';
+    if (subiu) finalClass += ' ajustado';
+    if (descontou) finalClass += ' descontado';
+
+    const tr = document.createElement('tr');
+    tr.style.cursor = 'pointer';
+    if (linhaFoco === `${tipo}-${idx}`) {
+      tr.style.background = '#222';
+      tr.style.outline = '1.5px solid var(--amarelo)';
+    }
+    tr.onclick = () => selecionarLinha(tipo, idx, item);
+
+    const tagTop    = item.top ? `<span class="tag-top">Top</span>` : '';
+    const tagFiname = tipo === 'nacional' ? `<span class="tag-finame">FINAME</span>` : '';
+    const originalStr = ajustado ? `<div class="td-original">${fmt(item.inv_r)}</div>` : '';
+
+    let colsExtra = '';
+    if (tipo === 'importado') {
+      const saldo10 = c.valorFinal - item.entrada;
+      const parcela = saldo10 / 10;
+      colsExtra = `
+        <td class="td-muted">${fmt(item.entrada)}</td>
+        <td class="td-azul">${fmt(Math.max(0,saldo10))}</td>
+        <td class="td-muted">${fmtShort(Math.max(0,parcela))}</td>`;
+    } else {
+      const pm = calcParcelaMensal(c.valorFinal, finAnos);
+      const pa = pm * 12;
+      colsExtra = `
+        <td class="td-muted">${fmt(pa)}</td>
+        <td class="td-muted">${fmt(pm)}</td>`;
+    }
+
+    tr.innerHTML = `
+      <td class="td-sistema">${item.nome}${tagTop}${tagFiname}</td>
+      <td>${item.kwp} kWp</td>
+      <td>${item.mod}</td>
+      <td>${item.inv}</td>
+      <td>${item.kwh.toLocaleString('pt-BR')} kWh</td>
+      <td>${fmt(item.inv_r)}</td>
+      <td>${originalStr}<div class="${finalClass}">${fmt(c.valorFinal)}</div></td>
+      ${colsExtra}
+      <td class="td-comissao">${fmt(c.comissao)}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── DASHBOARD ECONOMIA ──────────────────────────────────────────────────────
+function atualizarDash() {
+  if (!linhaFoco || !linhaFoco.startsWith('nacional')) return;
+  const idx = +linhaFoco.split('-')[1];
+  const item = NACIONAL[idx];
+  const adicional = +document.getElementById('slider-adicional').value;
+  const descPct   = +document.getElementById('slider-desconto').value;
+  const c = calcLinha(item, adicional, descPct);
+  const tarifa = +document.getElementById('input-tarifa').value || 0.89;
+
+  const parcela = calcParcelaMensal(c.valorFinal, finAnos);
+  const contaMensal = item.kwh * tarifa;
+  const economia = contaMensal - parcela;
+
+  document.getElementById('dash-nome-sistema').textContent =
+    item.nome + ' · ' + item.kwp + ' kWp · ' + item.kwh.toLocaleString('pt-BR') + ' kWh/mês';
+
+  document.getElementById('dash-parcela').textContent = fmt(parcela);
+  document.getElementById('dash-parcela-sub').textContent =
+    finAnos === 8 ? '96 parcelas · juros zero' : '120 parcelas · 3% a.a.';
+
+  document.getElementById('dash-conta').textContent = fmt(contaMensal);
+  document.getElementById('dash-conta-sub').textContent =
+    `${item.kwh.toLocaleString('pt-BR')} kWh × R$ ${tarifa.toFixed(2)}/kWh`;
+
+  const ecoEl = document.getElementById('dash-economia-val');
+  if (economia > 0) {
+    ecoEl.textContent = fmt(economia);
+    ecoEl.className = 'dash-card-val azul';
+    document.getElementById('dash-eco-sub').textContent = '✅ cliente economiza todo mês';
+  } else {
+    ecoEl.textContent = fmt(Math.abs(economia));
+    ecoEl.className = 'dash-card-val vermelho';
+    document.getElementById('dash-eco-sub').textContent = '⚠️ parcela maior que a conta';
+  }
+
+  // Barras visuais
+  const maior = Math.max(parcela, contaMensal);
+  const pParcela = (parcela / maior) * 100;
+  const pConta   = (contaMensal / maior) * 100;
+  document.getElementById('barra-parcela').style.width = pParcela + '%';
+  document.getElementById('barra-conta').style.width   = pConta + '%';
+  document.getElementById('barra-parcela-txt').textContent = fmt(parcela);
+  document.getElementById('barra-conta-txt').textContent   = fmt(contaMensal);
+}
+
+function selecionarFin(anos, btn) {
+  finAnos = anos;
+  document.querySelectorAll('.fin-btn').forEach(b => b.classList.remove('ativo'));
+  btn.classList.add('ativo');
+  renderTabela(NACIONAL, 'tbody-nacional', 'nacional');
+  atualizarDash();
+}
+
+// ── ATUALIZAR TUDO ──────────────────────────────────────────────────────────
+function atualizar() {
+  const adicional = +document.getElementById('slider-adicional').value;
+  const descPct   = +document.getElementById('slider-desconto').value;
+
+  const addV = adicional * CFG.split_adicional;
+  const addE = adicional * (1 - CFG.split_adicional);
+  document.getElementById('val-adicional').textContent = adicional > 0 ? `+ ${fmt(adicional)}` : 'R$ 0';
+  document.getElementById('val-adicional').className = 'slider-val' + (adicional > 0 ? '' : ' neutro');
+  document.getElementById('add-vendedor').textContent = fmt(addV);
+  document.getElementById('add-empresa').textContent  = fmt(addE);
+
+  const maxA = 2000;
+  const pctA = (adicional / maxA) * 100;
+  document.getElementById('slider-adicional').style.background =
+    `linear-gradient(to right, var(--amarelo) 0%, var(--amarelo) ${pctA}%, var(--borda) ${pctA}%, var(--borda) 100%)`;
+
+  const descLabel = document.getElementById('val-desconto');
+  descLabel.textContent = descPct > 0 ? `-${descPct}%` : '0%';
+  descLabel.className = 'slider-val' + (descPct > CFG.desconto_livre ? ' negativo' : descPct > 0 ? '' : ' neutro');
+  document.getElementById('desc-sublabel').textContent =
+    descPct <= CFG.desconto_livre
+      ? `Até ${CFG.desconto_livre}% gratuito · sem custo pro vendedor`
+      : `Acima de ${CFG.desconto_livre}% → desconta 50/50`;
+
+  const maxD = CFG.desconto_max;
+  const pctD = (descPct / maxD) * 100;
+  const pctLivre = (CFG.desconto_livre / maxD) * 100;
+  document.getElementById('slider-desconto').style.background = descPct <= CFG.desconto_livre
+    ? `linear-gradient(to right, var(--borda) 0%, var(--borda) ${100-pctD}%, #facc15 ${100-pctD}%, #facc15 100%)`
+    : `linear-gradient(to right, var(--borda) 0%, var(--borda) ${100-pctD}%, #facc15 ${100-pctD}%, #facc15 ${100-pctLivre}%, var(--vermelho) ${100-pctLivre}%, var(--vermelho) 100%)`;
+
+  document.getElementById('desc-max-label').textContent = `máx ${CFG.desconto_max}%`;
+  document.getElementById('desc-livre-label').textContent = `↑ gratuito até ${CFG.desconto_livre}%`;
+
+  const dadosAtual = abaAtual === 'importado' ? IMPORTADO : NACIONAL;
+  const idxRef = linhaFoco ? +linhaFoco.split('-')[1] : 0;
+  const itemRef = dadosAtual[idxRef];
+  const cRef = calcLinha(itemRef, adicional, descPct);
+  document.getElementById('desc-vendedor').textContent = fmt(cRef.descVendedor);
+  document.getElementById('desc-empresa').textContent  = fmt(cRef.descEmpresa);
+
+  renderTabela(IMPORTADO, 'tbody-importado', 'importado');
+  renderTabela(NACIONAL,  'tbody-nacional',  'nacional');
+  atualizarResumo(adicional, descPct);
+  atualizarDash();
+}
+
+function selecionarLinha(tipo, idx, item) {
+  linhaFoco = `${tipo}-${idx}`;
+  atualizar();
+  const adicional = +document.getElementById('slider-adicional').value;
+  const descPct   = +document.getElementById('slider-desconto').value;
+  const cc = calcLinha(item, adicional, descPct);
+  document.getElementById('resumo-bar').style.display = 'flex';
+  document.getElementById('res-sistema').textContent  = item.nome;
+  document.getElementById('res-original').textContent = fmt(item.inv_r);
+  document.getElementById('res-final').textContent    = fmt(cc.valorFinal);
+  document.getElementById('res-comissao').textContent = fmt(cc.comissao);
+
+  // Dashboard só aparece na aba Nacional
+  const dash = document.getElementById('dash-economia');
+  if (tipo === 'nacional') {
+    dash.classList.add('visivel');
+    atualizarDash();
+  } else {
+    dash.classList.remove('visivel');
+  }
+}
+
+function atualizarResumo(adicional, descPct) {
+  if (!linhaFoco) return;
+  const [tipo, idx] = linhaFoco.split('-');
+  const dados = tipo === 'importado' ? IMPORTADO : NACIONAL;
+  const item  = dados[+idx];
+  const c = calcLinha(item, adicional, descPct);
+  document.getElementById('res-final').textContent    = fmt(c.valorFinal);
+  document.getElementById('res-comissao').textContent = fmt(c.comissao);
+}
+
+// ── TROCA ABA ───────────────────────────────────────────────────────────────
+function trocarAba(aba, btn) {
+  abaAtual = aba;
+  linhaFoco = null;
+  document.getElementById('resumo-bar').style.display = 'none';
+  document.getElementById('dash-economia').classList.remove('visivel');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('ativo'));
+  btn.classList.add('ativo');
+  document.getElementById('tabela-importado').style.display = aba === 'importado' ? '' : 'none';
+  document.getElementById('tabela-nacional').style.display  = aba === 'nacional'  ? '' : 'none';
+}
+
+// ── INIT ────────────────────────────────────────────────────────────────────
+atualizar();
+</script>
+</body>
+</html>
