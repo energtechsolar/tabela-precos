@@ -187,6 +187,94 @@
   .fill-verde { background: var(--verde); }
   .fill-vermelho { background: #f87171; }
 
+  /* ── PAINEL ADMIN ── */
+  .admin-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:1000; align-items:center; justify-content:center; padding:16px; }
+  .admin-overlay.visivel { display:flex; }
+  .admin-modal { background:var(--card); border:1px solid var(--borda); border-radius:16px; width:100%; max-width:900px; max-height:90vh; overflow-y:auto; padding:28px; }
+  .admin-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; }
+  .admin-titulo { font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:900; color:var(--amarelo); letter-spacing:0.05em; }
+  .admin-subtitulo { font-size:11px; color:var(--muted); margin-top:2px; }
+  .admin-close { background:var(--card2); border:1px solid var(--borda); color:var(--muted); font-size:18px; width:36px; height:36px; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .admin-close:hover { border-color:var(--vermelho); color:var(--vermelho); }
+  .admin-tabs { display:flex; gap:8px; margin-bottom:24px; border-bottom:1px solid var(--borda); padding-bottom:0; }
+  .admin-tab { padding:8px 16px; background:none; border:none; color:var(--muted); font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; }
+  .admin-tab:hover { color:var(--texto); }
+  .admin-tab.ativo { color:var(--amarelo); border-bottom-color:var(--amarelo); }
+  .admin-secao { display:none; }
+  .admin-secao.ativa { display:block; }
+  .admin-section-titulo { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; color:var(--muted); margin-bottom:14px; margin-top:20px; }
+  .admin-section-titulo:first-child { margin-top:0; }
+  .admin-tabela { width:100%; border-collapse:collapse; font-size:13px; margin-bottom:16px; }
+  .admin-tabela th { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; padding:8px 10px; text-align:left; border-bottom:1px solid var(--borda); white-space:nowrap; }
+  .admin-tabela td { padding:6px 6px; vertical-align:middle; border-bottom:1px solid #1a1a1a; }
+  .admin-tabela tr:last-child td { border-bottom:none; }
+  .admin-input { background:var(--card2); border:1px solid var(--borda); color:var(--texto); font-family:'Barlow',sans-serif; font-size:13px; padding:6px 10px; border-radius:6px; width:100%; outline:none; }
+  .admin-input:focus { border-color:var(--amarelo); }
+  .admin-input-sm { width:90px; }
+  .admin-input-md { width:130px; }
+  .admin-check { width:18px; height:18px; accent-color:var(--amarelo); cursor:pointer; }
+  .admin-btn-del { background:none; border:1px solid #3a1a1a; color:#f87171; font-size:12px; padding:4px 10px; border-radius:6px; cursor:pointer; white-space:nowrap; }
+  .admin-btn-del:hover { background:#2a1010; }
+  .admin-btn-add { background:var(--card2); border:1px solid var(--borda); color:var(--verde); font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; letter-spacing:0.05em; padding:8px 16px; border-radius:8px; cursor:pointer; margin-bottom:20px; }
+  .admin-btn-add:hover { border-color:var(--verde); }
+  .admin-cfg-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px; }
+  @media(max-width:560px){ .admin-cfg-grid { grid-template-columns:1fr; } }
+  .admin-cfg-item { background:var(--card2); border:1px solid var(--borda); border-radius:10px; padding:14px 16px; }
+  .admin-cfg-lbl { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:8px; }
+  .admin-cfg-row { display:flex; align-items:center; gap:10px; }
+  .admin-cfg-input { background:transparent; border:none; border-bottom:1px solid var(--borda); color:var(--amarelo); font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; width:80px; text-align:center; outline:none; padding:2px 4px; }
+  .admin-cfg-input:focus { border-bottom-color:var(--amarelo); }
+  .admin-cfg-unit { font-size:13px; color:var(--muted); }
+  .admin-salvar { background:var(--amarelo); color:var(--preto); font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:900; letter-spacing:0.08em; padding:12px 32px; border:none; border-radius:10px; cursor:pointer; width:100%; margin-top:8px; }
+  .admin-salvar:hover { background:var(--amarelo-dim); }
+  .admin-msg { text-align:center; font-size:13px; color:var(--verde); margin-top:10px; display:none; }
+
+  /* botão rodapé */
+  .btn-admin-footer { background:none; border:none; color:#333; font-size:11px; cursor:pointer; padding:2px 6px; border-radius:4px; }
+  .btn-admin-footer:hover { color:#555; }
+
+  /* login admin */
+  .admin-login { max-width:340px; margin:0 auto; text-align:center; padding:20px 0; }
+  .admin-login-titulo { font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:900; color:var(--amarelo); margin-bottom:6px; }
+  .admin-login-sub { font-size:12px; color:var(--muted); margin-bottom:24px; }
+  .admin-login-input { background:var(--card2); border:1px solid var(--borda); color:var(--texto); font-size:15px; padding:12px 16px; border-radius:10px; width:100%; outline:none; margin-bottom:12px; text-align:center; letter-spacing:0.1em; }
+  .admin-login-input:focus { border-color:var(--amarelo); }
+  .admin-login-btn { background:var(--amarelo); color:var(--preto); font-family:'Barlow Condensed',sans-serif; font-size:16px; font-weight:900; padding:12px; border:none; border-radius:10px; width:100%; cursor:pointer; }
+  .admin-login-btn:hover { background:var(--amarelo-dim); }
+  .admin-login-erro { color:var(--vermelho); font-size:12px; margin-top:8px; display:none; }
+  .admin-login-recuperar { font-size:11px; color:var(--muted); margin-top:14px; }
+  .dash-importado { background: var(--card); border: 1px solid var(--borda); border-radius: 14px; padding: 22px 24px; margin-bottom: 20px; display: none; }
+  .dash-importado.visivel { display: block; animation: fadeUp 0.35s ease both; }
+  .dash-imp-inputs { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  .dash-imp-input-group { display: flex; align-items: center; gap: 10px; background: var(--card2); border: 1px solid var(--borda); border-radius: 8px; padding: 8px 14px; flex: 1; min-width: 180px; }
+  .dash-imp-input-group label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap; }
+  .dash-imp-input-group input[type=number] { background: transparent; border: none; border-bottom: 1px solid var(--borda); color: var(--amarelo); font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 700; width: 90px; text-align: center; outline: none; padding: 2px 4px; }
+  .dash-imp-input-group input[type=number]:focus { border-bottom-color: var(--amarelo); }
+  .dash-imp-input-group span { font-size: 13px; color: var(--muted); }
+  .dash-imp-fases { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px; }
+  @media (max-width: 640px) { .dash-imp-fases { grid-template-columns: 1fr; } }
+  .dash-fase { border-radius: 12px; padding: 18px 20px; border: 1px solid var(--borda); }
+  .dash-fase-titulo { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 12px; }
+  .dash-fase-nome { font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 700; color: var(--amarelo); margin-bottom: 14px; }
+  .dash-fase-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #1e1e1e; font-size: 13px; }
+  .dash-fase-item:last-child { border-bottom: none; }
+  .dash-fase-item .fi-lbl { color: var(--muted); }
+  .dash-fase-item .fi-val { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 700; }
+  .fi-val.verde { color: var(--verde); }
+  .fi-val.vermelho { color: var(--vermelho); }
+  .fi-val.amarelo { color: var(--amarelo); }
+  .fi-val.azul { color: var(--azul); }
+  .fase1-bg { background: #1a1f1a; border-color: #2a3a2a; }
+  .fase2-bg { background: #18283a; border-color: #2a4a6a; }
+  .dash-imp-resumo { background: var(--card2); border: 1px solid var(--borda); border-radius: 12px; padding: 18px 22px; }
+  .dash-imp-resumo-titulo { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 14px; }
+  .dash-imp-resumo-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  @media (max-width: 640px) { .dash-imp-resumo-grid { grid-template-columns: 1fr 1fr; } }
+  .dash-imp-res-item { text-align: center; }
+  .dash-imp-res-val { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 900; line-height: 1; }
+  .dash-imp-res-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 4px; }
+  .dash-imp-nota { font-size: 11px; color: var(--muted); font-style: italic; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--borda); }
+
   /* animate */
   @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
   .fadein { animation: fadeUp 0.35s ease both; }
@@ -222,60 +310,6 @@
       Kits Nacionais
       <span class="finame-badge">FINAME</span>
     </button>
-  </div>
-
-  <!-- PAINEL NEGOCIAÇÃO -->
-  <div class="negociacao-card fadein">
-    <div class="neg-titulo">⚙️ Régua de Negociação — Ajuste em Tempo Real</div>
-    <div class="neg-grid">
-
-      <!-- ADICIONAL -->
-      <div class="neg-bloco">
-        <label>Adicional de Margem (R$ por sistema)</label>
-        <div class="slider-val-row">
-          <span class="slider-val" id="val-adicional">R$ 0</span>
-          <span class="slider-sublabel">50% vendedor · 50% empresa</span>
-        </div>
-        <div class="slider-wrap">
-          <input type="range" id="slider-adicional" min="0" max="2000" step="50" value="0" oninput="atualizar()">
-          <div class="slider-legenda"><span>R$ 0</span><span>R$ 1.000</span><span>R$ 2.000</span></div>
-        </div>
-        <div class="split-info">
-          <div class="split-pill">
-            <div class="sp-lbl">Sua comissão (+)</div>
-            <div class="sp-val sp-vendedor" id="add-vendedor">R$ 0</div>
-          </div>
-          <div class="split-pill">
-            <div class="sp-lbl">Empresa (+)</div>
-            <div class="sp-val sp-empresa" id="add-empresa">R$ 0</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- DESCONTO -->
-      <div class="neg-bloco">
-        <label>Desconto ao Cliente (%)</label>
-        <div class="slider-val-row">
-          <span class="slider-val neutro" id="val-desconto">0%</span>
-          <span class="slider-sublabel" id="desc-sublabel">Até 3% gratuito · acima desconta 50/50</span>
-        </div>
-        <div class="slider-wrap">
-          <input type="range" id="slider-desconto" min="0" max="7" step="0.5" value="0" class="desconto-range" oninput="atualizar()">
-          <div class="slider-legenda"><span>0%</span><span id="desc-livre-label">↑ gratuito até 3%</span><span id="desc-max-label">máx 7%</span></div>
-        </div>
-        <div class="split-info">
-          <div class="split-pill">
-            <div class="sp-lbl">Deduzido da sua comissão</div>
-            <div class="sp-val sp-desconto" id="desc-vendedor">R$ 0</div>
-          </div>
-          <div class="split-pill">
-            <div class="sp-lbl">Deduzido da empresa</div>
-            <div class="sp-val sp-desconto" id="desc-empresa">R$ 0</div>
-          </div>
-        </div>
-      </div>
-
-    </div>
   </div>
 
   <!-- RESUMO SELECIONADO -->
@@ -354,6 +388,82 @@
     </div>
   </div>
 
+  </div>
+
+  <!-- DASHBOARD ECONOMIA IMPORTADO -->
+  <div class="dash-importado" id="dash-importado">
+    <div class="dash-header">
+      <div>
+        <div class="dash-titulo">📊 Análise de Investimento — Kit Importado</div>
+        <div class="dash-sistema-nome" id="dash-imp-nome-sistema">—</div>
+      </div>
+    </div>
+    <!-- Inputs do vendedor -->
+    <div class="dash-imp-inputs">
+      <div class="dash-imp-input-group">
+        <label>Conta atual do cliente</label>
+        <input type="number" id="imp-conta-atual" value="400" step="10" min="0" oninput="atualizarDashImp()">
+        <span>R$/mês</span>
+      </div>
+      <div class="dash-imp-input-group">
+        <label>Taxa concessionária</label>
+        <input type="number" id="imp-taxa-conc" value="50" step="5" min="0" oninput="atualizarDashImp()">
+        <span>R$/mês</span>
+      </div>
+      <div class="dash-imp-input-group">
+        <label>Tarifa Celesc</label>
+        <input type="number" id="imp-tarifa" value="0.89" step="0.01" min="0.10" max="2.00" oninput="atualizarDashImp()">
+        <span>R$/kWh</span>
+      </div>
+    </div>
+    <!-- Fases -->
+    <div class="dash-imp-fases">
+      <div class="dash-fase fase1-bg">
+        <div class="dash-fase-titulo">⏳ Fase 1 — Durante as 10 parcelas</div>
+        <div class="dash-fase-nome" id="imp-f1-periodo">Meses 1 a 10</div>
+        <div class="dash-fase-item"><span class="fi-lbl">Parcela do saldo (10×)</span><span class="fi-val vermelho" id="imp-f1-parcela">—</span></div>
+        <div class="dash-fase-item"><span class="fi-lbl">Taxa concessionária</span><span class="fi-val vermelho" id="imp-f1-taxa">—</span></div>
+        <div class="dash-fase-item"><span class="fi-lbl">Total pago por mês</span><span class="fi-val vermelho" id="imp-f1-total-mes">—</span></div>
+        <div class="dash-fase-item"><span class="fi-lbl">Já gastava de energia</span><span class="fi-val verde" id="imp-f1-gastava">—</span></div>
+        <div class="dash-fase-item"><span class="fi-lbl">Custo extra real/mês</span><span class="fi-val amarelo" id="imp-f1-extra">—</span></div>
+      </div>
+      <div class="dash-fase fase2-bg">
+        <div class="dash-fase-titulo">🏆 Fase 2 — Após quitar (mês 11+)</div>
+        <div class="dash-fase-nome">Energia praticamente gratuita</div>
+        <div class="dash-fase-item"><span class="fi-lbl">Produção mensal</span><span class="fi-val azul" id="imp-f2-producao">—</span></div>
+        <div class="dash-fase-item"><span class="fi-lbl">Produção em reais (créditos)</span><span class="fi-val verde" id="imp-f2-creditos">—</span></div>
+        <div class="dash-fase-item"><span class="fi-lbl">Taxa concessionária</span><span class="fi-val vermelho" id="imp-f2-taxa">—</span></div>
+        <div class="dash-fase-item"><span class="fi-lbl">Economia líquida/mês</span><span class="fi-val verde" id="imp-f2-eco">—</span></div>
+        <div class="dash-fase-item"><span class="fi-lbl">Créditos acumulam por</span><span class="fi-val azul">60 meses</span></div>
+      </div>
+    </div>
+    <!-- Resumo final -->
+    <div class="dash-imp-resumo">
+      <div class="dash-imp-resumo-titulo">💡 Resumo do Investimento Real</div>
+      <div class="dash-imp-resumo-grid">
+        <div class="dash-imp-res-item">
+          <div class="dash-imp-res-val" style="color:var(--vermelho)" id="imp-res-investimento">—</div>
+          <div class="dash-imp-res-lbl">Custo Real do Investimento</div>
+        </div>
+        <div class="dash-imp-res-item">
+          <div class="dash-imp-res-val" style="color:var(--amarelo)" id="imp-res-payback">—</div>
+          <div class="dash-imp-res-lbl">Payback Total</div>
+        </div>
+        <div class="dash-imp-res-item">
+          <div class="dash-imp-res-val" style="color:var(--verde)" id="imp-res-eco-mensal">—</div>
+          <div class="dash-imp-res-lbl">Economia/mês após quitar</div>
+        </div>
+        <div class="dash-imp-res-item">
+          <div class="dash-imp-res-val" style="color:var(--azul)" id="imp-res-eco-ano">—</div>
+          <div class="dash-imp-res-lbl">Economia/ano após quitar</div>
+        </div>
+      </div>
+      <div class="dash-imp-nota">
+        📦 Os créditos gerados ficam armazenados na concessionária por até 60 meses — mesmo que o cliente não consuma toda a energia gerada, o saldo é garantido.
+      </div>
+    </div>
+  </div>
+
   <!-- TABELA -->
   <div class="table-wrap fadein" id="tabela-importado">
     <table id="t-importado">
@@ -396,12 +506,207 @@
     </table>
   </div>
 
+  <!-- PAINEL NEGOCIAÇÃO -->
+  <div class="negociacao-card fadein" style="margin-top:20px">
+    <div class="neg-titulo">⚙️ Régua de Negociação — Ajuste em Tempo Real</div>
+    <div class="neg-grid">
+
+      <!-- ADICIONAL -->
+      <div class="neg-bloco">
+        <label>Adicional de Margem (R$ por sistema)</label>
+        <div class="slider-val-row">
+          <span class="slider-val" id="val-adicional">R$ 0</span>
+          <span class="slider-sublabel">50% vendedor · 50% empresa</span>
+        </div>
+        <div class="slider-wrap">
+          <input type="range" id="slider-adicional" min="0" max="2000" step="50" value="0" oninput="atualizar()">
+          <div class="slider-legenda"><span>R$ 0</span><span>R$ 1.000</span><span>R$ 2.000</span></div>
+        </div>
+        <div class="split-info">
+          <div class="split-pill">
+            <div class="sp-lbl">Sua comissão (+)</div>
+            <div class="sp-val sp-vendedor" id="add-vendedor">R$ 0</div>
+          </div>
+          <div class="split-pill">
+            <div class="sp-lbl">Empresa (+)</div>
+            <div class="sp-val sp-empresa" id="add-empresa">R$ 0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DESCONTO -->
+      <div class="neg-bloco">
+        <label>Desconto ao Cliente (%)</label>
+        <div class="slider-val-row">
+          <span class="slider-val neutro" id="val-desconto">0%</span>
+          <span class="slider-sublabel" id="desc-sublabel">Até 3% gratuito · acima desconta 50/50</span>
+        </div>
+        <div class="slider-wrap">
+          <input type="range" id="slider-desconto" min="0" max="7" step="0.5" value="0" class="desconto-range" oninput="atualizar()">
+          <div class="slider-legenda"><span>0%</span><span id="desc-livre-label">↑ gratuito até 3%</span><span id="desc-max-label">máx 7%</span></div>
+        </div>
+        <div class="split-info">
+          <div class="split-pill">
+            <div class="sp-lbl">Deduzido da sua comissão</div>
+            <div class="sp-val sp-desconto" id="desc-vendedor">R$ 0</div>
+          </div>
+          <div class="split-pill">
+            <div class="sp-lbl">Deduzido da empresa</div>
+            <div class="sp-val sp-desconto" id="desc-empresa">R$ 0</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
 </div>
 
 <!-- FOOTER -->
 <div class="footer-bar">
   <div><a href="https://energtechsolar.com.br" target="_blank">energtechsolar.com.br</a> &nbsp;·&nbsp; <a href="mailto:energtechsolar@gmail.com">energtechsolar@gmail.com</a> &nbsp;·&nbsp; <a>CNPJ 40.297.488/0001-85</a></div>
-  <div class="copy">Uso interno — não compartilhar com clientes</div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div class="copy">Uso interno — não compartilhar com clientes</div>
+    <button class="btn-admin-footer" onclick="abrirAdmin()" title="Painel Admin">⚙</button>
+  </div>
+</div>
+
+<!-- MODAL ADMIN -->
+<div class="admin-overlay" id="admin-overlay" onclick="fecharAdminOverlay(event)">
+  <div class="admin-modal">
+
+    <!-- LOGIN -->
+    <div id="admin-login-area">
+      <div class="admin-login">
+        <div class="admin-login-titulo">🔐 Acesso Admin</div>
+        <div class="admin-login-sub">Energtech Engenharia Solar</div>
+        <input type="password" class="admin-login-input" id="admin-senha-input" placeholder="Digite a senha" onkeydown="if(event.key==='Enter')loginAdmin()">
+        <button class="admin-login-btn" onclick="loginAdmin()">Entrar</button>
+        <div class="admin-login-erro" id="admin-erro">Senha incorreta. Tente novamente.</div>
+        <div class="admin-login-recuperar">Recuperação: eiderbalena@gmail.com · (49) 99182-8095</div>
+      </div>
+    </div>
+
+    <!-- PAINEL -->
+    <div id="admin-painel-area" style="display:none">
+      <div class="admin-header">
+        <div>
+          <div class="admin-titulo">⚙️ Painel Admin</div>
+          <div class="admin-subtitulo">Energtech Engenharia Solar — Configurações da Tabela</div>
+        </div>
+        <button class="admin-close" onclick="fecharAdmin()">✕</button>
+      </div>
+
+      <!-- ABAS ADMIN -->
+      <div class="admin-tabs">
+        <button class="admin-tab ativo" onclick="adminTab('importado', this)">Kits Importados</button>
+        <button class="admin-tab" onclick="adminTab('nacional', this)">Kits Nacionais</button>
+        <button class="admin-tab" onclick="adminTab('config', this)">Configurações</button>
+      </div>
+
+      <!-- SEÇÃO IMPORTADOS -->
+      <div class="admin-secao ativa" id="admin-sec-importado">
+        <div class="admin-section-titulo">Sistemas — Kits Importados</div>
+        <div style="overflow-x:auto">
+          <table class="admin-tabela" id="admin-tabela-importado">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Top</th>
+                <th>kWp</th>
+                <th>Módulos</th>
+                <th>Inversor</th>
+                <th>kWh/mês</th>
+                <th>Valor Kit (R$)</th>
+                <th>Entrada (R$)</th>
+                <th>Comissão %</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="admin-tbody-importado"></tbody>
+          </table>
+        </div>
+        <button class="admin-btn-add" onclick="adicionarLinha('importado')">+ Adicionar Sistema</button>
+        <button class="admin-salvar" onclick="salvarAdmin()">💾 Salvar Alterações</button>
+        <div class="admin-msg" id="admin-msg-imp">✅ Alterações salvas com sucesso!</div>
+      </div>
+
+      <!-- SEÇÃO NACIONAIS -->
+      <div class="admin-secao" id="admin-sec-nacional">
+        <div class="admin-section-titulo">Sistemas — Kits Nacionais (FINAME)</div>
+        <div style="overflow-x:auto">
+          <table class="admin-tabela" id="admin-tabela-nacional">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Top</th>
+                <th>kWp</th>
+                <th>Módulos</th>
+                <th>Inversor</th>
+                <th>kWh/mês</th>
+                <th>Valor Kit (R$)</th>
+                <th>Parc. Anual (R$)</th>
+                <th>Parc. Mensal (R$)</th>
+                <th>Comissão %</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="admin-tbody-nacional"></tbody>
+          </table>
+        </div>
+        <button class="admin-btn-add" onclick="adicionarLinha('nacional')">+ Adicionar Sistema</button>
+        <button class="admin-salvar" onclick="salvarAdmin()">💾 Salvar Alterações</button>
+        <div class="admin-msg" id="admin-msg-nac">✅ Alterações salvas com sucesso!</div>
+      </div>
+
+      <!-- SEÇÃO CONFIGURAÇÕES -->
+      <div class="admin-secao" id="admin-sec-config">
+        <div class="admin-section-titulo">Régua de Negociação</div>
+        <div class="admin-cfg-grid">
+          <div class="admin-cfg-item">
+            <div class="admin-cfg-lbl">Desconto Gratuito (sem custo ao vendedor)</div>
+            <div class="admin-cfg-row">
+              <input type="number" class="admin-cfg-input" id="cfg-desc-livre" value="3" min="0" max="20" step="0.5">
+              <span class="admin-cfg-unit">%</span>
+            </div>
+          </div>
+          <div class="admin-cfg-item">
+            <div class="admin-cfg-lbl">Desconto Máximo Permitido</div>
+            <div class="admin-cfg-row">
+              <input type="number" class="admin-cfg-input" id="cfg-desc-max" value="7" min="0" max="30" step="0.5">
+              <span class="admin-cfg-unit">%</span>
+            </div>
+          </div>
+          <div class="admin-cfg-item">
+            <div class="admin-cfg-lbl">Split Adicional de Margem (vendedor recebe)</div>
+            <div class="admin-cfg-row">
+              <input type="number" class="admin-cfg-input" id="cfg-split-add" value="50" min="0" max="100" step="5">
+              <span class="admin-cfg-unit">%</span>
+            </div>
+          </div>
+          <div class="admin-cfg-item">
+            <div class="admin-cfg-lbl">Split Desconto Extra (deduzido do vendedor)</div>
+            <div class="admin-cfg-row">
+              <input type="number" class="admin-cfg-input" id="cfg-split-desc" value="50" min="0" max="100" step="5">
+              <span class="admin-cfg-unit">%</span>
+            </div>
+          </div>
+        </div>
+        <div class="admin-section-titulo">Adicional de Margem — Limite Máximo</div>
+        <div class="admin-cfg-grid">
+          <div class="admin-cfg-item">
+            <div class="admin-cfg-lbl">Valor máximo do slider (R$)</div>
+            <div class="admin-cfg-row">
+              <input type="number" class="admin-cfg-input" id="cfg-adicional-max" value="2000" min="500" max="10000" step="500">
+              <span class="admin-cfg-unit">R$</span>
+            </div>
+          </div>
+        </div>
+        <button class="admin-salvar" onclick="salvarConfig()">💾 Salvar Configurações</button>
+        <div class="admin-msg" id="admin-msg-cfg">✅ Configurações salvas com sucesso!</div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -532,7 +837,68 @@ function renderTabela(dados, tbodyId, tipo) {
   });
 }
 
-// ── DASHBOARD ECONOMIA ──────────────────────────────────────────────────────
+// ── DASHBOARD IMPORTADO ─────────────────────────────────────────────────────
+function atualizarDashImp() {
+  if (!linhaFoco || !linhaFoco.startsWith('importado')) return;
+  const idx = +linhaFoco.split('-')[1];
+  const item = IMPORTADO[idx];
+  const adicional = +document.getElementById('slider-adicional').value;
+  const descPct   = +document.getElementById('slider-desconto').value;
+  const c = calcLinha(item, adicional, descPct);
+
+  const contaAtual = +document.getElementById('imp-conta-atual').value || 400;
+  const taxaConc   = +document.getElementById('imp-taxa-conc').value || 50;
+  const tarifa     = +document.getElementById('imp-tarifa').value || 0.89;
+
+  // Saldo após entrada
+  const saldo = Math.max(0, c.valorFinal - item.entrada);
+  const parcela10 = saldo / 10;
+
+  // Fase 1
+  const totalMes   = parcela10 + taxaConc;
+  const custoExtra = totalMes - contaAtual;
+
+  // Fase 2
+  const creditosReais = item.kwh * tarifa;
+  const ecoLiquida    = creditosReais - taxaConc;
+
+  // Custo real do investimento
+  const custoReal = item.entrada + (parcela10 * 10) + (taxaConc * 10) - (contaAtual * 10);
+  const paybackMeses = custoReal > 0 ? Math.ceil(custoReal / ecoLiquida) : 0;
+  const paybackAnos  = (paybackMeses / 12).toFixed(1);
+
+  document.getElementById('dash-imp-nome-sistema').textContent =
+    item.nome + ' · ' + item.kwp + ' kWp · ' + item.kwh.toLocaleString('pt-BR') + ' kWh/mês';
+
+  // Fase 1
+  document.getElementById('imp-f1-parcela').textContent   = fmt(parcela10);
+  document.getElementById('imp-f1-taxa').textContent      = fmt(taxaConc);
+  document.getElementById('imp-f1-total-mes').textContent = fmt(totalMes);
+  document.getElementById('imp-f1-gastava').textContent   = fmt(contaAtual);
+
+  const extraEl = document.getElementById('imp-f1-extra');
+  if (custoExtra > 0) {
+    extraEl.textContent = '+ ' + fmt(custoExtra);
+    extraEl.className = 'fi-val vermelho';
+  } else {
+    extraEl.textContent = fmt(Math.abs(custoExtra)) + ' a menos';
+    extraEl.className = 'fi-val verde';
+  }
+
+  // Fase 2
+  document.getElementById('imp-f2-producao').textContent = item.kwh.toLocaleString('pt-BR') + ' kWh';
+  document.getElementById('imp-f2-creditos').textContent = fmt(creditosReais);
+  document.getElementById('imp-f2-taxa').textContent     = fmt(taxaConc);
+  document.getElementById('imp-f2-eco').textContent      = fmt(ecoLiquida);
+
+  // Resumo
+  document.getElementById('imp-res-investimento').textContent = fmt(Math.max(0, custoReal));
+  document.getElementById('imp-res-payback').textContent      = paybackMeses + ' meses (' + paybackAnos + ' anos)';
+  document.getElementById('imp-res-eco-mensal').textContent   = fmt(ecoLiquida);
+  document.getElementById('imp-res-eco-ano').textContent      = fmt(ecoLiquida * 12);
+}
+
+
 function atualizarDash() {
   if (!linhaFoco || !linhaFoco.startsWith('nacional')) return;
   const idx = +linhaFoco.split('-')[1];
@@ -632,6 +998,7 @@ function atualizar() {
   renderTabela(NACIONAL,  'tbody-nacional',  'nacional');
   atualizarResumo(adicional, descPct);
   atualizarDash();
+  atualizarDashImp();
 }
 
 function selecionarLinha(tipo, idx, item) {
@@ -646,13 +1013,19 @@ function selecionarLinha(tipo, idx, item) {
   document.getElementById('res-final').textContent    = fmt(cc.valorFinal);
   document.getElementById('res-comissao').textContent = fmt(cc.comissao);
 
-  // Dashboard só aparece na aba Nacional
-  const dash = document.getElementById('dash-economia');
+  // Dashboard Nacional
+  const dashNac = document.getElementById('dash-economia');
+  // Dashboard Importado
+  const dashImp = document.getElementById('dash-importado');
+
   if (tipo === 'nacional') {
-    dash.classList.add('visivel');
+    dashNac.classList.add('visivel');
+    dashImp.classList.remove('visivel');
     atualizarDash();
   } else {
-    dash.classList.remove('visivel');
+    dashNac.classList.remove('visivel');
+    dashImp.classList.add('visivel');
+    atualizarDashImp();
   }
 }
 
@@ -672,10 +1045,149 @@ function trocarAba(aba, btn) {
   linhaFoco = null;
   document.getElementById('resumo-bar').style.display = 'none';
   document.getElementById('dash-economia').classList.remove('visivel');
+  document.getElementById('dash-importado').classList.remove('visivel');
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('ativo'));
   btn.classList.add('ativo');
   document.getElementById('tabela-importado').style.display = aba === 'importado' ? '' : 'none';
   document.getElementById('tabela-nacional').style.display  = aba === 'nacional'  ? '' : 'none';
+}
+
+// ── PAINEL ADMIN ────────────────────────────────────────────────────────────
+const ADMIN_SENHA = 'iRnbtd58**';
+let adminLogado = false;
+
+function abrirAdmin() {
+  document.getElementById('admin-overlay').classList.add('visivel');
+  document.getElementById('admin-senha-input').value = '';
+  document.getElementById('admin-erro').style.display = 'none';
+  if (adminLogado) {
+    mostrarPainel();
+  } else {
+    document.getElementById('admin-login-area').style.display = 'block';
+    document.getElementById('admin-painel-area').style.display = 'none';
+    setTimeout(() => document.getElementById('admin-senha-input').focus(), 100);
+  }
+}
+
+function fecharAdmin() {
+  document.getElementById('admin-overlay').classList.remove('visivel');
+}
+
+function fecharAdminOverlay(e) {
+  if (e.target === document.getElementById('admin-overlay')) fecharAdmin();
+}
+
+function loginAdmin() {
+  const senha = document.getElementById('admin-senha-input').value;
+  if (senha === ADMIN_SENHA) {
+    adminLogado = true;
+    mostrarPainel();
+  } else {
+    document.getElementById('admin-erro').style.display = 'block';
+    document.getElementById('admin-senha-input').value = '';
+    document.getElementById('admin-senha-input').focus();
+  }
+}
+
+function mostrarPainel() {
+  document.getElementById('admin-login-area').style.display = 'none';
+  document.getElementById('admin-painel-area').style.display = 'block';
+  renderAdminTabela('importado');
+  renderAdminTabela('nacional');
+  carregarConfig();
+}
+
+function adminTab(aba, btn) {
+  document.querySelectorAll('.admin-tab').forEach(b => b.classList.remove('ativo'));
+  btn.classList.add('ativo');
+  document.querySelectorAll('.admin-secao').forEach(s => s.classList.remove('ativa'));
+  document.getElementById('admin-sec-' + aba).classList.add('ativa');
+}
+
+function renderAdminTabela(tipo) {
+  const dados = tipo === 'importado' ? IMPORTADO : NACIONAL;
+  const tbody = document.getElementById('admin-tbody-' + tipo);
+  tbody.innerHTML = '';
+  dados.forEach((item, idx) => {
+    const tr = document.createElement('tr');
+    if (tipo === 'importado') {
+      tr.innerHTML = `
+        <td><input class="admin-input admin-input-md" value="${item.nome}" onchange="IMPORTADO[${idx}].nome=this.value"></td>
+        <td style="text-align:center"><input type="checkbox" class="admin-check" ${item.top?'checked':''} onchange="IMPORTADO[${idx}].top=this.checked"></td>
+        <td><input class="admin-input admin-input-sm" type="number" step="0.01" value="${item.kwp}" onchange="IMPORTADO[${idx}].kwp=+this.value"></td>
+        <td><input class="admin-input admin-input-sm" type="number" value="${item.mod}" onchange="IMPORTADO[${idx}].mod=+this.value"></td>
+        <td><input class="admin-input admin-input-sm" value="${item.inv}" onchange="IMPORTADO[${idx}].inv=this.value"></td>
+        <td><input class="admin-input admin-input-sm" type="number" value="${item.kwh}" onchange="IMPORTADO[${idx}].kwh=+this.value"></td>
+        <td><input class="admin-input admin-input-md" type="number" step="0.01" value="${item.inv_r}" onchange="IMPORTADO[${idx}].inv_r=+this.value"></td>
+        <td><input class="admin-input admin-input-md" type="number" step="0.01" value="${item.entrada}" onchange="IMPORTADO[${idx}].entrada=+this.value"></td>
+        <td><input class="admin-input admin-input-sm" type="number" step="0.01" value="${(item.com_pct*100).toFixed(1)}" onchange="IMPORTADO[${idx}].com_pct=+this.value/100"></td>
+        <td><button class="admin-btn-del" onclick="removerLinha('importado',${idx})">✕</button></td>`;
+    } else {
+      tr.innerHTML = `
+        <td><input class="admin-input admin-input-md" value="${item.nome}" onchange="NACIONAL[${idx}].nome=this.value"></td>
+        <td style="text-align:center"><input type="checkbox" class="admin-check" ${item.top?'checked':''} onchange="NACIONAL[${idx}].top=this.checked"></td>
+        <td><input class="admin-input admin-input-sm" type="number" step="0.01" value="${item.kwp}" onchange="NACIONAL[${idx}].kwp=+this.value"></td>
+        <td><input class="admin-input admin-input-sm" type="number" value="${item.mod}" onchange="NACIONAL[${idx}].mod=+this.value"></td>
+        <td><input class="admin-input admin-input-sm" value="${item.inv}" onchange="NACIONAL[${idx}].inv=this.value"></td>
+        <td><input class="admin-input admin-input-sm" type="number" value="${item.kwh}" onchange="NACIONAL[${idx}].kwh=+this.value"></td>
+        <td><input class="admin-input admin-input-md" type="number" step="0.01" value="${item.inv_r}" onchange="NACIONAL[${idx}].inv_r=+this.value"></td>
+        <td><input class="admin-input admin-input-md" type="number" step="0.01" value="${item.parc_a}" onchange="NACIONAL[${idx}].parc_a=+this.value"></td>
+        <td><input class="admin-input admin-input-md" type="number" step="0.01" value="${item.parc_m}" onchange="NACIONAL[${idx}].parc_m=+this.value"></td>
+        <td><input class="admin-input admin-input-sm" type="number" step="0.01" value="${(item.com_pct*100).toFixed(1)}" onchange="NACIONAL[${idx}].com_pct=+this.value/100"></td>
+        <td><button class="admin-btn-del" onclick="removerLinha('nacional',${idx})">✕</button></td>`;
+    }
+    tbody.appendChild(tr);
+  });
+}
+
+function adicionarLinha(tipo) {
+  if (tipo === 'importado') {
+    IMPORTADO.push({ nome:"Novo Sistema", top:false, kwp:0, mod:0, inv:"", kwh:0, inv_r:0, entrada:0, com_pct:0.06 });
+  } else {
+    NACIONAL.push({ nome:"Novo Sistema", top:false, kwp:0, mod:0, inv:"", kwh:0, inv_r:0, parc_a:0, parc_m:0, com_pct:0.06 });
+  }
+  renderAdminTabela(tipo);
+}
+
+function removerLinha(tipo, idx) {
+  if (!confirm('Remover este sistema?')) return;
+  if (tipo === 'importado') IMPORTADO.splice(idx, 1);
+  else NACIONAL.splice(idx, 1);
+  renderAdminTabela(tipo);
+}
+
+function salvarAdmin() {
+  linhaFoco = null;
+  document.getElementById('resumo-bar').style.display = 'none';
+  document.getElementById('dash-economia').classList.remove('visivel');
+  document.getElementById('dash-importado').classList.remove('visivel');
+  atualizar();
+  const msg = document.getElementById('admin-sec-importado').classList.contains('ativa')
+    ? 'admin-msg-imp' : 'admin-msg-nac';
+  const el = document.getElementById(msg);
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 3000);
+}
+
+function carregarConfig() {
+  document.getElementById('cfg-desc-livre').value   = CFG.desconto_livre;
+  document.getElementById('cfg-desc-max').value     = CFG.desconto_max;
+  document.getElementById('cfg-split-add').value    = CFG.split_adicional * 100;
+  document.getElementById('cfg-split-desc').value   = CFG.split_desconto_extra * 100;
+  document.getElementById('cfg-adicional-max').value = document.getElementById('slider-adicional').max;
+}
+
+function salvarConfig() {
+  CFG.desconto_livre         = +document.getElementById('cfg-desc-livre').value;
+  CFG.desconto_max           = +document.getElementById('cfg-desc-max').value;
+  CFG.split_adicional        = +document.getElementById('cfg-split-add').value / 100;
+  CFG.split_desconto_extra   = +document.getElementById('cfg-split-desc').value / 100;
+  const novoMax = +document.getElementById('cfg-adicional-max').value;
+  document.getElementById('slider-adicional').max = novoMax;
+  atualizar();
+  const el = document.getElementById('admin-msg-cfg');
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 3000);
 }
 
 // ── INIT ────────────────────────────────────────────────────────────────────
