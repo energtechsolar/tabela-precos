@@ -187,6 +187,45 @@
   .fill-verde { background: var(--verde); }
   .fill-vermelho { background: #f87171; }
 
+  /* ── PAINEL PROPOSTA ── */
+  .proposta-card { background:var(--card); border:2px solid var(--amarelo); border-radius:14px; padding:24px; margin-top:20px; display:none; animation: fadeUp 0.35s ease both; }
+  .proposta-card.visivel { display:block; }
+  .proposta-titulo { font-family:'Barlow Condensed',sans-serif; font-size:16px; font-weight:900; letter-spacing:0.1em; text-transform:uppercase; color:var(--amarelo); margin-bottom:6px; }
+  .proposta-subtitulo { font-size:12px; color:var(--muted); margin-bottom:20px; }
+  .proposta-sistema-info { background:var(--card2); border:1px solid var(--borda); border-radius:10px; padding:12px 16px; margin-bottom:20px; display:flex; gap:20px; flex-wrap:wrap; align-items:center; }
+  .psi-item { text-align:center; }
+  .psi-val { font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:900; color:var(--amarelo); }
+  .psi-lbl { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; }
+  .proposta-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:16px; }
+  @media(max-width:560px){ .proposta-grid { grid-template-columns:1fr; } }
+  .proposta-field { display:flex; flex-direction:column; gap:6px; }
+  .proposta-field label { font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; }
+  .proposta-field label .obrigatorio { color:var(--vermelho); margin-left:3px; }
+  .proposta-input { background:var(--card2); border:1px solid var(--borda); color:var(--texto); font-family:'Barlow',sans-serif; font-size:14px; padding:10px 14px; border-radius:8px; outline:none; width:100%; }
+  .proposta-input:focus { border-color:var(--amarelo); }
+  .proposta-input.erro { border-color:var(--vermelho); }
+  .proposta-input::placeholder { color:#444; }
+  .proposta-select { background:var(--card2); border:1px solid var(--borda); color:var(--texto); font-family:'Barlow',sans-serif; font-size:14px; padding:10px 14px; border-radius:8px; outline:none; width:100%; cursor:pointer; }
+  .proposta-select:focus { border-color:var(--amarelo); }
+  .proposta-loc-row { display:flex; gap:10px; align-items:flex-end; }
+  .proposta-loc-row .proposta-input { flex:1; }
+  .btn-loc { background:var(--card2); border:1px solid var(--borda); color:var(--azul); font-size:13px; padding:10px 14px; border-radius:8px; cursor:pointer; white-space:nowrap; display:flex; align-items:center; gap:6px; }
+  .btn-loc:hover { border-color:var(--azul); }
+  .proposta-producao { background:#18283a; border:1px solid #2a4a6a; border-radius:10px; padding:14px 16px; margin-bottom:16px; display:none; }
+  .proposta-producao.visivel { display:block; }
+  .pp-titulo { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:var(--muted); margin-bottom:10px; }
+  .pp-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  @media(max-width:480px){ .pp-grid { grid-template-columns:1fr; } }
+  .pp-item { text-align:center; }
+  .pp-val { font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:900; color:var(--verde); }
+  .pp-lbl { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; margin-top:3px; }
+  .proposta-btns { display:flex; gap:12px; flex-wrap:wrap; margin-top:20px; }
+  .btn-orcamento { flex:1; background:var(--amarelo); color:var(--preto); font-family:'Barlow Condensed',sans-serif; font-size:16px; font-weight:900; letter-spacing:0.08em; padding:14px; border:none; border-radius:10px; cursor:pointer; min-width:200px; }
+  .btn-orcamento:hover { background:var(--amarelo-dim); }
+  .btn-whats { flex:1; background:#25d366; color:#fff; font-family:'Barlow Condensed',sans-serif; font-size:16px; font-weight:900; letter-spacing:0.08em; padding:14px; border:none; border-radius:10px; cursor:pointer; min-width:200px; display:none; }
+  .btn-whats:hover { background:#1fba58; }
+  .proposta-erro-msg { color:var(--vermelho); font-size:12px; margin-top:8px; display:none; }
+
   /* ── PAINEL ADMIN ── */
   .admin-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:1000; align-items:center; justify-content:center; padding:16px; }
   .admin-overlay.visivel { display:flex; }
@@ -278,6 +317,88 @@
   /* animate */
   @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
   .fadein { animation: fadeUp 0.35s ease both; }
+
+  /* ── BOTÃO PDF ── */
+  .btn-pdf { flex:1; background:#1e3a5f; color:#60a5fa; font-family:'Barlow Condensed',sans-serif; font-size:16px; font-weight:900; letter-spacing:0.08em; padding:14px; border:2px solid #60a5fa; border-radius:10px; cursor:pointer; min-width:180px; }
+  .btn-pdf:hover { background:#2a4a6f; }
+
+  /* ── IMPRESSÃO / PDF ── */
+  @media print {
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    body > *:not(#pdf-proposta) { display: none !important; }
+    #pdf-proposta { display: block !important; }
+    @page { margin: 0; size: A4; }
+  }
+
+  /* ── LAYOUT PDF ── */
+  #pdf-proposta { display:none; font-family:'Barlow', sans-serif; color:#111; }
+  .pdf-capa { width:210mm; min-height:297mm; position:relative; overflow:hidden; background:#0a0a0a; display:flex; flex-direction:column; justify-content:space-between; padding:0; page-break-after:always; }
+  .pdf-capa-bg { position:absolute; inset:0; background:url('https://images.unsplash.com/photo-1509391366360-2e959784a276?w=1200&q=80') center/cover no-repeat; opacity:0.22; }
+  .pdf-capa-overlay { position:absolute; inset:0; background:linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.6) 55%, rgba(0,0,0,0.96) 100%); }
+  .pdf-capa-content { position:relative; z-index:2; padding:48px 48px 0; }
+  .pdf-capa-logo { display:flex; align-items:center; gap:14px; }
+  .pdf-capa-logo-icon { width:50px; height:50px; background:#FFC107; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .pdf-capa-brand { font-family:'Barlow Condensed',sans-serif; font-size:26px; font-weight:900; color:#FFC107; line-height:1; }
+  .pdf-capa-brand-sub { font-size:9px; color:rgba(255,255,255,0.45); letter-spacing:0.25em; text-transform:uppercase; margin-top:2px; }
+  .pdf-capa-bottom { position:relative; z-index:2; padding:0 48px 44px; }
+  .pdf-capa-tag { display:inline-block; background:#FFC107; color:#111; font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; letter-spacing:0.15em; text-transform:uppercase; padding:4px 12px; border-radius:4px; margin-bottom:14px; }
+  .pdf-capa-titulo { font-family:'Barlow Condensed',sans-serif; font-size:52px; font-weight:900; color:#fff; line-height:1; margin-bottom:6px; }
+  .pdf-capa-subtitulo { font-size:13px; color:rgba(255,255,255,0.5); margin-bottom:26px; }
+  .pdf-capa-kwp-area { margin-bottom:24px; }
+  .pdf-capa-kwp { font-family:'Barlow Condensed',sans-serif; font-size:80px; font-weight:900; color:#FFC107; line-height:1; }
+  .pdf-capa-kwp-lbl { font-size:12px; color:rgba(255,255,255,0.45); letter-spacing:0.12em; text-transform:uppercase; margin-top:-4px; }
+  .pdf-capa-dados { display:flex; gap:28px; border-top:1px solid rgba(255,255,255,0.12); padding-top:18px; }
+  .pdf-capa-dado-lbl { font-size:9px; color:rgba(255,255,255,0.35); text-transform:uppercase; letter-spacing:0.12em; }
+  .pdf-capa-dado-val { font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:700; color:#fff; margin-top:2px; }
+  .pdf-pagina { width:210mm; min-height:297mm; background:#fff; page-break-after:always; display:flex; flex-direction:column; }
+  .pdf-pagina:last-child { page-break-after:auto; }
+  .pdf-header { background:#111; padding:16px 36px; display:flex; align-items:center; justify-content:space-between; }
+  .pdf-header-brand { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:900; color:#FFC107; }
+  .pdf-header-pag { font-size:10px; color:#555; letter-spacing:0.1em; }
+  .pdf-body { flex:1; padding:32px 40px; }
+  .pdf-section-tag { font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; letter-spacing:0.18em; text-transform:uppercase; color:#999; margin-bottom:4px; }
+  .pdf-section-nome { font-family:'Barlow Condensed',sans-serif; font-size:26px; font-weight:900; color:#111; margin-bottom:22px; line-height:1.1; }
+  .pdf-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:16px; }
+  .pdf-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:16px; }
+  .pdf-card { background:#f8f8f8; border-radius:8px; padding:14px 18px; border-left:4px solid #FFC107; }
+  .pdf-card.destaque { background:#111; border-left-color:#FFC107; }
+  .pdf-card.verde { background:#f0faf4; border-left-color:#4ade80; }
+  .pdf-card.azul { background:#eff6ff; border-left-color:#60a5fa; }
+  .pdf-card.vermelho { background:#fef2f2; border-left-color:#f87171; }
+  .pdf-card-lbl { font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:0.12em; color:#888; margin-bottom:5px; }
+  .pdf-card.destaque .pdf-card-lbl { color:#666; }
+  .pdf-card-val { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:900; color:#111; line-height:1; }
+  .pdf-card.destaque .pdf-card-val { color:#FFC107; }
+  .pdf-card.verde .pdf-card-val { color:#16a34a; }
+  .pdf-card.azul .pdf-card-val { color:#2563eb; }
+  .pdf-card.vermelho .pdf-card-val { color:#dc2626; }
+  .pdf-card-sub { font-size:10px; color:#888; margin-top:3px; }
+  .pdf-card.destaque .pdf-card-sub { color:#555; }
+  .pdf-divider { border:none; border-top:1px solid #eee; margin:18px 0; }
+  .pdf-fase-titulo { font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:10px; padding:6px 12px; border-radius:6px; }
+  .pdf-fase-titulo.fase1 { background:#fffbeb; color:#92400e; }
+  .pdf-fase-titulo.fase2 { background:#eff6ff; color:#1e40af; }
+  .pdf-linha { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid #f5f5f5; font-size:12px; }
+  .pdf-linha:last-child { border-bottom:none; }
+  .pdf-linha-lbl { color:#666; }
+  .pdf-linha-val { font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:700; color:#111; }
+  .pdf-linha-val.verde { color:#16a34a; }
+  .pdf-linha-val.vermelho { color:#dc2626; }
+  .pdf-linha-val.azul { color:#2563eb; }
+  .pdf-linha-val.amarelo { color:#d97706; }
+  .pdf-nota { background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:10px 14px; font-size:10px; color:#92400e; margin-top:14px; line-height:1.5; }
+  .pdf-footer { background:#111; padding:12px 36px; display:flex; justify-content:space-between; align-items:center; }
+  .pdf-footer-txt { font-size:9px; color:#555; }
+  .pdf-footer-marca { font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; color:#FFC107; }
+  .pdf-sobre-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:18px; }
+  .pdf-sobre-item { display:flex; align-items:flex-start; gap:10px; }
+  .pdf-sobre-icon { font-size:18px; flex-shrink:0; margin-top:2px; }
+  .pdf-sobre-titulo { font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; color:#111; margin-bottom:3px; }
+  .pdf-sobre-txt { font-size:11px; color:#666; line-height:1.5; }
+  .pdf-slogan { text-align:center; font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:900; color:#FFC107; background:#111; border-radius:8px; padding:16px; margin:16px 0; }
+  .pdf-contatos { display:flex; gap:14px; flex-wrap:wrap; background:#f8f8f8; border-radius:8px; padding:14px 18px; }
+  .pdf-contato-item { font-size:11px; color:#555; }
+  .pdf-contato-item strong { color:#111; }
 </style>
 </head>
 <body>
@@ -557,6 +678,342 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- PAINEL PROPOSTA -->
+  <div class="proposta-card" id="proposta-card">
+    <div class="proposta-titulo">📋 Dados do Cliente — Criar Orçamento</div>
+    <div class="proposta-subtitulo">Preencha os dados do cliente para gerar a proposta</div>
+
+    <!-- Sistema selecionado -->
+    <div class="proposta-sistema-info" id="proposta-sistema-info">
+      <div class="psi-item"><div class="psi-val" id="psi-nome">—</div><div class="psi-lbl">Sistema</div></div>
+      <div class="psi-item"><div class="psi-val" id="psi-kwp">—</div><div class="psi-lbl">Potência</div></div>
+      <div class="psi-item"><div class="psi-val" id="psi-valor">—</div><div class="psi-lbl">Valor Final</div></div>
+      <div class="psi-item"><div class="psi-val" id="psi-kwh">—</div><div class="psi-lbl">Geração base/mês</div></div>
+    </div>
+
+    <!-- Dados do cliente -->
+    <div class="proposta-grid">
+      <div class="proposta-field">
+        <label>Nome do Cliente <span class="obrigatorio">*</span></label>
+        <input type="text" class="proposta-input" id="prop-nome" placeholder="Ex: João da Silva" oninput="validarProposta()">
+      </div>
+      <div class="proposta-field">
+        <label>E-mail</label>
+        <input type="email" class="proposta-input" id="prop-email" placeholder="Ex: joao@email.com">
+      </div>
+      <div class="proposta-field">
+        <label>Telefone / WhatsApp</label>
+        <input type="tel" class="proposta-input" id="prop-telefone" placeholder="Ex: (49) 99999-9999">
+      </div>
+      <div class="proposta-field">
+        <label>Cidade</label>
+        <div class="proposta-loc-row">
+          <input type="text" class="proposta-input" id="prop-cidade" placeholder="Ex: Quilombo / SC" oninput="calcularProducao()">
+          <button class="btn-loc" onclick="capturarLocalizacao()" id="btn-loc" title="Capturar localização atual">
+            📍 Localização
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Orientação do telhado -->
+    <div class="proposta-grid">
+      <div class="proposta-field">
+        <label>Orientação do Telhado</label>
+        <select class="proposta-select" id="prop-orientacao" onchange="calcularProducao()">
+          <option value="norte">Norte (ideal)</option>
+          <option value="leste">Leste (-12%)</option>
+          <option value="oeste" selected>Oeste (-12%)</option>
+          <option value="sul">Sul (-22%)</option>
+        </select>
+      </div>
+      <div class="proposta-field">
+        <label>Tipo de Estrutura</label>
+        <select class="proposta-select" id="prop-estrutura">
+          <option value="fibrocimento">Fibrocimento</option>
+          <option value="ceramico">Cerâmico</option>
+          <option value="metalico">Metálico</option>
+          <option value="laje">Laje</option>
+          <option value="solo">Solo</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Estimativa de produção -->
+    <div class="proposta-producao" id="proposta-producao">
+      <div class="pp-titulo">☀️ Estimativa de Produção — Oeste SC</div>
+      <div class="pp-grid">
+        <div class="pp-item">
+          <div class="pp-val" id="pp-producao-mensal">—</div>
+          <div class="pp-lbl">kWh/mês estimado</div>
+        </div>
+        <div class="pp-item">
+          <div class="pp-val" id="pp-producao-anual">—</div>
+          <div class="pp-lbl">kWh/ano estimado</div>
+        </div>
+        <div class="pp-item">
+          <div class="pp-val" id="pp-fator">—</div>
+          <div class="pp-lbl">Fator orientação</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="proposta-erro-msg" id="proposta-erro">⚠️ O nome do cliente é obrigatório para criar o orçamento.</div>
+
+    <!-- Botões -->
+    <div class="proposta-btns">
+      <button class="btn-orcamento" id="btn-orcamento" onclick="criarOrcamento()">📄 Criar Orçamento</button>
+      <button class="btn-pdf" id="btn-pdf" onclick="gerarPDF()" style="display:none">🖨️ Gerar PDF</button>
+      <button class="btn-whats" id="btn-whats" onclick="enviarWhatsApp()">💬 Enviar pelo WhatsApp</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- PDF PROPOSTA -->
+<div id="pdf-proposta">
+
+  <!-- CAPA -->
+  <div class="pdf-capa">
+    <div class="pdf-capa-bg"></div>
+    <div class="pdf-capa-overlay"></div>
+    <div class="pdf-capa-content">
+      <div class="pdf-capa-logo">
+        <div class="pdf-capa-logo-icon">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="13" fill="#FFC107"/><path d="M16 3L8 15h7l-3 10 10-13h-7l1-9z" fill="#111"/></svg>
+        </div>
+        <div>
+          <div class="pdf-capa-brand">Energtech</div>
+          <div class="pdf-capa-brand-sub">Engenharia Solar</div>
+        </div>
+      </div>
+    </div>
+    <div class="pdf-capa-bottom">
+      <div class="pdf-capa-tag">Proposta Comercial</div>
+      <div class="pdf-capa-titulo" id="pdf-capa-nome">—</div>
+      <div class="pdf-capa-subtitulo" id="pdf-capa-cpf"></div>
+      <div class="pdf-capa-kwp-area">
+        <div class="pdf-capa-kwp" id="pdf-capa-kwp">—</div>
+        <div class="pdf-capa-kwp-lbl">Sistema Fotovoltaico</div>
+      </div>
+      <div class="pdf-capa-dados">
+        <div>
+          <div class="pdf-capa-dado-lbl">Data</div>
+          <div class="pdf-capa-dado-val" id="pdf-capa-data">—</div>
+        </div>
+        <div>
+          <div class="pdf-capa-dado-lbl">Sistema</div>
+          <div class="pdf-capa-dado-val" id="pdf-capa-sistema">—</div>
+        </div>
+        <div>
+          <div class="pdf-capa-dado-lbl">Estrutura</div>
+          <div class="pdf-capa-dado-val" id="pdf-capa-estrutura">—</div>
+        </div>
+        <div>
+          <div class="pdf-capa-dado-lbl">Orientação</div>
+          <div class="pdf-capa-dado-val" id="pdf-capa-orientacao">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PÁGINA 2 — DETALHES -->
+  <div class="pdf-pagina">
+    <div class="pdf-header">
+      <div class="pdf-header-brand">Energtech Engenharia Solar</div>
+      <div class="pdf-header-pag">DETALHES DA PROPOSTA</div>
+    </div>
+    <div class="pdf-body">
+      <div class="pdf-section-tag">Proposta Comercial</div>
+      <div class="pdf-section-nome">Detalhes do Investimento</div>
+
+      <div class="pdf-grid-3">
+        <div class="pdf-card">
+          <div class="pdf-card-lbl">Consumo Atual</div>
+          <div class="pdf-card-val" id="pdf-consumo-kwh">—</div>
+          <div class="pdf-card-sub" id="pdf-consumo-rs">—</div>
+        </div>
+        <div class="pdf-card verde">
+          <div class="pdf-card-lbl">Produção Estimada/mês</div>
+          <div class="pdf-card-val" id="pdf-producao-mensal">—</div>
+          <div class="pdf-card-sub" id="pdf-producao-anual">—</div>
+        </div>
+        <div class="pdf-card azul">
+          <div class="pdf-card-lbl">Orientação do Telhado</div>
+          <div class="pdf-card-val" id="pdf-orientacao">—</div>
+          <div class="pdf-card-sub" id="pdf-fator-orientacao">—</div>
+        </div>
+      </div>
+
+      <div class="pdf-divider"></div>
+      <div class="pdf-section-tag" style="margin-bottom:12px">Condições Comerciais</div>
+
+      <!-- Importado -->
+      <div id="pdf-pagamento-importado">
+        <div class="pdf-grid-2">
+          <div class="pdf-card destaque">
+            <div class="pdf-card-lbl">Valor Total do Sistema</div>
+            <div class="pdf-card-val" id="pdf-imp-valor-total">—</div>
+            <div class="pdf-card-sub">Valor final ao cliente</div>
+          </div>
+          <div class="pdf-card">
+            <div class="pdf-card-lbl">Entrada</div>
+            <div class="pdf-card-val" id="pdf-imp-entrada">—</div>
+            <div class="pdf-card-sub">No ato do pedido</div>
+          </div>
+        </div>
+        <div class="pdf-grid-2">
+          <div class="pdf-card azul">
+            <div class="pdf-card-lbl">Saldo Restante</div>
+            <div class="pdf-card-val" id="pdf-imp-saldo">—</div>
+            <div class="pdf-card-sub">Dividido em 10 vezes</div>
+          </div>
+          <div class="pdf-card">
+            <div class="pdf-card-lbl">Parcela (10×)</div>
+            <div class="pdf-card-val" id="pdf-imp-parcela">—</div>
+            <div class="pdf-card-sub">Parcelas mensais</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Nacional/FINAME -->
+      <div id="pdf-pagamento-nacional" style="display:none">
+        <div class="pdf-grid-2">
+          <div class="pdf-card">
+            <div class="pdf-card-lbl">Valor do Kit (NF Fornecedor)</div>
+            <div class="pdf-card-val" id="pdf-nac-kit">—</div>
+            <div class="pdf-card-sub">Financiado via FINAME</div>
+          </div>
+          <div class="pdf-card">
+            <div class="pdf-card-lbl">Serviços de Instalação</div>
+            <div class="pdf-card-val" id="pdf-nac-servicos">—</div>
+            <div class="pdf-card-sub">Mão de obra e projeto</div>
+          </div>
+        </div>
+        <div class="pdf-grid-3">
+          <div class="pdf-card destaque">
+            <div class="pdf-card-lbl">Valor Total</div>
+            <div class="pdf-card-val" id="pdf-nac-total">—</div>
+            <div class="pdf-card-sub">Kit + Serviços</div>
+          </div>
+          <div class="pdf-card verde">
+            <div class="pdf-card-lbl">Parcela Mensal</div>
+            <div class="pdf-card-val" id="pdf-nac-parc-m">—</div>
+            <div class="pdf-card-sub" id="pdf-nac-parc-m-sub">—</div>
+          </div>
+          <div class="pdf-card azul">
+            <div class="pdf-card-lbl">Parcela Anual</div>
+            <div class="pdf-card-val" id="pdf-nac-parc-a">—</div>
+            <div class="pdf-card-sub">FINAME</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pdf-footer">
+      <div class="pdf-footer-txt">energtechsolar.com.br · contato@energtech.com.br · (49) 99182-8095</div>
+      <div class="pdf-footer-marca">Energtech</div>
+    </div>
+  </div>
+
+  <!-- PÁGINA 3 — RETORNO -->
+  <div class="pdf-pagina">
+    <div class="pdf-header">
+      <div class="pdf-header-brand">Energtech Engenharia Solar</div>
+      <div class="pdf-header-pag">SEU RETORNO</div>
+    </div>
+    <div class="pdf-body">
+      <div class="pdf-section-tag">Análise Financeira</div>
+      <div class="pdf-section-nome">O Retorno do Seu Investimento</div>
+
+      <div class="pdf-fase-titulo fase1">⏳ Fase 1 — Durante o Financiamento</div>
+      <div id="pdf-retorno-fase1">
+        <div class="pdf-linha"><span class="pdf-linha-lbl">Conta de energia que já pagava</span><span class="pdf-linha-val verde" id="pdf-r-gastava">—</span></div>
+        <div class="pdf-linha"><span class="pdf-linha-lbl">Parcela mensal do sistema</span><span class="pdf-linha-val vermelho" id="pdf-r-parcela">—</span></div>
+        <div class="pdf-linha"><span class="pdf-linha-lbl">Taxa fixa concessionária</span><span class="pdf-linha-val vermelho" id="pdf-r-taxa">—</span></div>
+        <div class="pdf-linha"><span class="pdf-linha-lbl">Custo extra real por mês</span><span class="pdf-linha-val amarelo" id="pdf-r-extra">—</span></div>
+      </div>
+
+      <div class="pdf-divider"></div>
+      <div class="pdf-fase-titulo fase2">🏆 Fase 2 — Após Quitar (Para Sempre)</div>
+      <div class="pdf-linha"><span class="pdf-linha-lbl">Energia gerada por mês</span><span class="pdf-linha-val azul" id="pdf-r-producao">—</span></div>
+      <div class="pdf-linha"><span class="pdf-linha-lbl">Créditos gerados em reais</span><span class="pdf-linha-val verde" id="pdf-r-creditos">—</span></div>
+      <div class="pdf-linha"><span class="pdf-linha-lbl">Taxa fixa concessionária</span><span class="pdf-linha-val vermelho" id="pdf-r-taxa2">—</span></div>
+      <div class="pdf-linha"><span class="pdf-linha-lbl">Economia líquida por mês</span><span class="pdf-linha-val verde" id="pdf-r-eco-mes">—</span></div>
+      <div class="pdf-linha"><span class="pdf-linha-lbl">Economia líquida por ano</span><span class="pdf-linha-val verde" id="pdf-r-eco-ano">—</span></div>
+
+      <div class="pdf-divider"></div>
+      <div class="pdf-grid-2">
+        <div class="pdf-card vermelho">
+          <div class="pdf-card-lbl">Custo Real do Investimento</div>
+          <div class="pdf-card-val" id="pdf-r-custo-real">—</div>
+          <div class="pdf-card-sub">Descontando o que já gastaria</div>
+        </div>
+        <div class="pdf-card destaque">
+          <div class="pdf-card-lbl">Payback Total</div>
+          <div class="pdf-card-val" id="pdf-r-payback">—</div>
+          <div class="pdf-card-sub">Retorno do investimento</div>
+        </div>
+      </div>
+
+      <div class="pdf-nota">
+        📦 Os créditos de energia ficam armazenados na concessionária por até <strong>60 meses</strong>. Mesmo que não consuma toda a energia gerada, o saldo é garantido — você nunca perde o que produziu.
+      </div>
+    </div>
+    <div class="pdf-footer">
+      <div class="pdf-footer-txt">energtechsolar.com.br · contato@energtech.com.br · (49) 99182-8095</div>
+      <div class="pdf-footer-marca">Energtech</div>
+    </div>
+  </div>
+
+  <!-- PÁGINA 4 — SOBRE -->
+  <div class="pdf-pagina">
+    <div class="pdf-header">
+      <div class="pdf-header-brand">Energtech Engenharia Solar</div>
+      <div class="pdf-header-pag">QUEM SOMOS</div>
+    </div>
+    <div class="pdf-body">
+      <div class="pdf-section-tag">Nossa Empresa</div>
+      <div class="pdf-section-nome">Por que escolher a Energtech?</div>
+
+      <p style="font-size:13px;color:#555;line-height:1.7;margin-bottom:22px;">
+        A <strong>Energtech Engenharia Solar</strong> nasceu com um propósito claro: tornar a energia solar acessível, confiável e vantajosa para cada cliente que atendemos. Atuamos no oeste de Santa Catarina com uma equipe técnica qualificada, liderada por engenheiros registrados no CREA, oferecendo soluções completas em geração distribuída — do dimensionamento à homologação junto à concessionária.
+      </p>
+
+      <div class="pdf-sobre-grid">
+        <div class="pdf-sobre-item">
+          <div class="pdf-sobre-icon">📋</div>
+          <div><div class="pdf-sobre-titulo">Projeto Assinado por Engenheiro</div><div class="pdf-sobre-txt">ART registrada no CREA. Toda instalação com responsabilidade técnica e documentação completa.</div></div>
+        </div>
+        <div class="pdf-sobre-item">
+          <div class="pdf-sobre-icon">🏆</div>
+          <div><div class="pdf-sobre-titulo">Acompanhamento Total</div><div class="pdf-sobre-txt">Do dimensionamento até a homologação final junto à CELESC. Você não precisa se preocupar com nada.</div></div>
+        </div>
+        <div class="pdf-sobre-item">
+          <div class="pdf-sobre-icon">🔋</div>
+          <div><div class="pdf-sobre-titulo">Equipamentos com Garantia</div><div class="pdf-sobre-txt">Trabalhamos com marcas certificadas e com procedência comprovada no mercado nacional.</div></div>
+        </div>
+        <div class="pdf-sobre-item">
+          <div class="pdf-sobre-icon">📞</div>
+          <div><div class="pdf-sobre-titulo">Suporte Pós-Instalação</div><div class="pdf-sobre-txt">Nossa relação não termina na instalação. Estamos disponíveis para acompanhar sua geração.</div></div>
+        </div>
+      </div>
+
+      <div class="pdf-slogan">"Energia limpa, economia real."</div>
+
+      <div class="pdf-contatos">
+        <div class="pdf-contato-item">🌐 <strong>energtechsolar.com.br</strong></div>
+        <div class="pdf-contato-item">📧 <strong>contato@energtech.com.br</strong></div>
+        <div class="pdf-contato-item">📱 <strong>(49) 99182-8095</strong></div>
+        <div class="pdf-contato-item">📍 <strong>Quilombo — SC</strong></div>
+        <div class="pdf-contato-item">📄 <strong>CNPJ 40.297.488/0001-85</strong></div>
+      </div>
+    </div>
+    <div class="pdf-footer">
+      <div class="pdf-footer-txt">Esta proposta tem validade de 15 dias a partir da data de emissão.</div>
+      <div class="pdf-footer-marca">Energtech</div>
     </div>
   </div>
 
@@ -1027,6 +1484,12 @@ function selecionarLinha(tipo, idx, item) {
     dashImp.classList.add('visivel');
     atualizarDashImp();
   }
+
+  // Abre painel de proposta
+  const adicional2 = +document.getElementById('slider-adicional').value;
+  const descPct2   = +document.getElementById('slider-desconto').value;
+  const calcAtual  = calcLinha(item, adicional2, descPct2);
+  abrirProposta(tipo, idx, item, calcAtual);
 }
 
 function atualizarResumo(adicional, descPct) {
@@ -1046,10 +1509,585 @@ function trocarAba(aba, btn) {
   document.getElementById('resumo-bar').style.display = 'none';
   document.getElementById('dash-economia').classList.remove('visivel');
   document.getElementById('dash-importado').classList.remove('visivel');
+  document.getElementById('proposta-card').classList.remove('visivel');
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('ativo'));
   btn.classList.add('ativo');
   document.getElementById('tabela-importado').style.display = aba === 'importado' ? '' : 'none';
   document.getElementById('tabela-nacional').style.display  = aba === 'nacional'  ? '' : 'none';
+}
+
+// ── PAINEL PROPOSTA ─────────────────────────────────────────────────────────
+const FATOR_BASE = 106.6; // kWh/kWp/mês (calibrado para oeste SC)
+const FATOR_ORIENTACAO = { norte: 1.00, leste: 0.88, oeste: 0.88, sul: 0.78 };
+const LABEL_ORIENTACAO = { norte: '1,00 (ideal)', leste: '0,88 (-12%)', oeste: '0,88 (-12%)', sul: '0,78 (-22%)' };
+
+let propostaItem = null;
+let propostaCalc = null;
+
+function abrirProposta(tipo, idx, item, calc) {
+  propostaItem = item;
+  propostaCalc = calc;
+
+  document.getElementById('psi-nome').textContent  = item.nome;
+  document.getElementById('psi-kwp').textContent   = item.kwp + ' kWp';
+  document.getElementById('psi-valor').textContent = fmt(calc.valorFinal);
+  document.getElementById('psi-kwh').textContent   = item.kwh.toLocaleString('pt-BR') + ' kWh';
+
+  document.getElementById('proposta-card').classList.add('visivel');
+  document.getElementById('btn-whats').style.display = 'none';
+
+  calcularProducao();
+
+  // scroll suave até o painel
+  setTimeout(() => document.getElementById('proposta-card').scrollIntoView({ behavior:'smooth', block:'start' }), 100);
+}
+
+function calcularProducao() {
+  if (!propostaItem) return;
+  const orientacao = document.getElementById('prop-orientacao').value;
+  const fator = FATOR_ORIENTACAO[orientacao];
+  const producaoMensal = Math.round(propostaItem.kwp * FATOR_BASE * fator);
+  const producaoAnual  = Math.round(producaoMensal * 12);
+
+  document.getElementById('pp-producao-mensal').textContent = producaoMensal.toLocaleString('pt-BR');
+  document.getElementById('pp-producao-anual').textContent  = producaoAnual.toLocaleString('pt-BR');
+  document.getElementById('pp-fator').textContent           = LABEL_ORIENTACAO[orientacao];
+  document.getElementById('proposta-producao').classList.add('visivel');
+}
+
+function validarProposta() {
+  const nome = document.getElementById('prop-nome').value.trim();
+  const input = document.getElementById('prop-nome');
+  if (nome) {
+    input.classList.remove('erro');
+    document.getElementById('proposta-erro').style.display = 'none';
+  }
+}
+
+function capturarLocalizacao() {
+  const btn = document.getElementById('btn-loc');
+  btn.textContent = '⏳ Buscando...';
+  btn.disabled = true;
+  if (!navigator.geolocation) {
+    alert('Geolocalização não suportada neste dispositivo.');
+    btn.textContent = '📍 Localização';
+    btn.disabled = false;
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      const lat = pos.coords.latitude.toFixed(4);
+      const lng = pos.coords.longitude.toFixed(4);
+      // Tenta buscar nome da cidade via reverse geocoding
+      fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`)
+        .then(r => r.json())
+        .then(data => {
+          const cidade = data.address?.city || data.address?.town || data.address?.village || data.address?.municipality || '';
+          const estado = data.address?.state_code || data.address?.state || '';
+          document.getElementById('prop-cidade').value = cidade ? `${cidade} / ${estado}` : `${lat}, ${lng}`;
+          calcularProducao();
+        })
+        .catch(() => {
+          document.getElementById('prop-cidade').value = `${lat}, ${lng}`;
+        })
+        .finally(() => {
+          btn.innerHTML = '✅ Capturado';
+          btn.disabled = false;
+        });
+    },
+    err => {
+      alert('Não foi possível capturar a localização. Verifique as permissões do navegador.');
+      btn.innerHTML = '📍 Localização';
+      btn.disabled = false;
+    }
+  );
+}
+
+function criarOrcamento() {
+  const nome = document.getElementById('prop-nome').value.trim();
+  if (!nome) {
+    document.getElementById('prop-nome').classList.add('erro');
+    document.getElementById('proposta-erro').style.display = 'block';
+    document.getElementById('prop-nome').focus();
+    return;
+  }
+  // Mostra botões PDF e WhatsApp
+  document.getElementById('btn-pdf').style.display = 'block';
+  document.getElementById('btn-whats').style.display = 'block';
+  // Feedback visual
+  const btn = document.getElementById('btn-orcamento');
+  btn.textContent = '✅ Orçamento Criado!';
+  btn.style.background = '#4ade80';
+  btn.style.color = '#111';
+  setTimeout(() => {
+    btn.textContent = '📄 Criar Orçamento';
+    btn.style.background = '';
+    btn.style.color = '';
+  }, 2500);
+}
+
+function gerarPDF() {
+  const nome      = document.getElementById('prop-nome').value.trim();
+  const cpf       = document.getElementById('prop-cpf') ? document.getElementById('prop-cpf').value.trim() : '';
+  const cidade    = document.getElementById('prop-cidade').value.trim();
+  const orientacao = document.getElementById('prop-orientacao').value;
+  const estrutura  = document.getElementById('prop-estrutura').value;
+  const contaAtual = +document.getElementById('imp-conta-atual')?.value || +document.getElementById('prop-conta-atual')?.value || 400;
+  const taxaConc   = +document.getElementById('imp-taxa-conc')?.value || 50;
+  const tarifa     = +document.getElementById('imp-tarifa')?.value || +document.getElementById('input-tarifa')?.value || 0.89;
+
+  const orientacaoLabel = { norte:'Norte', leste:'Leste', oeste:'Oeste', sul:'Sul' };
+  const orientacaoFator = { norte:'1,00 (ideal)', leste:'0,88 (-12%)', oeste:'0,88 (-12%)', sul:'0,78 (-22%)' };
+  const estruturaLabel  = { fibrocimento:'Fibrocimento', ceramico:'Cerâmico', metalico:'Metálico', laje:'Laje', solo:'Solo' };
+
+  const fator = FATOR_ORIENTACAO[orientacao];
+  const producaoMensal = Math.round(propostaItem.kwp * FATOR_BASE * fator);
+  const producaoAnual  = producaoMensal * 12;
+  const hoje = new Date().toLocaleDateString('pt-BR');
+  const tipo = linhaFoco?.startsWith('importado') ? 'importado' : 'nacional';
+
+  // Capa
+  document.getElementById('pdf-capa-nome').textContent    = nome;
+  document.getElementById('pdf-capa-cpf').textContent     = cpf ? 'CPF: ' + cpf : (cidade || '');
+  document.getElementById('pdf-capa-kwp').textContent     = propostaItem.kwp + ' kWp';
+  document.getElementById('pdf-capa-data').textContent    = hoje;
+  document.getElementById('pdf-capa-sistema').textContent = propostaItem.nome;
+  document.getElementById('pdf-capa-estrutura').textContent = estruturaLabel[estrutura];
+  document.getElementById('pdf-capa-orientacao').textContent = orientacaoLabel[orientacao];
+
+  // Página 2 — Detalhes
+  document.getElementById('pdf-consumo-kwh').textContent    = contaAtual > 0 ? Math.round(contaAtual / tarifa).toLocaleString('pt-BR') + ' kWh/mês' : '—';
+  document.getElementById('pdf-consumo-rs').textContent     = fmt(contaAtual) + '/mês';
+  document.getElementById('pdf-producao-mensal').textContent = producaoMensal.toLocaleString('pt-BR') + ' kWh';
+  document.getElementById('pdf-producao-anual').textContent  = producaoAnual.toLocaleString('pt-BR') + ' kWh/ano';
+  document.getElementById('pdf-orientacao').textContent      = orientacaoLabel[orientacao];
+  document.getElementById('pdf-fator-orientacao').textContent = 'Fator ' + orientacaoFator[orientacao];
+
+  if (tipo === 'importado') {
+    document.getElementById('pdf-pagamento-importado').style.display = 'block';
+    document.getElementById('pdf-pagamento-nacional').style.display  = 'none';
+    const saldo   = Math.max(0, propostaCalc.valorFinal - propostaItem.entrada);
+    const parcela = saldo / 10;
+    document.getElementById('pdf-imp-valor-total').textContent = fmt(propostaCalc.valorFinal);
+    document.getElementById('pdf-imp-entrada').textContent     = fmt(propostaItem.entrada);
+    document.getElementById('pdf-imp-saldo').textContent       = fmt(saldo);
+    document.getElementById('pdf-imp-parcela').textContent     = fmt(parcela);
+  } else {
+    document.getElementById('pdf-pagamento-importado').style.display = 'none';
+    document.getElementById('pdf-pagamento-nacional').style.display  = 'block';
+    // FINAME: kit ajustado = valorFinal / 1.30
+    const kitAjustado = propostaCalc.valorFinal / 1.30;
+    const servicos    = propostaCalc.valorFinal - kitAjustado;
+    document.getElementById('pdf-nac-kit').textContent      = fmt(kitAjustado);
+    document.getElementById('pdf-nac-servicos').textContent = fmt(servicos);
+    document.getElementById('pdf-nac-total').textContent    = fmt(propostaCalc.valorFinal);
+    document.getElementById('pdf-nac-parc-m').textContent   = fmt(propostaItem.parc_m);
+    document.getElementById('pdf-nac-parc-m-sub').textContent = finAnos === 8 ? '96× juros zero' : '120× 3% a.a.';
+    document.getElementById('pdf-nac-parc-a').textContent   = fmt(propostaItem.parc_a);
+  }
+
+  // Página 3 — Retorno
+  const parcMes = tipo === 'importado'
+    ? Math.max(0, propostaCalc.valorFinal - propostaItem.entrada) / 10
+    : propostaItem.parc_m;
+  const creditosReais = producaoMensal * tarifa;
+  const ecoLiquida    = creditosReais - taxaConc;
+  const custoReal     = tipo === 'importado'
+    ? propostaItem.entrada + (parcMes * 10) + (taxaConc * 10) - (contaAtual * 10)
+    : 0;
+  const paybackMeses  = ecoLiquida > 0 ? Math.ceil(Math.max(0, custoReal) / ecoLiquida) : 0;
+  const custoExtra    = parcMes + taxaConc - contaAtual;
+
+  document.getElementById('pdf-r-gastava').textContent   = fmt(contaAtual) + '/mês';
+  document.getElementById('pdf-r-parcela').textContent   = fmt(parcMes) + '/mês';
+  document.getElementById('pdf-r-taxa').textContent      = fmt(taxaConc) + '/mês';
+  const extraEl = document.getElementById('pdf-r-extra');
+  extraEl.textContent = custoExtra > 0 ? '+ ' + fmt(custoExtra) + '/mês' : fmt(Math.abs(custoExtra)) + '/mês a menos';
+  extraEl.className   = 'pdf-linha-val ' + (custoExtra > 0 ? 'vermelho' : 'verde');
+  document.getElementById('pdf-r-producao').textContent  = producaoMensal.toLocaleString('pt-BR') + ' kWh/mês';
+  document.getElementById('pdf-r-creditos').textContent  = fmt(creditosReais) + '/mês';
+  document.getElementById('pdf-r-taxa2').textContent     = fmt(taxaConc) + '/mês';
+  document.getElementById('pdf-r-eco-mes').textContent   = fmt(ecoLiquida) + '/mês';
+  document.getElementById('pdf-r-eco-ano').textContent   = fmt(ecoLiquida * 12) + '/ano';
+  document.getElementById('pdf-r-custo-real').textContent = fmt(Math.max(0, custoReal));
+  document.getElementById('pdf-r-payback').textContent   = paybackMeses > 0 ? paybackMeses + ' meses' : '—';
+
+  // Gerar PDF com jsPDF
+  if (typeof window.jsPDF === 'undefined' && typeof window.jspdf === 'undefined') {
+    // Carregar jsPDF dinamicamente
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    script.onload = () => montarPDF(nome, propostaItem, propostaCalc, tipo, producaoMensal, producaoAnual, contaAtual, taxaConc, tarifa, orientacao, estrutura, cidade, hoje, parcMes, creditosReais, ecoLiquida, custoReal, paybackMeses, custoExtra, orientacaoLabel, estruturaLabel, orientacaoFator);
+    document.head.appendChild(script);
+  } else {
+    montarPDF(nome, propostaItem, propostaCalc, tipo, producaoMensal, producaoAnual, contaAtual, taxaConc, tarifa, orientacao, estrutura, cidade, hoje, parcMes, creditosReais, ecoLiquida, custoReal, paybackMeses, custoExtra, orientacaoLabel, estruturaLabel, orientacaoFator);
+  }
+}
+
+function fmtN(v) { return 'R$ ' + v.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+
+function montarPDF(nome, item, calc, tipo, prodMes, prodAno, conta, taxa, tarifa, orientacao, estrutura, cidade, hoje, parcMes, creditos, ecoLiq, custoReal, payback, custoExtra, oLbl, eLbl, oFator) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+  const W = 210, H = 297;
+
+  // ── CORES ──
+  const AMARELO = [255, 193, 7];
+  const PRETO   = [17, 17, 17];
+  const BRANCO  = [255, 255, 255];
+  const CINZA   = [248, 248, 248];
+  const VERDE_C = [22, 163, 74];
+  const VERM_C  = [220, 38, 38];
+  const AZUL_C  = [37, 99, 235];
+  const MUTED   = [120, 120, 120];
+
+  // ════════════════════════════════
+  // PÁGINA 1 — CAPA
+  // ════════════════════════════════
+  doc.setFillColor(...PRETO);
+  doc.rect(0, 0, W, H, 'F');
+
+  // Faixa amarela lateral
+  doc.setFillColor(...AMARELO);
+  doc.rect(0, 0, 6, H, 'F');
+
+  // Logo área
+  doc.setFillColor(...AMARELO);
+  doc.circle(24, 24, 10, 'F');
+  doc.setFillColor(...PRETO);
+  doc.setFontSize(14); doc.setFont('helvetica','bold');
+  doc.setTextColor(...PRETO);
+  doc.text('E', 21, 28);
+
+  doc.setTextColor(...AMARELO);
+  doc.setFontSize(22); doc.setFont('helvetica','bold');
+  doc.text('Energtech', 37, 24);
+  doc.setFontSize(8); doc.setFont('helvetica','normal');
+  doc.setTextColor(150, 150, 150);
+  doc.text('ENGENHARIA SOLAR', 37, 30);
+
+  // Tag proposta
+  doc.setFillColor(...AMARELO);
+  doc.roundedRect(14, 120, 52, 8, 2, 2, 'F');
+  doc.setTextColor(...PRETO);
+  doc.setFontSize(8); doc.setFont('helvetica','bold');
+  doc.text('PROPOSTA COMERCIAL', 17, 125.5);
+
+  // Nome cliente
+  doc.setTextColor(...BRANCO);
+  doc.setFontSize(32); doc.setFont('helvetica','bold');
+  const nomeLinhas = doc.splitTextToSize(nome.toUpperCase(), 180);
+  doc.text(nomeLinhas, 14, 140);
+
+  // kWp destaque
+  doc.setTextColor(...AMARELO);
+  doc.setFontSize(64); doc.setFont('helvetica','bold');
+  doc.text(item.kwp + ' kWp', 14, 200);
+  doc.setFontSize(11); doc.setFont('helvetica','normal');
+  doc.setTextColor(150, 150, 150);
+  doc.text('SISTEMA FOTOVOLTAICO', 14, 208);
+
+  // Linha divisória
+  doc.setDrawColor(60, 60, 60);
+  doc.setLineWidth(0.3);
+  doc.line(14, 220, W - 14, 220);
+
+  // Dados rodapé capa
+  const dadosCapa = [
+    ['DATA', hoje],
+    ['SISTEMA', item.nome],
+    ['ESTRUTURA', eLbl[estrutura]],
+    ['ORIENTAÇÃO', oLbl[orientacao]],
+  ];
+  let xCapa = 14;
+  dadosCapa.forEach(([lbl, val]) => {
+    doc.setFontSize(7); doc.setFont('helvetica','normal');
+    doc.setTextColor(100, 100, 100);
+    doc.text(lbl, xCapa, 228);
+    doc.setFontSize(11); doc.setFont('helvetica','bold');
+    doc.setTextColor(...BRANCO);
+    doc.text(val, xCapa, 235);
+    xCapa += 50;
+  });
+
+  // ════════════════════════════════
+  // PÁGINA 2 — DETALHES
+  // ════════════════════════════════
+  doc.addPage();
+
+  // Header
+  doc.setFillColor(...PRETO);
+  doc.rect(0, 0, W, 18, 'F');
+  doc.setTextColor(...AMARELO);
+  doc.setFontSize(13); doc.setFont('helvetica','bold');
+  doc.text('Energtech Engenharia Solar', 14, 12);
+  doc.setFontSize(8); doc.setFont('helvetica','normal');
+  doc.setTextColor(120, 120, 120);
+  doc.text('DETALHES DA PROPOSTA', W - 14, 12, { align:'right' });
+
+  let y = 30;
+
+  // Título seção
+  doc.setFontSize(9); doc.setFont('helvetica','normal');
+  doc.setTextColor(...MUTED);
+  doc.text('PROPOSTA COMERCIAL', 14, y); y += 6;
+  doc.setFontSize(20); doc.setFont('helvetica','bold');
+  doc.setTextColor(...PRETO);
+  doc.text('Detalhes do Investimento', 14, y); y += 12;
+
+  // Cards linha 1 — consumo, produção, orientação
+  const card = (x, cy, w, h, cor, lbl, val, sub) => {
+    doc.setFillColor(...cor);
+    doc.roundedRect(x, cy, w, h, 2, 2, 'F');
+    doc.setFillColor(cor[0]-15 > 0 ? cor[0]-15 : 0, cor[1]-15 > 0 ? cor[1]-15 : 0, cor[2]-15 > 0 ? cor[2]-15 : 0);
+    doc.rect(x, cy, 1.5, h, 'F');
+    doc.setFontSize(7); doc.setFont('helvetica','normal');
+    doc.setTextColor(...MUTED);
+    doc.text(lbl, x + 5, cy + 6);
+    doc.setFontSize(14); doc.setFont('helvetica','bold');
+    doc.setTextColor(...PRETO);
+    doc.text(val, x + 5, cy + 14);
+    if (sub) {
+      doc.setFontSize(8); doc.setFont('helvetica','normal');
+      doc.setTextColor(...MUTED);
+      doc.text(sub, x + 5, cy + 19);
+    }
+  };
+
+  const cw3 = (W - 28 - 8) / 3;
+  card(14, y, cw3, 24, CINZA, 'CONSUMO ATUAL', fmtN(conta) + '/mês', Math.round(conta/tarifa) + ' kWh/mês');
+  card(14 + cw3 + 4, y, cw3, 24, [240,250,244], 'PRODUÇÃO EST./MÊS', prodMes.toLocaleString('pt-BR') + ' kWh', prodAno.toLocaleString('pt-BR') + ' kWh/ano');
+  card(14 + (cw3+4)*2, y, cw3, 24, [239,246,255], 'ORIENTAÇÃO TELHADO', oLbl[orientacao], 'Fator ' + oFator[orientacao]);
+  y += 30;
+
+  // Divisória
+  doc.setDrawColor(230, 230, 230); doc.setLineWidth(0.3);
+  doc.line(14, y, W-14, y); y += 8;
+
+  doc.setFontSize(9); doc.setFont('helvetica','bold');
+  doc.setTextColor(...MUTED);
+  doc.text('CONDIÇÕES COMERCIAIS', 14, y); y += 8;
+
+  const cw2 = (W - 28 - 6) / 2;
+
+  if (tipo === 'importado') {
+    // Card destaque — valor total
+    doc.setFillColor(...PRETO);
+    doc.roundedRect(14, y, cw2, 28, 2, 2, 'F');
+    doc.setFillColor(...AMARELO);
+    doc.rect(14, y, 1.5, 28, 'F');
+    doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(150,150,150);
+    doc.text('VALOR TOTAL DO SISTEMA', 19, y+7);
+    doc.setFontSize(18); doc.setFont('helvetica','bold'); doc.setTextColor(...AMARELO);
+    doc.text(fmtN(calc.valorFinal), 19, y+18);
+    doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(120,120,120);
+    doc.text('Valor final ao cliente', 19, y+24);
+
+    card(14 + cw2 + 6, y, cw2, 28, CINZA, 'ENTRADA', fmtN(item.entrada), 'No ato do pedido');
+    y += 34;
+
+    const saldo = Math.max(0, calc.valorFinal - item.entrada);
+    card(14, y, cw2, 28, [239,246,255], 'SALDO RESTANTE', fmtN(saldo), 'Dividido em 10 vezes');
+    card(14 + cw2 + 6, y, cw2, 28, CINZA, 'PARCELA (10×)', fmtN(saldo/10), 'Parcelas mensais');
+    y += 34;
+
+  } else {
+    const kitAj = calc.valorFinal / 1.30;
+    const serv  = calc.valorFinal - kitAj;
+    card(14, y, cw2, 28, CINZA, 'VALOR DO KIT (NF FORNECEDOR)', fmtN(kitAj), 'Financiado via FINAME');
+    card(14 + cw2 + 6, y, cw2, 28, CINZA, 'SERVIÇOS DE INSTALAÇÃO', fmtN(serv), 'Mão de obra e projeto');
+    y += 34;
+
+    doc.setFillColor(...PRETO);
+    doc.roundedRect(14, y, cw2, 28, 2, 2, 'F');
+    doc.setFillColor(...AMARELO); doc.rect(14, y, 1.5, 28, 'F');
+    doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(150,150,150);
+    doc.text('VALOR TOTAL', 19, y+7);
+    doc.setFontSize(18); doc.setFont('helvetica','bold'); doc.setTextColor(...AMARELO);
+    doc.text(fmtN(calc.valorFinal), 19, y+18);
+    doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(120,120,120);
+    doc.text('Kit + Serviços', 19, y+24);
+
+    card(14 + cw2 + 6, y, cw2, 28, [240,250,244], 'PARCELA MENSAL', fmtN(item.parc_m), finAnos===8?'96× juros zero':'120× 3% a.a.');
+    y += 34;
+  }
+
+  // Footer pág 2
+  doc.setFillColor(...PRETO);
+  doc.rect(0, H-14, W, 14, 'F');
+  doc.setFontSize(8); doc.setFont('helvetica','normal');
+  doc.setTextColor(120,120,120);
+  doc.text('energtechsolar.com.br · contato@energtech.com.br · (49) 99182-8095', 14, H-6);
+  doc.setTextColor(...AMARELO);
+  doc.setFont('helvetica','bold');
+  doc.text('Energtech', W-14, H-6, {align:'right'});
+
+  // ════════════════════════════════
+  // PÁGINA 3 — RETORNO
+  // ════════════════════════════════
+  doc.addPage();
+  doc.setFillColor(...PRETO); doc.rect(0,0,W,18,'F');
+  doc.setTextColor(...AMARELO); doc.setFontSize(13); doc.setFont('helvetica','bold');
+  doc.text('Energtech Engenharia Solar', 14, 12);
+  doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(120,120,120);
+  doc.text('SEU RETORNO', W-14, 12, {align:'right'});
+
+  y = 30;
+  doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(...MUTED);
+  doc.text('ANÁLISE FINANCEIRA', 14, y); y += 6;
+  doc.setFontSize(20); doc.setFont('helvetica','bold'); doc.setTextColor(...PRETO);
+  doc.text('O Retorno do Seu Investimento', 14, y); y += 12;
+
+  // Fase 1
+  doc.setFillColor(255,251,235); doc.roundedRect(14, y, W-28, 8, 2, 2, 'F');
+  doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(146,64,14);
+  doc.text('⏳  FASE 1 — DURANTE O FINANCIAMENTO', 18, y+5.5); y += 12;
+
+  const linha = (lbl, val, cor) => {
+    doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(100,100,100);
+    doc.text(lbl, 16, y);
+    doc.setFont('helvetica','bold'); doc.setTextColor(...cor);
+    doc.text(val, W-16, y, {align:'right'});
+    doc.setDrawColor(240,240,240); doc.setLineWidth(0.2);
+    doc.line(14, y+2, W-14, y+2);
+    y += 9;
+  };
+
+  linha('Conta de energia que já pagava', fmtN(conta)+'/mês', VERDE_C);
+  linha('Parcela mensal do sistema', fmtN(parcMes)+'/mês', VERM_C);
+  linha('Taxa fixa concessionária', fmtN(taxa)+'/mês', VERM_C);
+  linha('Custo extra real por mês', custoExtra > 0 ? '+ '+fmtN(custoExtra)+'/mês' : fmtN(Math.abs(custoExtra))+'/mês a menos', custoExtra > 0 ? VERM_C : VERDE_C);
+
+  y += 4;
+  doc.setFillColor(239,246,255); doc.roundedRect(14, y, W-28, 8, 2, 2, 'F');
+  doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(30,64,175);
+  doc.text('🏆  FASE 2 — APÓS QUITAR (PARA SEMPRE)', 18, y+5.5); y += 12;
+
+  linha('Energia gerada por mês', prodMes.toLocaleString('pt-BR')+' kWh/mês', AZUL_C);
+  linha('Créditos gerados em reais', fmtN(creditos)+'/mês', VERDE_C);
+  linha('Taxa fixa concessionária', fmtN(taxa)+'/mês', VERM_C);
+  linha('Economia líquida por mês', fmtN(ecoLiq)+'/mês', VERDE_C);
+  linha('Economia líquida por ano', fmtN(ecoLiq*12)+'/ano', VERDE_C);
+
+  y += 4;
+  doc.setDrawColor(230,230,230); doc.setLineWidth(0.3);
+  doc.line(14, y, W-14, y); y += 8;
+
+  card(14, y, cw2, 28, [254,242,242], 'CUSTO REAL DO INVESTIMENTO', fmtN(Math.max(0,custoReal)), 'Descontando o que já gastaria');
+  doc.setFillColor(...PRETO); doc.roundedRect(14+cw2+6, y, cw2, 28, 2, 2, 'F');
+  doc.setFillColor(...AMARELO); doc.rect(14+cw2+6, y, 1.5, 28, 'F');
+  doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(150,150,150);
+  doc.text('PAYBACK TOTAL', 14+cw2+11, y+7);
+  doc.setFontSize(18); doc.setFont('helvetica','bold'); doc.setTextColor(...AMARELO);
+  doc.text(payback > 0 ? payback+' meses' : '—', 14+cw2+11, y+18);
+  doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(120,120,120);
+  doc.text('Retorno do investimento', 14+cw2+11, y+24);
+  y += 34;
+
+  // Nota
+  doc.setFillColor(255,251,235); doc.roundedRect(14, y, W-28, 14, 2, 2, 'F');
+  doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(146,64,14);
+  const notaTxt = doc.splitTextToSize('📦 Os créditos de energia ficam armazenados na concessionária por até 60 meses. Mesmo que não consuma toda a energia gerada, o saldo é garantido — você nunca perde o que produziu.', W-36);
+  doc.text(notaTxt, 18, y+5);
+
+  doc.setFillColor(...PRETO); doc.rect(0, H-14, W, 14, 'F');
+  doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(120,120,120);
+  doc.text('energtechsolar.com.br · contato@energtech.com.br · (49) 99182-8095', 14, H-6);
+  doc.setTextColor(...AMARELO); doc.setFont('helvetica','bold');
+  doc.text('Energtech', W-14, H-6, {align:'right'});
+
+  // ════════════════════════════════
+  // PÁGINA 4 — SOBRE
+  // ════════════════════════════════
+  doc.addPage();
+  doc.setFillColor(...PRETO); doc.rect(0,0,W,18,'F');
+  doc.setTextColor(...AMARELO); doc.setFontSize(13); doc.setFont('helvetica','bold');
+  doc.text('Energtech Engenharia Solar', 14, 12);
+  doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(120,120,120);
+  doc.text('QUEM SOMOS', W-14, 12, {align:'right'});
+
+  y = 30;
+  doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(...MUTED);
+  doc.text('NOSSA EMPRESA', 14, y); y += 6;
+  doc.setFontSize(20); doc.setFont('helvetica','bold'); doc.setTextColor(...PRETO);
+  doc.text('Por que escolher a Energtech?', 14, y); y += 10;
+
+  doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(80,80,80);
+  const sobre = doc.splitTextToSize('A Energtech Engenharia Solar nasceu com um propósito claro: tornar a energia solar acessível, confiável e vantajosa para cada cliente que atendemos. Atuamos no oeste de Santa Catarina com uma equipe técnica qualificada, liderada por engenheiros registrados no CREA, oferecendo soluções completas em geração distribuída — do dimensionamento à homologação junto à concessionária.', W-28);
+  doc.text(sobre, 14, y); y += sobre.length * 5 + 8;
+
+  const diferenciais = [
+    ['📋 Projeto Assinado por Engenheiro', 'ART registrada no CREA. Toda instalação com responsabilidade técnica e documentação completa.'],
+    ['🏆 Acompanhamento Total', 'Do dimensionamento até a homologação final junto à CELESC. Você não precisa se preocupar com nada.'],
+    ['🔋 Equipamentos com Garantia', 'Trabalhamos com marcas certificadas e com procedência comprovada no mercado nacional.'],
+    ['📞 Suporte Pós-Instalação', 'Nossa relação não termina na instalação. Estamos disponíveis para acompanhar sua geração.'],
+  ];
+
+  diferenciais.forEach(([titulo, texto]) => {
+    doc.setFillColor(...CINZA); doc.roundedRect(14, y, W-28, 20, 2, 2, 'F');
+    doc.setFillColor(...AMARELO); doc.rect(14, y, 1.5, 20, 'F');
+    doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(...PRETO);
+    doc.text(titulo, 19, y+7);
+    doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(100,100,100);
+    const t = doc.splitTextToSize(texto, W-42);
+    doc.text(t, 19, y+13);
+    y += 25;
+  });
+
+  // Slogan
+  doc.setFillColor(...PRETO); doc.roundedRect(14, y, W-28, 16, 3, 3, 'F');
+  doc.setFontSize(16); doc.setFont('helvetica','bold'); doc.setTextColor(...AMARELO);
+  doc.text('"Energia limpa, economia real."', W/2, y+10, {align:'center'});
+  y += 22;
+
+  // Contatos
+  doc.setFillColor(...CINZA); doc.roundedRect(14, y, W-28, 18, 2, 2, 'F');
+  const contatos = ['🌐 energtechsolar.com.br', '📧 contato@energtech.com.br', '📱 (49) 99182-8095', '📍 Quilombo — SC'];
+  let xc = 18;
+  contatos.forEach(c => {
+    doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(80,80,80);
+    doc.text(c, xc, y+10);
+    xc += 48;
+  });
+
+  // Footer pág 4
+  doc.setFillColor(...PRETO); doc.rect(0, H-14, W, 14, 'F');
+  doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(120,120,120);
+  doc.text('Esta proposta tem validade de 15 dias a partir da data de emissão.', 14, H-6);
+  doc.setTextColor(...AMARELO); doc.setFont('helvetica','bold');
+  doc.text('Energtech', W-14, H-6, {align:'right'});
+
+  // Salvar
+  doc.save('Proposta_Energtech_' + nome.replace(/\s+/g,'_') + '.pdf');
+}
+
+
+
+function enviarWhatsApp() {
+  const nome      = document.getElementById('prop-nome').value.trim();
+  const telefone  = document.getElementById('prop-telefone').value.trim();
+  const cidade    = document.getElementById('prop-cidade').value.trim();
+  const estrutura = document.getElementById('prop-estrutura').value;
+  const orientacao = document.getElementById('prop-orientacao').value;
+  const orientacaoLabel = { norte:'Norte', leste:'Leste', oeste:'Oeste', sul:'Sul' };
+  const estruturaLabel  = { fibrocimento:'Fibrocimento', ceramico:'Cerâmico', metalico:'Metálico', laje:'Laje', solo:'Solo' };
+  const fator = FATOR_ORIENTACAO[orientacao];
+  const producao = Math.round(propostaItem.kwp * FATOR_BASE * fator);
+
+  const msg = `Olá ${nome}! 🌞\n\nSegue o orçamento da *Energtech Engenharia Solar*:\n\n` +
+    `🔋 *Sistema:* ${propostaItem.nome} — ${propostaItem.kwp} kWp\n` +
+    `⚡ *Geração estimada:* ${producao.toLocaleString('pt-BR')} kWh/mês\n` +
+    `🏗️ *Estrutura:* ${estruturaLabel[estrutura]}\n` +
+    `🧭 *Orientação:* ${orientacaoLabel[orientacao]}\n` +
+    (cidade ? `📍 *Localização:* ${cidade}\n` : '') +
+    `\n💰 *Valor:* ${fmt(propostaCalc.valorFinal)}\n\n` +
+    `Entre em contato para mais informações!\nenergtech.com.br`;
+
+  const numero = telefone.replace(/\D/g, '');
+  const url = numero
+    ? `https://wa.me/55${numero}?text=${encodeURIComponent(msg)}`
+    : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  window.open(url, '_blank');
 }
 
 // ── PAINEL ADMIN ────────────────────────────────────────────────────────────
