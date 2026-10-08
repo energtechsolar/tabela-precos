@@ -283,6 +283,8 @@
   .admin-login-input:focus { border-color:var(--amarelo); }
   .admin-login-btn { background:var(--amarelo); color:var(--preto); font-family:'Barlow Condensed',sans-serif; font-size:16px; font-weight:900; padding:12px; border:none; border-radius:10px; width:100%; cursor:pointer; }
   .admin-login-btn:hover { background:var(--amarelo-dim); }
+  .senha-ok { color:var(--verde); font-size:13px; margin-top:8px; display:none; }
+  .senha-dica { font-size:11px; color:var(--muted); margin:-4px 0 12px; text-align:left; }
   .admin-login-erro { color:var(--vermelho); font-size:12px; margin-top:8px; display:none; }
   .usuario-bar { font-size:12px; margin-top:4px; color:var(--preto); }
   .usuario-bar a { color:var(--preto); font-weight:700; text-decoration:underline; cursor:pointer; }
@@ -1058,6 +1060,24 @@
   <div style="display:flex;align-items:center;gap:12px;">
     <div class="copy">Uso interno — não compartilhar com clientes</div>
     <button class="btn-admin-footer" onclick="abrirAdmin()" title="Painel Admin">⚙</button>
+  </div>
+</div>
+
+<!-- MODAL TROCAR SENHA -->
+<div class="admin-overlay" id="senha-overlay" onclick="if(event.target===this)fecharTrocarSenha()">
+  <div class="admin-modal" style="max-width:420px">
+    <div class="admin-login">
+      <div class="admin-login-titulo">🔒 Trocar minha senha</div>
+      <div class="admin-login-sub" id="senha-usuario">—</div>
+      <input type="password" class="admin-login-input" id="senha-atual" placeholder="Senha atual" autocomplete="current-password">
+      <input type="password" class="admin-login-input" id="senha-nova" placeholder="Nova senha" autocomplete="new-password">
+      <div class="senha-dica">Mínimo de 8 caracteres.</div>
+      <input type="password" class="admin-login-input" id="senha-confirma" placeholder="Repita a nova senha" autocomplete="new-password" onkeydown="if(event.key==='Enter')trocarSenha()">
+      <button class="admin-login-btn" id="senha-btn" onclick="trocarSenha()">Salvar nova senha</button>
+      <div class="admin-login-erro" id="senha-erro"></div>
+      <div class="senha-ok" id="senha-ok">✅ Senha alterada! Use a nova senha no próximo acesso.</div>
+      <div class="admin-login-recuperar"><a href="#" onclick="fecharTrocarSenha();return false" style="color:inherit">Fechar</a></div>
+    </div>
   </div>
 </div>
 
@@ -2234,7 +2254,7 @@ function renderUsuario() {
   if (!el) return;
   if (perfil) {
     const papel = perfil.admin ? 'admin' : (perfil.vendedor ? 'vendedor' : 'sem acesso');
-    el.innerHTML = `👤 ${escHtml(perfil.nome || perfil.email)} <span class="usuario-papel">(${papel})</span> · <a href="#" onclick="sairAdmin();return false">Sair</a>`;
+    el.innerHTML = `👤 ${escHtml(perfil.nome || perfil.email)} <span class="usuario-papel">(${papel})</span> · ${perfil.vendedor ? '<a href="painel.html">📊 Orçamentos</a> · ' : ''}<a href="#" onclick="abrirTrocarSenha();return false">Trocar senha</a> · <a href="#" onclick="sairAdmin();return false">Sair</a>`;
   } else {
     el.innerHTML = `<a href="#" onclick="abrirLogin();return false">🔑 Entrar (vendedores)</a>`;
   }
@@ -2366,6 +2386,47 @@ async function salvarOrcamento() {
     carregarLeads();
   }
   statusProposta(`✅ Orçamento nº ${data.id} salvo — ${fmt(registro.valor_final)}`, 'ok');
+}
+
+// ── TROCAR SENHA ────────────────────────────────────────────────────────────
+function abrirTrocarSenha() {
+  if (!perfil) { abrirLogin(); return; }
+  ['senha-atual','senha-nova','senha-confirma'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('senha-erro').style.display = 'none';
+  document.getElementById('senha-ok').style.display = 'none';
+  document.getElementById('senha-usuario').textContent = perfil.email;
+  document.getElementById('senha-overlay').classList.add('visivel');
+  setTimeout(() => document.getElementById('senha-atual').focus(), 100);
+}
+
+function fecharTrocarSenha() {
+  document.getElementById('senha-overlay').classList.remove('visivel');
+}
+
+async function trocarSenha() {
+  const atual = document.getElementById('senha-atual').value;
+  const nova  = document.getElementById('senha-nova').value;
+  const conf  = document.getElementById('senha-confirma').value;
+  const erro  = document.getElementById('senha-erro');
+  const ok    = document.getElementById('senha-ok');
+  const btn   = document.getElementById('senha-btn');
+  const falha = t => { erro.textContent = t; erro.style.display = 'block'; };
+  erro.style.display = 'none'; ok.style.display = 'none';
+  if (!sb || !perfil) return falha('Sem conexão ou sessão expirada. Entre novamente.');
+  if (!atual || !nova || !conf) return falha('Preencha os três campos.');
+  if (nova.length < 8) return falha('A nova senha precisa ter pelo menos 8 caracteres.');
+  if (nova !== conf) return falha('A confirmação não confere com a nova senha.');
+  if (nova === atual) return falha('A nova senha precisa ser diferente da atual.');
+  btn.disabled = true; btn.textContent = 'Salvando…';
+  // confirma a senha atual antes de trocar
+  const { error: e1 } = await sb.auth.signInWithPassword({ email: perfil.email, password: atual });
+  if (e1) { btn.disabled = false; btn.textContent = 'Salvar nova senha'; return falha('Senha atual incorreta.'); }
+  const { error: e2 } = await sb.auth.updateUser({ password: nova });
+  btn.disabled = false; btn.textContent = 'Salvar nova senha';
+  if (e2) { console.error('Supabase senha:', e2); return falha('Não foi possível trocar: ' + (e2.message || 'tente novamente.')); }
+  ['senha-atual','senha-nova','senha-confirma'].forEach(id => document.getElementById(id).value = '');
+  ok.style.display = 'block';
+  setTimeout(fecharTrocarSenha, 2500);
 }
 
 // ── PAINEL ADMIN ────────────────────────────────────────────────────────────
