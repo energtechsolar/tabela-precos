@@ -285,6 +285,10 @@
   .admin-login-btn:hover { background:var(--amarelo-dim); }
   .senha-ok { color:var(--verde); font-size:13px; margin-top:8px; display:none; }
   .senha-dica { font-size:11px; color:var(--muted); margin:-4px 0 12px; text-align:left; }
+  .th-custo { color:var(--amarelo) !important; }
+  .admin-input-custo { border-color:#5a4a10 !important; }
+  .res-admin { display:none; }
+  body.eh-admin .res-admin { display:block; }
   .admin-login-erro { color:var(--vermelho); font-size:12px; margin-top:8px; display:none; }
   .usuario-bar { font-size:12px; margin-top:4px; color:var(--preto); }
   .usuario-bar a { color:var(--preto); font-weight:700; text-decoration:underline; cursor:pointer; }
@@ -474,6 +478,15 @@
     <div class="res-item res-verde">
       <div class="res-val" id="res-comissao">—</div>
       <div class="res-lbl">Sua comissão total</div>
+    </div>
+    <div class="res-sep res-admin"></div>
+    <div class="res-item res-admin">
+      <div class="res-val" id="res-custo" style="color:var(--muted)">—</div>
+      <div class="res-lbl">🔒 Custo do kit</div>
+    </div>
+    <div class="res-item res-admin" id="res-margem-box">
+      <div class="res-val" id="res-margem">—</div>
+      <div class="res-lbl">🔒 Margem (após kit e comissão)</div>
     </div>
   </div>
 
@@ -1130,6 +1143,7 @@
                 <th>Inversor</th>
                 <th>kWh/mês</th>
                 <th>Valor Kit (R$)</th>
+                <th class="th-custo">Custo Kit (R$) 🔒</th>
                 <th>Entrada (R$)</th>
                 <th>Comissão %</th>
                 <th></th>
@@ -1157,6 +1171,7 @@
                 <th>Inversor</th>
                 <th>kWh/mês</th>
                 <th>Valor Kit (R$)</th>
+                <th class="th-custo">Custo Kit (R$) 🔒</th>
                 <th>Parc. Anual (R$)</th>
                 <th>Parc. Mensal (R$)</th>
                 <th>Comissão %</th>
@@ -1524,6 +1539,7 @@ function selecionarLinha(tipo, idx, item) {
   document.getElementById('res-original').textContent = fmt(item.inv_r);
   document.getElementById('res-final').textContent    = fmt(cc.valorFinal);
   document.getElementById('res-comissao').textContent = fmt(cc.comissao);
+  atualizarCustoResumo(item, cc);
 
   // Dashboard Nacional
   const dashNac = document.getElementById('dash-economia');
@@ -1555,6 +1571,7 @@ function atualizarResumo(adicional, descPct) {
   const c = calcLinha(item, adicional, descPct);
   document.getElementById('res-final').textContent    = fmt(c.valorFinal);
   document.getElementById('res-comissao').textContent = fmt(c.comissao);
+  atualizarCustoResumo(item, c);
 }
 
 // ── TROCA ABA ───────────────────────────────────────────────────────────────
@@ -2244,6 +2261,8 @@ async function carregarPerfil() {
     }
   }
   adminLogado = !!(perfil && perfil.admin);
+  document.body.classList.toggle('eh-admin', adminLogado);
+  if (adminLogado) await carregarCustos(); else { custos = {}; custosSalvos = {}; }
   renderUsuario();
   if (perfil && perfil.vendedor) carregarLeads(); else limparLeads();
   atualizarBlocoLead();
@@ -2386,6 +2405,63 @@ async function salvarOrcamento() {
     carregarLeads();
   }
   statusProposta(`✅ Orçamento nº ${data.id} salvo — ${fmt(registro.valor_final)}`, 'ok');
+}
+
+// ── CUSTOS DOS KITS (somente admin) ─────────────────────────────────────────
+let custos = {};        // uid -> custo (o que está na tela)
+let custosSalvos = {};  // uid -> custo (o que está no banco)
+
+function novoUid() {
+  return (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+    : 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+}
+function garantirUids() {
+  IMPORTADO.forEach(k => { if (!k.uid) k.uid = novoUid(); });
+  NACIONAL.forEach(k => { if (!k.uid) k.uid = novoUid(); });
+}
+function custoDoKit(item) {
+  if (!item || !item.uid) return null;
+  return (item.uid in custos) ? custos[item.uid] : null;
+}
+function definirCusto(item, tipo, valor) {
+  if (!item.uid) item.uid = novoUid();
+  const v = String(valor).trim() === '' ? null : +valor;
+  if (v === null) delete custos[item.uid]; else custos[item.uid] = v;
+}
+async function carregarCustos() {
+  custos = {}; custosSalvos = {};
+  if (!sb) return;
+  const { data, error } = await sb.from('kit_custos').select('kit_uid, custo');
+  if (error) { console.error('Supabase custos:', error); return; }
+  (data || []).forEach(c => { custos[c.kit_uid] = +c.custo; custosSalvos[c.kit_uid] = +c.custo; });
+}
+async function gravarCustos() {
+  if (!sb || !adminLogado) return { ok:true };
+  const tipoDe = uid => IMPORTADO.some(k => k.uid === uid) ? 'importado' : (NACIONAL.some(k => k.uid === uid) ? 'nacional' : null);
+  const mudou = Object.keys(custos).filter(uid => custos[uid] !== custosSalvos[uid] && isFinite(custos[uid]))
+    .map(uid => ({ kit_uid: uid, tipo: tipoDe(uid), custo: custos[uid], atualizado_em: new Date().toISOString() }));
+  const apagar = Object.keys(custosSalvos).filter(uid => !(uid in custos));
+  if (!mudou.length && !apagar.length) return { ok:true, alterados:false };
+  if (mudou.length) {
+    const { error } = await sb.from('kit_custos').upsert(mudou, { onConflict:'kit_uid' });
+    if (error) { console.error('Supabase custos:', error); return { ok:false, msg:'Preços salvos, mas houve erro ao salvar os custos: ' + error.message }; }
+    mudou.forEach(m => custosSalvos[m.kit_uid] = m.custo);
+  }
+  if (apagar.length) {
+    const { error } = await sb.from('kit_custos').delete().in('kit_uid', apagar);
+    if (!error) apagar.forEach(u => delete custosSalvos[u]);
+  }
+  return { ok:true, alterados:true };
+}
+function atualizarCustoResumo(item, c) {
+  const elC = document.getElementById('res-custo'), elM = document.getElementById('res-margem');
+  if (!elC || !adminLogado) return;
+  const custo = custoDoKit(item);
+  if (custo === null) { elC.textContent = 'não informado'; elM.textContent = '—'; elM.style.color = ''; return; }
+  const margem = c.valorFinal - custo - c.comissao;
+  elC.textContent = fmt(custo);
+  elM.textContent = fmt(margem) + '  (' + (margem / c.valorFinal * 100).toLocaleString('pt-BR', { maximumFractionDigits:1 }) + '%)';
+  elM.style.color = margem < 0 ? 'var(--vermelho)' : 'var(--verde)';
 }
 
 // ── TROCAR SENHA ────────────────────────────────────────────────────────────
@@ -2539,6 +2615,7 @@ function renderAdminTabela(tipo) {
         <td><input class="admin-input admin-input-sm" value="${item.inv}" onchange="IMPORTADO[${idx}].inv=this.value"></td>
         <td><input class="admin-input admin-input-sm" type="number" value="${item.kwh}" onchange="IMPORTADO[${idx}].kwh=+this.value"></td>
         <td><input class="admin-input admin-input-md" type="number" step="0.01" value="${item.inv_r}" onchange="IMPORTADO[${idx}].inv_r=+this.value"></td>
+        <td><input class="admin-input admin-input-md admin-input-custo" type="number" step="0.01" min="0" placeholder="—" value="${custoDoKit(item) ?? ''}" onchange="definirCusto(IMPORTADO[${idx}], 'importado', this.value)"></td>
         <td><input class="admin-input admin-input-md" type="number" step="0.01" value="${item.entrada}" onchange="IMPORTADO[${idx}].entrada=+this.value"></td>
         <td><input class="admin-input admin-input-sm" type="number" step="0.01" value="${(item.com_pct*100).toFixed(1)}" onchange="IMPORTADO[${idx}].com_pct=+this.value/100"></td>
         <td><button class="admin-btn-del" onclick="removerLinha('importado',${idx})">✕</button></td>`;
@@ -2551,6 +2628,7 @@ function renderAdminTabela(tipo) {
         <td><input class="admin-input admin-input-sm" value="${item.inv}" onchange="NACIONAL[${idx}].inv=this.value"></td>
         <td><input class="admin-input admin-input-sm" type="number" value="${item.kwh}" onchange="NACIONAL[${idx}].kwh=+this.value"></td>
         <td><input class="admin-input admin-input-md" type="number" step="0.01" value="${item.inv_r}" onchange="NACIONAL[${idx}].inv_r=+this.value"></td>
+        <td><input class="admin-input admin-input-md admin-input-custo" type="number" step="0.01" min="0" placeholder="—" value="${custoDoKit(item) ?? ''}" onchange="definirCusto(NACIONAL[${idx}], 'nacional', this.value)"></td>
         <td><input class="admin-input admin-input-md" type="number" step="0.01" value="${item.parc_a}" onchange="NACIONAL[${idx}].parc_a=+this.value"></td>
         <td><input class="admin-input admin-input-md" type="number" step="0.01" value="${item.parc_m}" onchange="NACIONAL[${idx}].parc_m=+this.value"></td>
         <td><input class="admin-input admin-input-sm" type="number" step="0.01" value="${(item.com_pct*100).toFixed(1)}" onchange="NACIONAL[${idx}].com_pct=+this.value/100"></td>
@@ -2562,9 +2640,9 @@ function renderAdminTabela(tipo) {
 
 function adicionarLinha(tipo) {
   if (tipo === 'importado') {
-    IMPORTADO.push({ nome:"Novo Sistema", top:false, kwp:0, mod:0, inv:"", kwh:0, inv_r:0, entrada:0, com_pct:0.06 });
+    IMPORTADO.push({ uid:novoUid(), nome:"Novo Sistema", top:false, kwp:0, mod:0, inv:"", kwh:0, inv_r:0, entrada:0, com_pct:0.06 });
   } else {
-    NACIONAL.push({ nome:"Novo Sistema", top:false, kwp:0, mod:0, inv:"", kwh:0, inv_r:0, parc_a:0, parc_m:0, com_pct:0.06 });
+    NACIONAL.push({ uid:novoUid(), nome:"Novo Sistema", top:false, kwp:0, mod:0, inv:"", kwh:0, inv_r:0, parc_a:0, parc_m:0, com_pct:0.06 });
   }
   renderAdminTabela(tipo);
 }
@@ -2623,12 +2701,18 @@ async function salvarAdmin() {
     validarSistemas(NACIONAL,  ['kwp','mod','kwh','inv_r','parc_a','parc_m','com_pct']);
   if (problema) { mostrarMsgAdmin(msgId, '⚠️ ' + problema, false); return; }
 
+  garantirUids();
   const botoes = document.querySelectorAll('.admin-salvar');
   botoes.forEach(b => b.disabled = true);
-  const r = await gravarNoSupabase([
+  let r = await gravarNoSupabase([
     { id:'importado', dados: IMPORTADO },
     { id:'nacional',  dados: NACIONAL  },
   ]);
+  if (r.ok) {
+    const rc = await gravarCustos();
+    if (!rc.ok) r = rc;
+    else if (rc.alterados) r = { ok:true };
+  }
   botoes.forEach(b => b.disabled = false);
 
   linhaFoco = null;
