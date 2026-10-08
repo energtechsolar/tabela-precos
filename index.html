@@ -41,6 +41,11 @@
 
   /* ── ABAS ── */
   .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+  .regiao-bar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; background:var(--card); border:1px solid var(--borda); border-radius:12px; padding:12px 16px; margin-bottom:16px; }
+  .regiao-bar label { font-family:'Barlow Condensed',sans-serif; font-weight:700; letter-spacing:.06em; text-transform:uppercase; font-size:13px; color:var(--amarelo); white-space:nowrap; }
+  .regiao-bar select { flex:1; min-width:240px; background:var(--card2); border:1px solid var(--borda); color:var(--texto); font-family:'Barlow',sans-serif; font-size:14px; padding:9px 12px; border-radius:8px; outline:none; }
+  .regiao-bar select:focus { border-color:var(--amarelo); }
+  .regiao-aviso { font-size:12px; color:var(--muted); }
   .tab-btn {
     flex: 1; padding: 12px 16px; border: 2px solid var(--borda); background: var(--card);
     color: var(--muted); font-family: 'Barlow Condensed', sans-serif; font-size: 15px;
@@ -448,6 +453,13 @@
 
 <div class="page">
 
+  <!-- REGIÃO DO CLIENTE -->
+  <div class="regiao-bar">
+    <label for="sel-regiao">☀️ Região do cliente</label>
+    <select id="sel-regiao" onchange="mudarRegiao(this.value)"></select>
+    <span class="regiao-aviso" id="regiao-aviso"></span>
+  </div>
+
   <!-- ABAS -->
   <div class="tabs">
     <button class="tab-btn ativo" onclick="trocarAba('importado', this)">
@@ -758,7 +770,7 @@
       <div class="proposta-field">
         <label>Cidade</label>
         <div class="proposta-loc-row">
-          <input type="text" class="proposta-input" id="prop-cidade" placeholder="Ex: Quilombo / SC" oninput="calcularProducao()">
+          <input type="text" class="proposta-input" id="prop-cidade" placeholder="Ex: Quilombo / SC" oninput="calcularProducao(); regiaoPelaCidade()">
           <button class="btn-loc" onclick="capturarLocalizacao()" id="btn-loc" title="Capturar localização atual">
             📍 Localização
           </button>
@@ -791,7 +803,7 @@
 
     <!-- Estimativa de produção -->
     <div class="proposta-producao" id="proposta-producao">
-      <div class="pp-titulo">☀️ Estimativa de Produção — Oeste SC</div>
+      <div class="pp-titulo">☀️ Estimativa de Produção — <span id="pp-regiao">Oeste SC</span></div>
       <div class="pp-grid">
         <div class="pp-item">
           <div class="pp-val" id="pp-producao-mensal">—</div>
@@ -1229,6 +1241,16 @@
             </div>
           </div>
         </div>
+        <div class="admin-section-titulo">Geração por Região — kWh por kWp instalado, por mês (telhado ao norte)</div>
+        <div class="regiao-aviso" style="margin-bottom:10px">Valores iniciais são estimativas proporcionais à irradiação de cada região, calibradas em Oeste SC = 106,6. Ajuste com seus dados de projeto (PVsyst, SunData, usinas instaladas).</div>
+        <div style="overflow-x:auto">
+          <table class="admin-tabela">
+            <thead><tr><th>UF</th><th>Região</th><th>kWh/kWp/mês</th><th></th></tr></thead>
+            <tbody id="admin-tbody-regioes"></tbody>
+          </table>
+        </div>
+        <button class="admin-btn-add" onclick="adicionarRegiao()">+ Adicionar Região</button>
+        <button class="admin-btn-add" onclick="restaurarRegioesPadrao()">↺ Restaurar valores iniciais</button>
         <button class="admin-salvar" onclick="salvarConfig()">💾 Salvar Configurações</button>
         <div class="admin-msg" id="admin-msg-cfg">✅ Configurações salvas com sucesso!</div>
       </div>
@@ -1355,7 +1377,7 @@ function renderTabela(dados, tbodyId, tipo) {
       <td>${item.kwp} kWp</td>
       <td>${item.mod}</td>
       <td>${item.inv}</td>
-      <td>${item.kwh.toLocaleString('pt-BR')} kWh</td>
+      <td>${geracaoKit(item).toLocaleString('pt-BR')} kWh</td>
       <td>${fmt(item.inv_r)}</td>
       <td>${originalStr}<div class="${finalClass}">${fmt(c.valorFinal)}</div></td>
       ${colsExtra}
@@ -1386,7 +1408,7 @@ function atualizarDashImp() {
   const custoExtra = totalMes - contaAtual;
 
   // Fase 2
-  const creditosReais = item.kwh * tarifa;
+  const creditosReais = geracaoKit(item) * tarifa;
   const ecoLiquida    = creditosReais - taxaConc;
 
   // Custo real do investimento
@@ -1395,7 +1417,7 @@ function atualizarDashImp() {
   const paybackAnos  = (paybackMeses / 12).toFixed(1);
 
   document.getElementById('dash-imp-nome-sistema').textContent =
-    item.nome + ' · ' + item.kwp + ' kWp · ' + item.kwh.toLocaleString('pt-BR') + ' kWh/mês';
+    item.nome + ' · ' + item.kwp + ' kWp · ' + geracaoKit(item).toLocaleString('pt-BR') + ' kWh/mês';
 
   // Fase 1
   document.getElementById('imp-f1-parcela').textContent   = fmt(parcela10);
@@ -1413,7 +1435,7 @@ function atualizarDashImp() {
   }
 
   // Fase 2
-  document.getElementById('imp-f2-producao').textContent = item.kwh.toLocaleString('pt-BR') + ' kWh';
+  document.getElementById('imp-f2-producao').textContent = geracaoKit(item).toLocaleString('pt-BR') + ' kWh';
   document.getElementById('imp-f2-creditos').textContent = fmt(creditosReais);
   document.getElementById('imp-f2-taxa').textContent     = fmt(taxaConc);
   document.getElementById('imp-f2-eco').textContent      = fmt(ecoLiquida);
@@ -1436,11 +1458,11 @@ function atualizarDash() {
   const tarifa = +document.getElementById('input-tarifa').value || 0.89;
 
   const parcela = calcParcelaMensal(c.valorFinal, finAnos);
-  const contaMensal = item.kwh * tarifa;
+  const contaMensal = geracaoKit(item) * tarifa;
   const economia = contaMensal - parcela;
 
   document.getElementById('dash-nome-sistema').textContent =
-    item.nome + ' · ' + item.kwp + ' kWp · ' + item.kwh.toLocaleString('pt-BR') + ' kWh/mês';
+    item.nome + ' · ' + item.kwp + ' kWp · ' + geracaoKit(item).toLocaleString('pt-BR') + ' kWh/mês';
 
   document.getElementById('dash-parcela').textContent = fmt(parcela);
   document.getElementById('dash-parcela-sub').textContent =
@@ -1448,7 +1470,7 @@ function atualizarDash() {
 
   document.getElementById('dash-conta').textContent = fmt(contaMensal);
   document.getElementById('dash-conta-sub').textContent =
-    `${item.kwh.toLocaleString('pt-BR')} kWh × R$ ${tarifa.toFixed(2)}/kWh`;
+    `${geracaoKit(item).toLocaleString('pt-BR')} kWh × R$ ${tarifa.toFixed(2)}/kWh`;
 
   const ecoEl = document.getElementById('dash-economia-val');
   if (economia > 0) {
@@ -1589,7 +1611,6 @@ function trocarAba(aba, btn) {
 }
 
 // ── PAINEL PROPOSTA ─────────────────────────────────────────────────────────
-const FATOR_BASE = 106.6; // kWh/kWp/mês (calibrado para oeste SC)
 const FATOR_ORIENTACAO = { norte: 1.00, leste: 0.88, oeste: 0.88, sul: 0.78 };
 const LABEL_ORIENTACAO = { norte: '1,00 (ideal)', leste: '0,88 (-12%)', oeste: '0,88 (-12%)', sul: '0,78 (-22%)' };
 
@@ -1606,7 +1627,7 @@ function abrirProposta(tipo, idx, item, calc) {
   document.getElementById('psi-nome').textContent  = item.nome;
   document.getElementById('psi-kwp').textContent   = item.kwp + ' kWp';
   document.getElementById('psi-valor').textContent = fmt(calc.valorFinal);
-  document.getElementById('psi-kwh').textContent   = item.kwh.toLocaleString('pt-BR') + ' kWh';
+  document.getElementById('psi-kwh').textContent   = geracaoKit(item).toLocaleString('pt-BR') + ' kWh';
 
   document.getElementById('proposta-card').classList.add('visivel');
   document.getElementById('btn-whats').style.display = 'none';
@@ -1621,7 +1642,7 @@ function calcularProducao() {
   if (!propostaItem) return;
   const orientacao = document.getElementById('prop-orientacao').value;
   const fator = FATOR_ORIENTACAO[orientacao];
-  const producaoMensal = Math.round(propostaItem.kwp * FATOR_BASE * fator);
+  const producaoMensal = Math.round(propostaItem.kwp * fatorRegiao() * fator);
   const producaoAnual  = Math.round(producaoMensal * 12);
 
   document.getElementById('pp-producao-mensal').textContent = producaoMensal.toLocaleString('pt-BR');
@@ -1660,6 +1681,8 @@ function capturarLocalizacao() {
           const cidade = data.address?.city || data.address?.town || data.address?.village || data.address?.municipality || '';
           const estado = data.address?.state_code || data.address?.state || '';
           document.getElementById('prop-cidade').value = cidade ? `${cidade} / ${estado}` : `${lat}, ${lng}`;
+          const reg = regiaoMaisProxima(+lat, +lng);
+          if (reg) mudarRegiao(reg.id, 'localização do aparelho');
           calcularProducao();
         })
         .catch(() => {
@@ -1717,7 +1740,7 @@ function gerarPDF() {
   const estruturaLabel  = { fibrocimento:'Fibrocimento', ceramico:'Cerâmico', metalico:'Metálico', laje:'Laje', solo:'Solo' };
 
   const fator = FATOR_ORIENTACAO[orientacao];
-  const producaoMensal = Math.round(propostaItem.kwp * FATOR_BASE * fator);
+  const producaoMensal = Math.round(propostaItem.kwp * fatorRegiao() * fator);
   const producaoAnual  = producaoMensal * 12;
   const hoje = new Date().toLocaleDateString('pt-BR');
   const tipo = linhaFoco?.startsWith('importado') ? 'importado' : 'nacional';
@@ -2157,7 +2180,7 @@ function enviarWhatsApp() {
   const orientacaoLabel = { norte:'Norte', leste:'Leste', oeste:'Oeste', sul:'Sul' };
   const estruturaLabel  = { fibrocimento:'Fibrocimento', ceramico:'Cerâmico', metalico:'Metálico', laje:'Laje', solo:'Solo' };
   const fator = FATOR_ORIENTACAO[orientacao];
-  const producao = Math.round(propostaItem.kwp * FATOR_BASE * fator);
+  const producao = Math.round(propostaItem.kwp * fatorRegiao() * fator);
 
   const msg = `Olá ${nome}! 🌞\n\nSegue o orçamento da *Energtech Engenharia Solar*:\n\n` +
     `🔋 *Sistema:* ${propostaItem.nome} — ${propostaItem.kwp} kWp\n` +
@@ -2217,6 +2240,7 @@ function aplicarDados(linhas) {
       const c = l.dados;
       ['desconto_livre','desconto_max','split_adicional','split_desconto_extra']
         .forEach(k => { if (typeof c[k] === 'number') CFG[k] = c[k]; });
+      if (Array.isArray(c.regioes) && c.regioes.length) REGIOES = clonar(c.regioes);
       if (typeof c.adicional_max === 'number')
         document.getElementById('slider-adicional').max = c.adicional_max;
     }
@@ -2227,6 +2251,7 @@ function aplicarDados(linhas) {
   document.getElementById('resumo-bar').style.display = 'none';
   document.getElementById('dash-economia').classList.remove('visivel');
   document.getElementById('dash-importado').classList.remove('visivel');
+  renderSeletorRegiao();
   atualizar();
   if (maisRecente) mostrarInfo('Preços atualizados em ' + fmtDataHora(maisRecente));
 }
@@ -2353,7 +2378,7 @@ function selecionarLead() {
   document.getElementById('prop-nome').value     = l.nome || '';
   document.getElementById('prop-email').value    = l.email || '';
   document.getElementById('prop-telefone').value = telBonito(l.telefone);
-  if (l.cidade) document.getElementById('prop-cidade').value = l.cidade;
+  if (l.cidade) { document.getElementById('prop-cidade').value = l.cidade; regiaoPelaCidade(); }
   validarProposta();
   calcularProducao();
 }
@@ -2372,7 +2397,7 @@ async function salvarOrcamento() {
   }
   const orientacao = document.getElementById('prop-orientacao').value;
   const estrutura  = document.getElementById('prop-estrutura').value;
-  const producaoMensal = Math.round(propostaItem.kwp * FATOR_BASE * FATOR_ORIENTACAO[orientacao]);
+  const producaoMensal = Math.round(propostaItem.kwp * fatorRegiao() * FATOR_ORIENTACAO[orientacao]);
   const tipo = propostaTipo || (linhaFoco && linhaFoco.startsWith('importado') ? 'importado' : 'nacional');
   const registro = {
     lead_id:      leadSelecionado,
@@ -2387,6 +2412,7 @@ async function salvarOrcamento() {
     vendedor_email: perfil.email,
     dados: {
       orientacao, estrutura, producao_mensal_kwh: producaoMensal,
+      regiao: { id: regiaoSel().id, nome: regiaoSel().nome, uf: regiaoSel().uf, fator: fatorRegiao() },
       adicional: +document.getElementById('slider-adicional').value,
       desconto_pct: +document.getElementById('slider-desconto').value,
       kit: clonar(propostaItem), calculo: clonar(propostaCalc)
@@ -2405,6 +2431,134 @@ async function salvarOrcamento() {
     carregarLeads();
   }
   statusProposta(`✅ Orçamento nº ${data.id} salvo — ${fmt(registro.valor_final)}`, 'ok');
+}
+
+// ── GERAÇÃO POR REGIÃO ──────────────────────────────────────────────────────
+// fator = kWh gerados por kWp instalado, por mês, com telhado ao norte.
+// Valores iniciais ESTIMADOS (proporcionais à irradiação média de cada região,
+// calibrados em Oeste SC = 106,6). Conferir/ajustar no painel admin.
+const FATOR_REF = 106.6;   // referência usada no cadastro de kWh dos kits (Oeste SC)
+const REGIOES_PADRAO = [
+  { id:'sc-oeste',       uf:'SC', nome:'Oeste (Chapecó, Quilombo, São Miguel)',    fator:106.6, lat:-26.95, lon:-52.80 },
+  { id:'sc-meio-oeste',  uf:'SC', nome:'Meio-Oeste (Joaçaba, Videira, Concórdia)', fator:103.0, lat:-27.15, lon:-51.60 },
+  { id:'sc-planalto-n',  uf:'SC', nome:'Planalto Norte (Canoinhas, Mafra)',        fator:99.0,  lat:-26.20, lon:-50.20 },
+  { id:'sc-serrana',     uf:'SC', nome:'Serra (Lages, São Joaquim)',               fator:101.0, lat:-27.90, lon:-50.20 },
+  { id:'sc-vale-norte',  uf:'SC', nome:'Vale do Itajaí e Norte (Blumenau, Joinville)', fator:92.0, lat:-26.70, lon:-49.00 },
+  { id:'sc-grande-fln',  uf:'SC', nome:'Grande Florianópolis',                    fator:96.0,  lat:-27.60, lon:-48.60 },
+  { id:'sc-sul',         uf:'SC', nome:'Sul (Criciúma, Tubarão)',                  fator:96.0,  lat:-28.60, lon:-49.30 },
+  { id:'rs-alto-uruguai',uf:'RS', nome:'Alto Uruguai (Erechim, Aratiba)',          fator:105.0, lat:-27.60, lon:-52.30 },
+  { id:'rs-missoes',     uf:'RS', nome:'Noroeste e Missões (Ijuí, Santa Rosa, Santo Ângelo)', fator:108.0, lat:-28.20, lon:-54.20 },
+  { id:'rs-planalto',    uf:'RS', nome:'Planalto Médio (Passo Fundo, Carazinho)', fator:104.0, lat:-28.30, lon:-52.60 },
+  { id:'rs-serra',       uf:'RS', nome:'Serra Gaúcha (Caxias, Bento Gonçalves)',   fator:101.0, lat:-29.10, lon:-51.30 },
+  { id:'rs-centro',      uf:'RS', nome:'Centro (Santa Maria, Santa Cruz)',         fator:105.0, lat:-29.70, lon:-53.40 },
+  { id:'rs-metropolitana',uf:'RS',nome:'Metropolitana (Porto Alegre)',             fator:101.0, lat:-30.00, lon:-51.20 },
+  { id:'rs-fronteira',   uf:'RS', nome:'Fronteira Oeste e Campanha (Uruguaiana, Bagé)', fator:110.0, lat:-30.30, lon:-55.30 },
+  { id:'rs-sul',         uf:'RS', nome:'Sul (Pelotas, Rio Grande)',                fator:101.0, lat:-31.70, lon:-52.40 },
+  { id:'pr-sudoeste',    uf:'PR', nome:'Sudoeste (Pato Branco, Francisco Beltrão)',fator:106.6, lat:-26.00, lon:-53.00 },
+  { id:'pr-oeste',       uf:'PR', nome:'Oeste (Cascavel, Toledo, Foz)',            fator:110.0, lat:-24.90, lon:-53.70 },
+  { id:'pr-noroeste',    uf:'PR', nome:'Noroeste (Umuarama, Paranavaí)',           fator:112.0, lat:-23.40, lon:-52.90 },
+  { id:'pr-norte',       uf:'PR', nome:'Norte (Londrina, Maringá)',                fator:112.0, lat:-23.40, lon:-51.50 },
+  { id:'pr-centro',      uf:'PR', nome:'Centro e Campos Gerais (Guarapuava, Ponta Grossa)', fator:103.0, lat:-25.20, lon:-50.90 },
+  { id:'pr-curitiba',    uf:'PR', nome:'Curitiba e Região',                        fator:96.0,  lat:-25.45, lon:-49.30 },
+  { id:'pr-litoral',     uf:'PR', nome:'Litoral (Paranaguá)',                      fator:90.0,  lat:-25.55, lon:-48.55 },
+];
+let REGIOES = REGIOES_PADRAO.map(r => ({ ...r }));
+let regiaoAtual = (() => { try { return localStorage.getItem('energtech_regiao') || 'sc-oeste'; } catch (e) { return 'sc-oeste'; } })();
+
+function regiaoSel() { return REGIOES.find(r => r.id === regiaoAtual) || REGIOES[0]; }
+function fatorRegiao() { const r = regiaoSel(); return r && isFinite(r.fator) && r.fator > 0 ? r.fator : FATOR_REF; }
+function geracaoKit(item) { return Math.round((+item.kwh || 0) * fatorRegiao() / FATOR_REF); }
+
+function renderSeletorRegiao() {
+  const sel = document.getElementById('sel-regiao');
+  if (!sel) return;
+  const grupos = ['SC','RS','PR'].map(uf => {
+    const ops = REGIOES.filter(r => r.uf === uf).map(r =>
+      `<option value="${r.id}">${escHtml(r.nome)} — ${String(r.fator).replace('.', ',')} kWh/kWp</option>`).join('');
+    return ops ? `<optgroup label="${uf === 'SC' ? 'Santa Catarina' : uf === 'RS' ? 'Rio Grande do Sul' : 'Paraná'}">${ops}</optgroup>` : '';
+  }).join('');
+  sel.innerHTML = grupos;
+  if (!REGIOES.some(r => r.id === regiaoAtual)) regiaoAtual = REGIOES[0] ? REGIOES[0].id : 'sc-oeste';
+  sel.value = regiaoAtual;
+  const r = regiaoSel();
+  const tit = document.getElementById('pp-regiao');
+  if (tit && r) tit.textContent = r.nome.split(' (')[0] + ' ' + r.uf;
+}
+
+function mudarRegiao(id, origem) {
+  if (!REGIOES.some(r => r.id === id)) return;
+  regiaoAtual = id;
+  try { localStorage.setItem('energtech_regiao', id); } catch (e) {}
+  renderSeletorRegiao();
+  const aviso = document.getElementById('regiao-aviso');
+  if (aviso) aviso.textContent = origem ? '📍 Região definida pela ' + origem + '.' : '';
+  atualizar();                 // tabela e painéis usam a geração da região
+  if (linhaFoco) {             // atualiza dashboard aberto
+    if (linhaFoco.startsWith('importado')) atualizarDashImp(); else atualizarDash();
+  }
+  calcularProducao();
+}
+
+// região mais próxima de uma coordenada (distância simples, corrigida pela latitude)
+function regiaoMaisProxima(lat, lon) {
+  let melhor = null, dMin = Infinity;
+  const k = Math.cos(lat * Math.PI / 180);
+  REGIOES.forEach(r => {
+    if (!isFinite(r.lat) || !isFinite(r.lon)) return;
+    const d = Math.hypot(lat - r.lat, (lon - r.lon) * k);
+    if (d < dMin) { dMin = d; melhor = r; }
+  });
+  return dMin < 3 ? melhor : null;   // ~300 km: fora disso não sugere
+}
+
+// cidade digitada → coordenada (OpenStreetMap) → região
+let _geoTimer = null, _geoUltima = '';
+function regiaoPelaCidade() {
+  clearTimeout(_geoTimer);
+  _geoTimer = setTimeout(async () => {
+    const txt = (document.getElementById('prop-cidade').value || '').trim();
+    if (txt.length < 4 || txt === _geoUltima || /^-?\d/.test(txt)) return;
+    _geoUltima = txt;
+    try {
+      const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=' + encodeURIComponent(txt.replace('/', ','));
+      const r = await fetch(url, { headers: { 'Accept-Language': 'pt-BR' } });
+      const d = await r.json();
+      if (d && d[0]) {
+        const reg = regiaoMaisProxima(+d[0].lat, +d[0].lon);
+        if (reg && reg.id !== regiaoAtual) mudarRegiao(reg.id, 'cidade "' + txt + '"');
+      }
+    } catch (e) { /* sem internet ou serviço fora: mantém a região escolhida */ }
+  }, 900);
+}
+
+// ── admin: tabela de regiões ──
+function renderAdminRegioes() {
+  const tb = document.getElementById('admin-tbody-regioes');
+  if (!tb) return;
+  tb.innerHTML = REGIOES.map((r, i) => `
+    <tr>
+      <td><select class="admin-input admin-input-sm" onchange="REGIOES[${i}].uf=this.value">
+        ${['SC','RS','PR'].map(u => `<option ${r.uf === u ? 'selected' : ''}>${u}</option>`).join('')}</select></td>
+      <td><input class="admin-input" style="min-width:280px" value="${escHtml(r.nome)}" onchange="REGIOES[${i}].nome=this.value"></td>
+      <td><input class="admin-input admin-input-sm" type="number" step="0.1" min="50" max="160" value="${r.fator}" onchange="REGIOES[${i}].fator=+this.value"></td>
+      <td><button class="admin-btn-del" onclick="removerRegiao(${i})">✕</button></td>
+    </tr>`).join('');
+}
+function adicionarRegiao() {
+  const r = regiaoSel();
+  REGIOES.push({ id:'reg-' + Date.now().toString(36), uf:r ? r.uf : 'SC', nome:'Nova região', fator:FATOR_REF, lat:null, lon:null });
+  renderAdminRegioes();
+}
+function removerRegiao(i) {
+  if (REGIOES.length <= 1) return;
+  if (!confirm('Remover a região "' + REGIOES[i].nome + '"?')) return;
+  REGIOES.splice(i, 1);
+  renderAdminRegioes();
+}
+function restaurarRegioesPadrao() {
+  if (!confirm('Voltar todas as regiões para os valores iniciais estimados?')) return;
+  REGIOES = REGIOES_PADRAO.map(r => ({ ...r }));
+  renderAdminRegioes();
 }
 
 // ── CUSTOS DOS KITS (somente admin) ─────────────────────────────────────────
@@ -2731,6 +2885,7 @@ function carregarConfig() {
   document.getElementById('cfg-split-add').value    = CFG.split_adicional * 100;
   document.getElementById('cfg-split-desc').value   = CFG.split_desconto_extra * 100;
   document.getElementById('cfg-adicional-max').value = document.getElementById('slider-adicional').max;
+  renderAdminRegioes();
 }
 
 async function salvarConfig() {
@@ -2741,7 +2896,8 @@ async function salvarConfig() {
     split_desconto_extra: +document.getElementById('cfg-split-desc').value / 100,
     adicional_max:        +document.getElementById('cfg-adicional-max').value,
   };
-  if (Object.values(novo).some(v => !isFinite(v) || v < 0)) {
+  const regioesInvalidas = REGIOES.some(r => !r.nome || !isFinite(r.fator) || r.fator < 50 || r.fator > 160);
+  if (Object.values(novo).some(v => !isFinite(v) || v < 0) || regioesInvalidas) {
     mostrarMsgAdmin('admin-msg-cfg', '⚠️ Preencha todos os campos com números válidos.', false);
     return;
   }
@@ -2754,6 +2910,9 @@ async function salvarConfig() {
 
   const botoes = document.querySelectorAll('.admin-salvar');
   botoes.forEach(b => b.disabled = true);
+  novo.regioes = clonar(REGIOES);
+  renderSeletorRegiao();
+  atualizar();
   const r = await gravarNoSupabase([{ id:'cfg', dados: novo }]);
   botoes.forEach(b => b.disabled = false);
 
@@ -2763,6 +2922,7 @@ async function salvarConfig() {
 
 
 // ── INIT ────────────────────────────────────────────────────────────────────
+renderSeletorRegiao();
 atualizar();            // mostra a tabela de reserva na hora
 carregarDoSupabase();   // e troca pelos valores oficiais assim que chegarem
 verificarSessao();
