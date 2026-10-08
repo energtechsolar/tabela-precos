@@ -284,6 +284,16 @@
   .admin-login-btn { background:var(--amarelo); color:var(--preto); font-family:'Barlow Condensed',sans-serif; font-size:16px; font-weight:900; padding:12px; border:none; border-radius:10px; width:100%; cursor:pointer; }
   .admin-login-btn:hover { background:var(--amarelo-dim); }
   .admin-login-erro { color:var(--vermelho); font-size:12px; margin-top:8px; display:none; }
+  .usuario-bar { font-size:12px; margin-top:4px; color:var(--preto); }
+  .usuario-bar a { color:var(--preto); font-weight:700; text-decoration:underline; cursor:pointer; }
+  .usuario-papel { opacity:.6; }
+  .proposta-lead { margin:14px 0 6px; }
+  .proposta-lead label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
+  .proposta-lead-aviso { font-size:12px; color:var(--muted); margin-top:6px; }
+  .proposta-lead-aviso.erro { color:var(--amarelo); }
+  .proposta-status { font-size:13px; margin-top:10px; min-height:16px; }
+  .proposta-status.ok { color:var(--verde); }
+  .proposta-status.aviso { color:var(--amarelo); }
   .info-atualizacao { font-size:11px; color:var(--muted); margin-top:4px; min-height:14px; }
   .info-atualizacao.alerta { color:#f87171; }
   .admin-sair { background:none; border:1px solid var(--borda); color:var(--muted); font-size:12px; padding:4px 10px; border-radius:8px; cursor:pointer; margin-top:6px; }
@@ -426,6 +436,7 @@
     <h1>Ferramenta de Precificação</h1>
     <p>Uso interno — representantes e vendedores</p>
     <div class="info-atualizacao" id="info-atualizacao">Carregando tabela…</div>
+    <div class="usuario-bar" id="usuario-bar"></div>
   </div>
 </div>
 
@@ -695,6 +706,18 @@
     <div class="proposta-titulo">📋 Dados do Cliente — Criar Orçamento</div>
     <div class="proposta-subtitulo">Preencha os dados do cliente para gerar a proposta</div>
 
+    <!-- Cliente vindo do DataCrazy -->
+    <div class="proposta-lead">
+      <label>Cliente do DataCrazy (leads qualificados)</label>
+      <div class="proposta-loc-row" id="proposta-lead-linha" style="display:none">
+        <select class="proposta-select" id="prop-lead" onchange="selecionarLead()">
+          <option value="">— Digitar dados manualmente —</option>
+        </select>
+        <button class="btn-loc" id="btn-leads-reload" onclick="carregarLeads(true)" title="Atualizar lista">🔄</button>
+      </div>
+      <div class="proposta-lead-aviso" id="proposta-lead-aviso"></div>
+    </div>
+
     <!-- Sistema selecionado -->
     <div class="proposta-sistema-info" id="proposta-sistema-info">
       <div class="psi-item"><div class="psi-val" id="psi-nome">—</div><div class="psi-lbl">Sistema</div></div>
@@ -778,6 +801,7 @@
       <button class="btn-pdf" id="btn-pdf" onclick="gerarPDF()" style="display:none">🖨️ Gerar PDF</button>
       <button class="btn-whats" id="btn-whats" onclick="enviarWhatsApp()">💬 Enviar pelo WhatsApp</button>
     </div>
+    <div class="proposta-status" id="proposta-status"></div>
   </div>
 
 </div>
@@ -1044,7 +1068,7 @@
     <!-- LOGIN -->
     <div id="admin-login-area">
       <div class="admin-login">
-        <div class="admin-login-titulo">🔐 Acesso Admin</div>
+        <div class="admin-login-titulo" id="admin-login-titulo">🔐 Entrar</div>
         <div class="admin-login-sub">Energtech Engenharia Solar</div>
         <input type="email" class="admin-login-input" id="admin-email-input" placeholder="E-mail" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('admin-senha-input').focus()">
         <input type="password" class="admin-login-input" id="admin-senha-input" placeholder="Senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')loginAdmin()">
@@ -1538,6 +1562,9 @@ let propostaCalc = null;
 function abrirProposta(tipo, idx, item, calc) {
   propostaItem = item;
   propostaCalc = calc;
+  propostaTipo = tipo;
+  atualizarBlocoLead();
+  statusProposta('', '');
 
   document.getElementById('psi-nome').textContent  = item.nome;
   document.getElementById('psi-kwp').textContent   = item.kwp + ' kWp';
@@ -1622,6 +1649,7 @@ function criarOrcamento() {
     document.getElementById('prop-nome').focus();
     return;
   }
+  salvarOrcamento();
   // Mostra botões PDF e WhatsApp
   document.getElementById('btn-pdf').style.display = 'block';
   document.getElementById('btn-whats').style.display = 'block';
@@ -2103,9 +2131,9 @@ function enviarWhatsApp() {
     `\n💰 *Valor:* ${fmt(propostaCalc.valorFinal)}\n\n` +
     `Entre em contato para mais informações!\nenergtech.com.br`;
 
-  const numero = telefone.replace(/\D/g, '');
+  const numero = telDigitos(telefone);
   const url = numero
-    ? `https://wa.me/55${numero}?text=${encodeURIComponent(msg)}`
+    ? `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`
     : `https://wa.me/?text=${encodeURIComponent(msg)}`;
   window.open(url, '_blank');
 }
@@ -2178,23 +2206,198 @@ async function carregarDoSupabase() {
   return true;
 }
 
-// ── PAINEL ADMIN ────────────────────────────────────────────────────────────
-async function verificarSessao() {
-  if (!sb) return;
-  const { data } = await sb.auth.getSession();
-  adminLogado = !!(data && data.session);
+// ── USUÁRIO LOGADO (vendedor/admin) ─────────────────────────────────────────
+let perfil = null;          // { email, admin, vendedor, nome } ou null
+let modoLogin = 'usuario';  // 'usuario' | 'admin'
+let leadsCache = [];
+let leadSelecionado = null;
+let propostaTipo = null;
+
+async function carregarPerfil() {
+  perfil = null;
+  if (sb) {
+    const { data: s } = await sb.auth.getSession();
+    if (s && s.session) {
+      const { data, error } = await sb.rpc('meu_perfil');
+      if (!error && data) perfil = data;
+      else perfil = { email: s.session.user.email, admin:false, vendedor:false, nome: s.session.user.email };
+    }
+  }
+  adminLogado = !!(perfil && perfil.admin);
+  renderUsuario();
+  if (perfil && perfil.vendedor) carregarLeads(); else limparLeads();
+  atualizarBlocoLead();
 }
 
-function abrirAdmin() {
+function renderUsuario() {
+  const el = document.getElementById('usuario-bar');
+  if (!el) return;
+  if (perfil) {
+    const papel = perfil.admin ? 'admin' : (perfil.vendedor ? 'vendedor' : 'sem acesso');
+    el.innerHTML = `👤 ${escHtml(perfil.nome || perfil.email)} <span class="usuario-papel">(${papel})</span> · <a href="#" onclick="sairAdmin();return false">Sair</a>`;
+  } else {
+    el.innerHTML = `<a href="#" onclick="abrirLogin();return false">🔑 Entrar (vendedores)</a>`;
+  }
+}
+
+function escHtml(t) {
+  return String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// telefone: guarda só dígitos com 55; mostra (49) 99999-9999
+function telDigitos(t) {
+  let d = String(t || '').replace(/\D/g, '');
+  if (d.length === 10 || d.length === 11) d = '55' + d;
+  return d;
+}
+function telBonito(t) {
+  let d = String(t || '').replace(/\D/g, '');
+  if (d.startsWith('55') && d.length >= 12) d = d.slice(2);
+  if (d.length === 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
+  return t || '';
+}
+
+function limparLeads() {
+  leadsCache = []; leadSelecionado = null;
+  const sel = document.getElementById('prop-lead');
+  if (sel) sel.innerHTML = '<option value="">— Digitar dados manualmente —</option>';
+}
+
+async function carregarLeads(manual) {
+  if (!sb || !perfil || !perfil.vendedor) return;
+  const sel = document.getElementById('prop-lead');
+  const btn = document.getElementById('btn-leads-reload');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+  const { data, error } = await sb.from('leads')
+    .select('id, nome, telefone, email, cidade, status, recebido_em')
+    .order('recebido_em', { ascending:false }).limit(300);
+  if (btn) { btn.disabled = false; btn.textContent = '🔄'; }
+  if (error) { console.error('Supabase leads:', error); avisoLead('⚠️ Não foi possível carregar os clientes do DataCrazy.', true); return; }
+  leadsCache = data || [];
+  const atual = leadSelecionado;
+  sel.innerHTML = '<option value="">— Digitar dados manualmente —</option>' + leadsCache.map(l => {
+    const tel = telBonito(l.telefone);
+    const tag = l.status === 'orcamento_criado' ? ' · ✓ já orçado' : '';
+    return `<option value="${l.id}">${escHtml(l.nome || 'Sem nome')}${tel ? ' · ' + escHtml(tel) : ''}${tag}</option>`;
+  }).join('');
+  if (atual && leadsCache.some(l => l.id === atual)) sel.value = atual;
+  if (manual) avisoLead(`${leadsCache.length} cliente(s) carregado(s).`, false);
+}
+
+function avisoLead(txt, erro) {
+  const el = document.getElementById('proposta-lead-aviso');
+  if (!el) return;
+  el.textContent = txt;
+  el.classList.toggle('erro', !!erro);
+}
+
+function atualizarBlocoLead() {
+  const linha = document.getElementById('proposta-lead-linha');
+  if (!linha) return;
+  if (perfil && perfil.vendedor) {
+    linha.style.display = '';
+    avisoLead('Escolha um cliente qualificado no DataCrazy ou preencha manualmente.', false);
+  } else {
+    linha.style.display = 'none';
+    avisoLead(perfil ? 'Seu usuário ainda não está cadastrado como vendedor. Fale com o administrador.'
+                     : 'Entre com seu login (no topo da página) para escolher clientes do DataCrazy e salvar o orçamento.', true);
+  }
+}
+
+function selecionarLead() {
+  const id = +document.getElementById('prop-lead').value || null;
+  leadSelecionado = id;
+  if (!id) return;
+  const l = leadsCache.find(x => x.id === id);
+  if (!l) return;
+  document.getElementById('prop-nome').value     = l.nome || '';
+  document.getElementById('prop-email').value    = l.email || '';
+  document.getElementById('prop-telefone').value = telBonito(l.telefone);
+  if (l.cidade) document.getElementById('prop-cidade').value = l.cidade;
+  validarProposta();
+  calcularProducao();
+}
+
+function statusProposta(txt, tipo) {
+  const el = document.getElementById('proposta-status');
+  if (!el) return;
+  el.textContent = txt;
+  el.className = 'proposta-status' + (tipo ? ' ' + tipo : '');
+}
+
+async function salvarOrcamento() {
+  if (!perfil || !perfil.vendedor || !sb) {
+    statusProposta('⚠️ Orçamento NÃO foi salvo no sistema — entre com seu login de vendedor para salvar.', 'aviso');
+    return;
+  }
+  const orientacao = document.getElementById('prop-orientacao').value;
+  const estrutura  = document.getElementById('prop-estrutura').value;
+  const producaoMensal = Math.round(propostaItem.kwp * FATOR_BASE * FATOR_ORIENTACAO[orientacao]);
+  const tipo = propostaTipo || (linhaFoco && linhaFoco.startsWith('importado') ? 'importado' : 'nacional');
+  const registro = {
+    lead_id:      leadSelecionado,
+    cliente_nome: document.getElementById('prop-nome').value.trim(),
+    telefone:     telDigitos(document.getElementById('prop-telefone').value) || null,
+    email:        document.getElementById('prop-email').value.trim() || null,
+    cidade:       document.getElementById('prop-cidade').value.trim() || null,
+    tipo,
+    sistema:      propostaItem.nome,
+    kwp:          propostaItem.kwp,
+    valor_final:  Math.round(propostaCalc.valorFinal * 100) / 100,
+    vendedor_email: perfil.email,
+    dados: {
+      orientacao, estrutura, producao_mensal_kwh: producaoMensal,
+      adicional: +document.getElementById('slider-adicional').value,
+      desconto_pct: +document.getElementById('slider-desconto').value,
+      kit: clonar(propostaItem), calculo: clonar(propostaCalc)
+    }
+  };
+  statusProposta('⏳ Salvando orçamento…', '');
+  const { data, error } = await sb.from('orcamentos').insert(registro).select('id').single();
+  if (error) {
+    console.error('Supabase orçamento:', error);
+    statusProposta('⚠️ Erro ao salvar o orçamento: ' + (error.message || 'tente novamente.'), 'aviso');
+    return;
+  }
+  if (leadSelecionado) {
+    await sb.from('leads').update({ status:'orcamento_criado', atualizado_em: new Date().toISOString() }).eq('id', leadSelecionado);
+    const l = leadsCache.find(x => x.id === leadSelecionado); if (l) l.status = 'orcamento_criado';
+    carregarLeads();
+  }
+  statusProposta(`✅ Orçamento nº ${data.id} salvo — ${fmt(registro.valor_final)}`, 'ok');
+}
+
+// ── PAINEL ADMIN ────────────────────────────────────────────────────────────
+async function verificarSessao() { await carregarPerfil(); }
+
+function mostrarLoginArea(titulo) {
   document.getElementById('admin-overlay').classList.add('visivel');
   document.getElementById('admin-senha-input').value = '';
   document.getElementById('admin-erro').style.display = 'none';
-  if (adminLogado) {
+  document.getElementById('admin-login-titulo').textContent = titulo;
+  document.getElementById('admin-login-area').style.display = 'block';
+  document.getElementById('admin-painel-area').style.display = 'none';
+  setTimeout(() => document.getElementById('admin-email-input').focus(), 100);
+}
+
+function abrirLogin() {
+  modoLogin = 'usuario';
+  mostrarLoginArea('🔑 Entrar — Vendedores');
+}
+
+function abrirAdmin() {
+  modoLogin = 'admin';
+  if (perfil && perfil.admin) {
+    document.getElementById('admin-overlay').classList.add('visivel');
     mostrarPainel();
-  } else {
-    document.getElementById('admin-login-area').style.display = 'block';
-    document.getElementById('admin-painel-area').style.display = 'none';
-    setTimeout(() => document.getElementById('admin-email-input').focus(), 100);
+    return;
+  }
+  mostrarLoginArea('🔐 Acesso Admin');
+  if (perfil && !perfil.admin) {
+    const erro = document.getElementById('admin-erro');
+    erro.textContent = 'Você está logado como ' + perfil.email + ', que não é admin. Entre com uma conta de admin.';
+    erro.style.display = 'block';
   }
 }
 
@@ -2216,23 +2419,33 @@ async function loginAdmin() {
   if (!email || !senha) { erro.textContent = 'Preencha e-mail e senha.'; erro.style.display = 'block'; return; }
   btn.disabled = true; btn.textContent = 'Entrando…';
   const { error } = await sb.auth.signInWithPassword({ email, password: senha });
-  btn.disabled = false; btn.textContent = 'Entrar';
   if (error) {
+    btn.disabled = false; btn.textContent = 'Entrar';
     erro.textContent = 'E-mail ou senha incorretos.';
     erro.style.display = 'block';
     document.getElementById('admin-senha-input').value = '';
     document.getElementById('admin-senha-input').focus();
     return;
   }
-  adminLogado = true;
-  await carregarDoSupabase();   // garante que o admin edita a versão mais recente
-  mostrarPainel();
+  await carregarPerfil();
+  btn.disabled = false; btn.textContent = 'Entrar';
+  if (modoLogin === 'admin') {
+    if (perfil && perfil.admin) {
+      await carregarDoSupabase();   // garante que o admin edita a versão mais recente
+      mostrarPainel();
+    } else {
+      erro.textContent = 'Login feito, mas este usuário não é admin.';
+      erro.style.display = 'block';
+    }
+    return;
+  }
+  fecharAdmin();
 }
 
 async function sairAdmin() {
   if (sb) await sb.auth.signOut();
-  adminLogado = false;
   fecharAdmin();
+  await carregarPerfil();
 }
 
 function mostrarPainel() {
