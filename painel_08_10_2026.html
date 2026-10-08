@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://cmrndntnaaooapbdmgip.supabase.co;">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel de Orçamentos — Energtech</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  :root {
+    --amarelo:#FFC107; --amarelo-dim:#e6ac00; --preto:#111; --bg:#0f0f0f; --card:#1a1a1a; --card2:#222;
+    --borda:#2e2e2e; --texto:#e0e0e0; --muted:#8a8a8a; --verde:#4ade80; --vermelho:#f87171; --azul:#60a5fa;
+  }
+  body { background:var(--bg); font-family:'Barlow',sans-serif; color:var(--texto); min-height:100vh; padding-bottom:60px; }
+  a { color:var(--azul); }
+
+  .header { background:var(--amarelo); padding:18px 28px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+  .logo-area { display:flex; align-items:center; gap:13px; }
+  .logo-icon { width:46px; height:46px; background:var(--preto); border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .brand-name { font-family:'Barlow Condensed',sans-serif; font-size:26px; font-weight:900; color:var(--preto); line-height:1; }
+  .brand-sub { font-size:10px; font-weight:600; color:var(--preto); letter-spacing:.2em; text-transform:uppercase; opacity:.6; margin-top:2px; }
+  .header-title { text-align:right; }
+  .header-title h1 { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:700; color:var(--preto); text-transform:uppercase; letter-spacing:.05em; }
+  .header-links { font-size:12px; color:var(--preto); margin-top:4px; }
+  .header-links a { color:var(--preto); font-weight:700; }
+  .header-links .papel { opacity:.6; }
+
+  .page { max-width:1200px; margin:0 auto; padding:24px 16px; }
+  .card { background:var(--card); border:1px solid var(--borda); border-radius:14px; padding:20px; margin-bottom:18px; }
+  .card h2 { font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:900; letter-spacing:.1em; text-transform:uppercase; color:var(--amarelo); margin-bottom:14px; }
+  .muted { color:var(--muted); font-size:13px; }
+
+  /* login */
+  .login { max-width:360px; margin:40px auto; text-align:center; }
+  .login h2 { margin-bottom:6px; }
+  .input, .select { background:var(--card2); border:1px solid var(--borda); color:var(--texto); font-family:'Barlow',sans-serif; font-size:14px; padding:10px 12px; border-radius:8px; outline:none; width:100%; }
+  .input:focus, .select:focus { border-color:var(--amarelo); }
+  .login .input { margin-bottom:10px; }
+  .btn { background:var(--amarelo); color:var(--preto); font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:900; letter-spacing:.06em; padding:10px 16px; border:none; border-radius:8px; cursor:pointer; }
+  .btn:hover { background:var(--amarelo-dim); }
+  .btn:disabled { opacity:.6; cursor:wait; }
+  .btn-sec { background:var(--card2); color:var(--texto); border:1px solid var(--borda); }
+  .btn-sec:hover { background:#2a2a2a; }
+  .erro { color:var(--vermelho); font-size:13px; margin-top:8px; min-height:16px; }
+
+  /* filtros */
+  .filtros { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:12px; align-items:end; }
+  .filtros label { display:block; font-size:12px; color:var(--muted); margin-bottom:5px; }
+  .datas { display:none; gap:8px; }
+  .datas.visivel { display:flex; }
+
+  /* KPIs */
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:12px; margin-bottom:18px; }
+  .kpi { background:var(--card); border:1px solid var(--borda); border-radius:12px; padding:16px; }
+  .kpi-val { font-family:'Barlow Condensed',sans-serif; font-size:26px; font-weight:900; color:var(--amarelo); line-height:1.1; }
+  .kpi-lbl { font-size:12px; color:var(--muted); margin-top:4px; }
+  .kpi.alerta .kpi-val { color:var(--vermelho); }
+
+  /* tabelas */
+  .tabela-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); font-weight:600; padding:8px 10px; border-bottom:1px solid var(--borda); white-space:nowrap; }
+  td { padding:9px 10px; border-bottom:1px solid #242424; white-space:nowrap; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  tr:hover td { background:#1f1f1f; }
+  .tag { display:inline-block; font-size:11px; padding:2px 8px; border-radius:20px; background:var(--card2); border:1px solid var(--borda); color:var(--muted); }
+  .tag.imp { color:var(--amarelo); border-color:#5a4a10; }
+  .tag.nac { color:var(--azul); border-color:#1e3a5f; }
+  .tag.dc { color:var(--verde); border-color:#1f4d33; }
+  .vazio { text-align:center; color:var(--muted); padding:24px 0; font-size:13px; }
+  .linha-topo { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+  .linha-topo h2 { margin-bottom:0; }
+  .dias-alerta { color:var(--vermelho); }
+  #conteudo { display:none; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo-area">
+    <div class="logo-icon">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="13" fill="#FFC107"/><path d="M16 3L8 15h7l-3 10 10-13h-7l1-9z" fill="#111"/></svg>
+    </div>
+    <div>
+      <div class="brand-name">Energtech</div>
+      <div class="brand-sub">Engenharia Solar</div>
+    </div>
+  </div>
+  <div class="header-title">
+    <h1>Painel de Orçamentos</h1>
+    <div class="header-links" id="header-links"><a href="./">← Voltar ao precificador</a></div>
+  </div>
+</div>
+
+<div class="page">
+
+  <!-- LOGIN -->
+  <div class="card login" id="login" style="display:none">
+    <h2>🔑 Entrar</h2>
+    <p class="muted" style="margin-bottom:16px">Use o mesmo login do precificador.</p>
+    <input class="input" type="email" id="login-email" placeholder="E-mail" autocomplete="username">
+    <input class="input" type="password" id="login-senha" placeholder="Senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')entrar()">
+    <button class="btn" id="login-btn" style="width:100%" onclick="entrar()">Entrar</button>
+    <div class="erro" id="login-erro"></div>
+  </div>
+
+  <!-- SEM ACESSO / CARREGANDO -->
+  <div class="card" id="aviso" style="display:none"><p id="aviso-txt" class="muted"></p></div>
+
+  <!-- CONTEÚDO -->
+  <div id="conteudo">
+
+    <div class="card">
+      <div class="filtros">
+        <div>
+          <label for="f-periodo">Período</label>
+          <select class="select" id="f-periodo" onchange="mudouPeriodo()">
+            <option value="hoje">Hoje</option>
+            <option value="7">Últimos 7 dias</option>
+            <option value="30" selected>Últimos 30 dias</option>
+            <option value="mes">Este mês</option>
+            <option value="mes-ant">Mês passado</option>
+            <option value="tudo">Tudo</option>
+            <option value="custom">Escolher datas…</option>
+          </select>
+        </div>
+        <div class="datas" id="f-datas">
+          <div style="flex:1"><label for="f-de">De</label><input class="input" type="date" id="f-de" onchange="render()"></div>
+          <div style="flex:1"><label for="f-ate">Até</label><input class="input" type="date" id="f-ate" onchange="render()"></div>
+        </div>
+        <div id="f-vendedor-box">
+          <label for="f-vendedor">Vendedor</label>
+          <select class="select" id="f-vendedor" onchange="render()"><option value="">Todos</option></select>
+        </div>
+        <div>
+          <label for="f-tipo">Tipo de kit</label>
+          <select class="select" id="f-tipo" onchange="render()">
+            <option value="">Todos</option>
+            <option value="importado">Importado</option>
+            <option value="nacional">Nacional (Finame)</option>
+          </select>
+        </div>
+        <div>
+          <label for="f-busca">Buscar cliente</label>
+          <input class="input" id="f-busca" placeholder="Nome ou telefone" oninput="render()">
+        </div>
+        <div style="display:flex; gap:8px">
+          <button class="btn btn-sec" onclick="carregar()" title="Recarregar dados">🔄 Atualizar</button>
+          <button class="btn" onclick="exportarCSV()">⬇ Planilha</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="kpi-val" id="k-qtd">—</div><div class="kpi-lbl">Orçamentos no período</div></div>
+      <div class="kpi"><div class="kpi-val" id="k-total">—</div><div class="kpi-lbl">Valor total orçado</div></div>
+      <div class="kpi"><div class="kpi-val" id="k-ticket">—</div><div class="kpi-lbl">Ticket médio</div></div>
+      <div class="kpi"><div class="kpi-val" id="k-kwp">—</div><div class="kpi-lbl">Potência total orçada</div></div>
+      <div class="kpi" id="k-pend-box"><div class="kpi-val" id="k-pend">—</div><div class="kpi-lbl">Leads qualificados sem orçamento</div></div>
+    </div>
+
+    <div class="card" id="card-vendedores">
+      <h2>Por vendedor</h2>
+      <div class="tabela-wrap">
+        <table>
+          <thead><tr><th>Vendedor</th><th class="num">Orçamentos</th><th class="num">Valor total</th><th class="num">Ticket médio</th><th class="num">Potência</th><th>Último orçamento</th></tr></thead>
+          <tbody id="tb-vendedores"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="linha-topo"><h2>Orçamentos</h2><span class="muted" id="qtd-lista"></span></div>
+      <div class="tabela-wrap">
+        <table>
+          <thead><tr><th>Nº</th><th>Data</th><th>Cliente</th><th>Telefone</th><th>Cidade</th><th>Kit</th><th>Sistema</th><th class="num">kWp</th><th class="num">Valor</th><th>Vendedor</th><th>Origem</th></tr></thead>
+          <tbody id="tb-orcamentos"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="linha-topo"><h2>Leads qualificados sem orçamento</h2><span class="muted">Todos os períodos · mais antigos primeiro</span></div>
+      <div class="tabela-wrap">
+        <table>
+          <thead><tr><th>Cliente</th><th>Telefone</th><th>E-mail</th><th>Qualificado em</th><th class="num">Esperando</th></tr></thead>
+          <tbody id="tb-pendentes"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://cmrndntnaaooapbdmgip.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_wKf3jP-0lmaK07vMpxdRlA_UXqMJdBO';
+const sb = (window.supabase && window.supabase.createClient) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+let perfil = null, orcamentos = [], leads = [], nomes = {};
+
+const $ = id => document.getElementById(id);
+const fmtR = v => (+v || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+const fmtR0 = v => (+v || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL', maximumFractionDigits:0 });
+const fmtN = (v, d=1) => (+v || 0).toLocaleString('pt-BR', { minimumFractionDigits:d, maximumFractionDigits:d });
+const fmtData = iso => iso ? new Date(iso).toLocaleDateString('pt-BR') : '—';
+const fmtDataHora = iso => iso ? new Date(iso).toLocaleDateString('pt-BR') + ' ' + new Date(iso).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) : '—';
+const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function telBonito(t) {
+  let d = String(t || '').replace(/\D/g, '');
+  if (d.startsWith('55') && d.length >= 12) d = d.slice(2);
+  if (d.length === 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
+  return t || '';
+}
+function telLink(t) {
+  let d = String(t || '').replace(/\D/g, '');
+  if (!d) return '—';
+  if (d.length === 10 || d.length === 11) d = '55' + d;
+  return `<a href="https://wa.me/${d}" target="_blank" rel="noopener">${esc(telBonito(t))}</a>`;
+}
+const nomeVendedor = email => nomes[email] || (email ? email.split('@')[0] : '—');
+
+function mostrar(qual, texto) {
+  $('login').style.display    = qual === 'login' ? '' : 'none';
+  $('aviso').style.display    = qual === 'aviso' ? '' : 'none';
+  $('conteudo').style.display = qual === 'conteudo' ? 'block' : 'none';
+  if (texto) $('aviso-txt').innerHTML = texto;
+}
+
+function renderHeader() {
+  const el = $('header-links');
+  let h = '<a href="./">← Voltar ao precificador</a>';
+  if (perfil) h += ` · 👤 ${esc(perfil.nome || perfil.email)} <span class="papel">(${perfil.admin ? 'admin' : (perfil.vendedor ? 'vendedor' : 'sem acesso')})</span> · <a href="#" onclick="sair();return false">Sair</a>`;
+  el.innerHTML = h;
+}
+
+async function iniciar() {
+  if (!sb) { mostrar('aviso', '⚠️ Sem conexão com o servidor. Verifique a internet e recarregue a página.'); return; }
+  const { data } = await sb.auth.getSession();
+  if (!data || !data.session) { perfil = null; renderHeader(); mostrar('login'); setTimeout(() => $('login-email').focus(), 50); return; }
+  const r = await sb.rpc('meu_perfil');
+  perfil = r.data || { email: data.session.user.email, admin:false, vendedor:false };
+  renderHeader();
+  if (!perfil.vendedor) { mostrar('aviso', 'Seu usuário (' + esc(perfil.email) + ') ainda não tem acesso aos orçamentos. Fale com o administrador.'); return; }
+  $('f-vendedor-box').style.display = perfil.admin ? '' : 'none';
+  $('card-vendedores').style.display = perfil.admin ? '' : 'none';
+  mostrar('conteudo');
+  await carregar();
+}
+
+async function entrar() {
+  const email = $('login-email').value.trim(), senha = $('login-senha').value;
+  $('login-erro').textContent = '';
+  if (!email || !senha) { $('login-erro').textContent = 'Preencha e-mail e senha.'; return; }
+  $('login-btn').disabled = true; $('login-btn').textContent = 'Entrando…';
+  const { error } = await sb.auth.signInWithPassword({ email, password: senha });
+  $('login-btn').disabled = false; $('login-btn').textContent = 'Entrar';
+  if (error) { $('login-erro').textContent = 'E-mail ou senha incorretos.'; $('login-senha').value = ''; return; }
+  await iniciar();
+}
+
+async function sair() { await sb.auth.signOut(); perfil = null; await iniciar(); }
+
+// busca tudo em páginas de 1000 (limite do Supabase por consulta)
+async function buscarTudo(tabela, colunas, ordem) {
+  const todos = []; const passo = 1000;
+  for (let ini = 0; ; ini += passo) {
+    const { data, error } = await sb.from(tabela).select(colunas).order(ordem, { ascending:false }).range(ini, ini + passo - 1);
+    if (error) throw error;
+    todos.push(...data);
+    if (data.length < passo) break;
+  }
+  return todos;
+}
+
+async function carregar() {
+  $('tb-orcamentos').innerHTML = '<tr><td colspan="11" class="vazio">Carregando…</td></tr>';
+  try {
+    const [o, l, v] = await Promise.all([
+      buscarTudo('orcamentos', 'id, lead_id, cliente_nome, telefone, email, cidade, tipo, sistema, kwp, valor_final, vendedor_email, criado_em', 'criado_em'),
+      buscarTudo('leads', 'id, nome, telefone, email, status, recebido_em', 'recebido_em'),
+      sb.from('vendedores').select('email, nome')
+    ]);
+    orcamentos = o; leads = l;
+    nomes = {}; (v.data || []).forEach(x => nomes[x.email] = x.nome);
+  } catch (e) {
+    console.error(e);
+    $('tb-orcamentos').innerHTML = '<tr><td colspan="11" class="vazio">⚠️ Erro ao carregar os dados. Tente atualizar.</td></tr>';
+    return;
+  }
+  // opções de vendedor
+  const sel = $('f-vendedor'), atual = sel.value;
+  const emails = [...new Set([...Object.keys(nomes), ...orcamentos.map(x => x.vendedor_email)].filter(Boolean))]
+    .sort((a, b) => nomeVendedor(a).localeCompare(nomeVendedor(b)));
+  sel.innerHTML = '<option value="">Todos</option>' + emails.map(e => `<option value="${esc(e)}">${esc(nomeVendedor(e))}</option>`).join('');
+  sel.value = atual;
+  render();
+}
+
+function mudouPeriodo() {
+  $('f-datas').classList.toggle('visivel', $('f-periodo').value === 'custom');
+  render();
+}
+
+function intervalo() {
+  const p = $('f-periodo').value, hoje = new Date(); hoje.setHours(0,0,0,0);
+  const dia = 86400000;
+  if (p === 'hoje') return [hoje, null];
+  if (p === '7')    return [new Date(hoje - 6 * dia), null];
+  if (p === '30')   return [new Date(hoje - 29 * dia), null];
+  if (p === 'mes')  return [new Date(hoje.getFullYear(), hoje.getMonth(), 1), null];
+  if (p === 'mes-ant') return [new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1), new Date(hoje.getFullYear(), hoje.getMonth(), 1)];
+  if (p === 'custom') {
+    const de = $('f-de').value ? new Date($('f-de').value + 'T00:00:00') : null;
+    const ate = $('f-ate').value ? new Date(new Date($('f-ate').value + 'T00:00:00').getTime() + dia) : null;
+    return [de, ate];
+  }
+  return [null, null];
+}
+
+function filtrados() {
+  const [de, ate] = intervalo();
+  const vend = $('f-vendedor').value, tipo = $('f-tipo').value;
+  const busca = $('f-busca').value.trim().toLowerCase(), buscaNum = busca.replace(/\D/g, '');
+  return orcamentos.filter(o => {
+    const t = new Date(o.criado_em);
+    if (de && t < de) return false;
+    if (ate && t >= ate) return false;
+    if (vend && o.vendedor_email !== vend) return false;
+    if (tipo && o.tipo !== tipo) return false;
+    if (busca) {
+      const okNome = (o.cliente_nome || '').toLowerCase().includes(busca);
+      const okTel = buscaNum.length >= 4 && String(o.telefone || '').includes(buscaNum);
+      if (!okNome && !okTel) return false;
+    }
+    return true;
+  });
+}
+
+function render() {
+  const lista = filtrados();
+  const total = lista.reduce((s, o) => s + (+o.valor_final || 0), 0);
+  const kwp = lista.reduce((s, o) => s + (+o.kwp || 0), 0);
+  const pend = leads.filter(l => l.status === 'qualificado');
+
+  $('k-qtd').textContent = lista.length.toLocaleString('pt-BR');
+  $('k-total').textContent = fmtR0(total);
+  $('k-ticket').textContent = lista.length ? fmtR0(total / lista.length) : '—';
+  $('k-kwp').textContent = fmtN(kwp, 1) + ' kWp';
+  $('k-pend').textContent = pend.length.toLocaleString('pt-BR');
+  $('k-pend-box').classList.toggle('alerta', pend.length > 0);
+  $('qtd-lista').textContent = lista.length + ' orçamento(s)';
+
+  // orçamentos
+  $('tb-orcamentos').innerHTML = lista.length ? lista.map(o => `
+    <tr>
+      <td class="muted">${o.id}</td>
+      <td>${fmtDataHora(o.criado_em)}</td>
+      <td>${esc(o.cliente_nome)}</td>
+      <td>${telLink(o.telefone)}</td>
+      <td>${esc(o.cidade || '—')}</td>
+      <td><span class="tag ${o.tipo === 'importado' ? 'imp' : 'nac'}">${o.tipo === 'importado' ? 'Importado' : 'Nacional'}</span></td>
+      <td>${esc(o.sistema || '—')}</td>
+      <td class="num">${fmtN(o.kwp, 2)}</td>
+      <td class="num">${fmtR(o.valor_final)}</td>
+      <td>${esc(nomeVendedor(o.vendedor_email))}</td>
+      <td>${o.lead_id ? '<span class="tag dc">DataCrazy</span>' : '<span class="tag">Manual</span>'}</td>
+    </tr>`).join('') : '<tr><td colspan="11" class="vazio">Nenhum orçamento neste filtro.</td></tr>';
+
+  // por vendedor (admin)
+  if (perfil && perfil.admin) {
+    const grupos = {};
+    lista.forEach(o => {
+      const g = grupos[o.vendedor_email] || (grupos[o.vendedor_email] = { qtd:0, total:0, kwp:0, ultimo:null });
+      g.qtd++; g.total += +o.valor_final || 0; g.kwp += +o.kwp || 0;
+      if (!g.ultimo || o.criado_em > g.ultimo) g.ultimo = o.criado_em;
+    });
+    const linhas = Object.entries(grupos).sort((a, b) => b[1].total - a[1].total);
+    $('tb-vendedores').innerHTML = linhas.length ? linhas.map(([e, g]) => `
+      <tr>
+        <td>${esc(nomeVendedor(e))}</td>
+        <td class="num">${g.qtd}</td>
+        <td class="num">${fmtR0(g.total)}</td>
+        <td class="num">${fmtR0(g.total / g.qtd)}</td>
+        <td class="num">${fmtN(g.kwp, 1)} kWp</td>
+        <td>${fmtDataHora(g.ultimo)}</td>
+      </tr>`).join('') : '<tr><td colspan="6" class="vazio">Nenhum orçamento neste filtro.</td></tr>';
+  }
+
+  // leads sem orçamento (mais antigos primeiro)
+  const agora = Date.now();
+  const pendOrd = [...pend].sort((a, b) => a.recebido_em.localeCompare(b.recebido_em));
+  $('tb-pendentes').innerHTML = pendOrd.length ? pendOrd.map(l => {
+    const dias = Math.floor((agora - new Date(l.recebido_em)) / 86400000);
+    const txt = dias === 0 ? 'hoje' : (dias === 1 ? '1 dia' : dias + ' dias');
+    return `<tr>
+      <td>${esc(l.nome || 'Sem nome')}</td>
+      <td>${telLink(l.telefone)}</td>
+      <td>${esc(l.email || '—')}</td>
+      <td>${fmtDataHora(l.recebido_em)}</td>
+      <td class="num ${dias >= 2 ? 'dias-alerta' : ''}">${txt}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="5" class="vazio">Nenhum lead esperando orçamento. 👏</td></tr>';
+}
+
+function exportarCSV() {
+  const lista = filtrados();
+  const num = v => (+v || 0).toFixed(2).replace('.', ',');
+  const cel = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const linhas = [['Nº','Data','Cliente','Telefone','E-mail','Cidade','Kit','Sistema','kWp','Valor (R$)','Vendedor','Origem']];
+  lista.forEach(o => linhas.push([o.id, fmtDataHora(o.criado_em), o.cliente_nome, telBonito(o.telefone), o.email || '', o.cidade || '',
+    o.tipo === 'importado' ? 'Importado' : 'Nacional', o.sistema || '', num(o.kwp), num(o.valor_final),
+    nomeVendedor(o.vendedor_email), o.lead_id ? 'DataCrazy' : 'Manual']));
+  const csv = '﻿' + linhas.map(l => l.map(cel).join(';')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8' }));
+  a.download = 'orcamentos_energtech_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+iniciar();
+</script>
+</body>
+</html>
