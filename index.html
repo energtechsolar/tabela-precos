@@ -873,8 +873,9 @@
     <!-- Botões -->
     <div class="proposta-btns">
       <button class="btn-orcamento" id="btn-orcamento" onclick="criarOrcamento()">📄 Criar Orçamento</button>
-      <button class="btn-pdf" id="btn-pdf" onclick="gerarPDF()" style="display:none">🖨️ Gerar PDF</button>
+      <button class="btn-pdf" id="btn-pdf" onclick="gerarPDF('baixar')" style="display:none">🖨️ Gerar PDF</button>
       <button class="btn-whats" id="btn-whats" onclick="enviarWhatsApp()">💬 Enviar pelo WhatsApp</button>
+      <button class="btn-whats" id="btn-share" onclick="gerarPDF('compartilhar')" style="display:none; background:#128c7e">📤 Compartilhar PDF</button>
     </div>
     <div class="proposta-status" id="proposta-status"></div>
   </div>
@@ -1700,6 +1701,7 @@ function abrirProposta(tipo, idx, item, calc) {
 
   document.getElementById('proposta-card').classList.add('visivel');
   document.getElementById('btn-whats').style.display = 'none';
+  document.getElementById('btn-share').style.display = 'none';
 
   calcularProducao();
 
@@ -1782,6 +1784,7 @@ function criarOrcamento() {
   // Mostra botões PDF e WhatsApp
   document.getElementById('btn-pdf').style.display = 'block';
   document.getElementById('btn-whats').style.display = 'block';
+  document.getElementById('btn-share').style.display = podeCompartilharPDF() ? 'block' : 'none';
   // Feedback visual
   const btn = document.getElementById('btn-orcamento');
   btn.textContent = '✅ Orçamento Criado!';
@@ -1912,10 +1915,10 @@ function coletarDadosProposta() {
   };
 }
 
-async function gerarPDF() {
+async function gerarPDF(modo) {
   if (!propostaItem || !propostaCalc) return;
   if (!window.jspdf) { alert('Não foi possível carregar o gerador de PDF. Verifique a internet e recarregue a página.'); return; }
-  const btn = document.getElementById('btn-pdf');
+  const btn = document.getElementById(modo === 'compartilhar' ? 'btn-share' : 'btn-pdf');
   const txtBtn = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando…'; }
   try {
@@ -1925,7 +1928,17 @@ async function gerarPDF() {
       fotoRecortada(FOTOS_PROPOSTA.faixa, 210, 58, 1400),
       fotoRecortada(FOTOS_PROPOSTA.inversor, 58, 78, 600),
     ]);
-    montarPropostaPDF(d, { capa:fCapa, faixa:fFaixa, inversor:fInv });
+    const { doc, arq } = montarPropostaPDF(d, { capa:fCapa, faixa:fFaixa, inversor:fInv });
+    if (modo === 'compartilhar') {
+      const arquivo = new File([doc.output('blob')], arq, { type:'application/pdf' });
+      try {
+        await navigator.share({ files:[arquivo], title:'Proposta Energtech', text: mensagemProposta(d) });
+      } catch (e) {
+        if (e && e.name !== 'AbortError') { console.error(e); doc.save(arq); }
+      }
+    } else {
+      doc.save(arq);
+    }
   } catch (e) {
     console.error(e);
     alert('Erro ao gerar o PDF: ' + e.message);
@@ -2237,7 +2250,31 @@ function montarPropostaPDF(d, fotos) {
   for (let i = 1; i <= totalPag; i++) { doc.setPage(i); rodape(i, totalPag); }
 
   const arq = ('Proposta Energtech - ' + d.nome + ' - ' + d.numero).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9 ._-]/g, '').slice(0, 90) + '.pdf';
-  doc.save(arq);
+  return { doc, arq };
+}
+
+// ── MENSAGEM DE WHATSAPP (resumo da proposta, sempre em reais) ──
+function mensagemProposta(d) {
+  const primeiro = (d.nome || '').split(' ')[0] || '';
+  const imp = d.tipo === 'importado';
+  const pagamento = imp
+    ? `à vista ${brl(d.valor)} ou entrada de ${brl(d.pag.entrada)} + 10x de ${brl(d.pag.parcela10)}`
+    : `à vista ${brl(d.valor)}, ou FINAME em 96x de ${brl(d.pag.p96)} sem juros, ou 120x de ${brl(d.pag.p120)}`;
+  const linhasMsg = [
+    `Olá${primeiro ? ', ' + primeiro : ''}! ☀️`,
+    d.vendedor ? `Aqui é ${d.vendedor}, da *Energtech Engenharia Solar*. Segue o resumo da sua proposta:` : `Segue o resumo da sua proposta da *Energtech Engenharia Solar*:`,
+    '',
+    `🔋 *Sistema:* ${d.item.kwp.toLocaleString('pt-BR')} kWp (${d.item.mod} módulos de ${d.potW} W)`,
+    `⚡ *Geração estimada:* ${Math.round(d.geracao).toLocaleString('pt-BR')} kWh por mês`,
+    `💡 *Economia estimada:* ${brl(d.economia)} por mês`,
+  ];
+  if (d.conta) linhasMsg.push(`📉 *Sua conta de luz:* de ${brl(d.conta)} para cerca de ${brl(d.novaConta)}`);
+  linhasMsg.push(`💰 *Investimento:* ${brl(d.valor)}`);
+  if (d.modoValor === 'separado') linhasMsg.push(`     (kit ${brl(d.valorKit)} + mão de obra ${brl(d.valorServico)})`);
+  linhasMsg.push(`💳 *Pagamento:* ${pagamento}`);
+  if (d.paybackMeses) linhasMsg.push(`⏱️ *Retorno do investimento:* ${anosMeses(d.paybackMeses)}`);
+  linhasMsg.push(`📅 Proposta nº ${d.numero}, válida até ${d.validade}.`, '', 'Envio também a proposta completa em PDF. Qualquer dúvida, estou à disposição!');
+  return linhasMsg.join('\n');
 }
 
 // ── ITENS E VALORES DA PROPOSTA (editáveis pelo vendedor) ───────────────────
@@ -2337,30 +2374,21 @@ function lerAdminProposta() {
 
 
 function enviarWhatsApp() {
-  const nome      = document.getElementById('prop-nome').value.trim();
-  const telefone  = document.getElementById('prop-telefone').value.trim();
-  const cidade    = document.getElementById('prop-cidade').value.trim();
-  const estrutura = document.getElementById('prop-estrutura').value;
-  const orientacao = document.getElementById('prop-orientacao').value;
-  const orientacaoLabel = { norte:'Norte', leste:'Leste', oeste:'Oeste', sul:'Sul' };
-  const estruturaLabel  = { fibrocimento:'Fibrocimento', ceramico:'Cerâmico', metalico:'Metálico', laje:'Laje', solo:'Solo' };
-  const fator = FATOR_ORIENTACAO[orientacao];
-  const producao = Math.round(propostaItem.kwp * fatorRegiao() * fator);
-
-  const msg = `Olá ${nome}! 🌞\n\nSegue o orçamento da *Energtech Engenharia Solar*:\n\n` +
-    `🔋 *Sistema:* ${propostaItem.nome} — ${propostaItem.kwp} kWp\n` +
-    `⚡ *Geração estimada:* ${producao.toLocaleString('pt-BR')} kWh/mês\n` +
-    `🏗️ *Estrutura:* ${estruturaLabel[estrutura]}\n` +
-    `🧭 *Orientação:* ${orientacaoLabel[orientacao]}\n` +
-    (cidade ? `📍 *Localização:* ${cidade}\n` : '') +
-    `\n💰 *Valor:* ${fmt(propostaCalc.valorFinal)}\n\n` +
-    `Entre em contato para mais informações!\nenergtech.com.br`;
-
-  const numero = telDigitos(telefone);
+  if (!propostaItem || !propostaCalc) return;
+  const d = coletarDadosProposta();
+  const msg = mensagemProposta(d);
+  const numero = telDigitos(d.telefone);
   const url = numero
     ? `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`
     : `https://wa.me/?text=${encodeURIComponent(msg)}`;
   window.open(url, '_blank');
+}
+
+// celular: compartilhar o PDF direto (WhatsApp, e-mail…) quando o aparelho permite
+function podeCompartilharPDF() {
+  try {
+    return !!(navigator.canShare && navigator.canShare({ files:[new File([''], 'teste.pdf', { type:'application/pdf' })] }));
+  } catch (e) { return false; }
 }
 
 // ── SUPABASE (dados salvos online) ──────────────────────────────────────────
