@@ -74,6 +74,11 @@
   .linha-topo h2 { margin-bottom:0; }
   .dias-alerta { color:var(--vermelho); }
   #conteudo { display:none; }
+  .so-admin { display:none !important; }
+  body.eh-admin .so-admin { display:revert !important; }
+  body.eh-admin div.so-admin { display:block !important; }
+  .neg { color:var(--vermelho); }
+  .pos { color:var(--verde); }
 </style>
 </head>
 <body>
@@ -158,6 +163,7 @@
       <div class="kpi"><div class="kpi-val" id="k-total">—</div><div class="kpi-lbl">Valor total orçado</div></div>
       <div class="kpi"><div class="kpi-val" id="k-ticket">—</div><div class="kpi-lbl">Ticket médio</div></div>
       <div class="kpi"><div class="kpi-val" id="k-kwp">—</div><div class="kpi-lbl">Potência total orçada</div></div>
+      <div class="kpi so-admin"><div class="kpi-val" id="k-margem">—</div><div class="kpi-lbl">🔒 Margem total (após kit e comissão)</div></div>
       <div class="kpi" id="k-pend-box"><div class="kpi-val" id="k-pend">—</div><div class="kpi-lbl">Leads qualificados sem orçamento</div></div>
     </div>
 
@@ -165,7 +171,7 @@
       <h2>Por vendedor</h2>
       <div class="tabela-wrap">
         <table>
-          <thead><tr><th>Vendedor</th><th class="num">Orçamentos</th><th class="num">Valor total</th><th class="num">Ticket médio</th><th class="num">Potência</th><th>Último orçamento</th></tr></thead>
+          <thead><tr><th>Vendedor</th><th class="num">Orçamentos</th><th class="num">Valor total</th><th class="num">Ticket médio</th><th class="num">Margem 🔒</th><th class="num">Potência</th><th>Último orçamento</th></tr></thead>
           <tbody id="tb-vendedores"></tbody>
         </table>
       </div>
@@ -175,7 +181,7 @@
       <div class="linha-topo"><h2>Orçamentos</h2><span class="muted" id="qtd-lista"></span></div>
       <div class="tabela-wrap">
         <table>
-          <thead><tr><th>Nº</th><th>Data</th><th>Cliente</th><th>Telefone</th><th>Cidade</th><th>Kit</th><th>Sistema</th><th class="num">kWp</th><th class="num">Valor</th><th>Vendedor</th><th>Origem</th></tr></thead>
+          <thead><tr><th>Nº</th><th>Data</th><th>Cliente</th><th>Telefone</th><th>Cidade</th><th>Kit</th><th>Sistema</th><th class="num">kWp</th><th class="num">Valor</th><th class="num so-admin">Custo kit 🔒</th><th class="num so-admin">Margem 🔒</th><th>Vendedor</th><th>Origem</th></tr></thead>
           <tbody id="tb-orcamentos"></tbody>
         </table>
       </div>
@@ -199,7 +205,7 @@ const SUPABASE_URL = 'https://cmrndntnaaooapbdmgip.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_wKf3jP-0lmaK07vMpxdRlA_UXqMJdBO';
 const sb = (window.supabase && window.supabase.createClient) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
-let perfil = null, orcamentos = [], leads = [], nomes = {};
+let perfil = null, orcamentos = [], leads = [], nomes = {}, custosOrc = {};
 
 const $ = id => document.getElementById(id);
 const fmtR = v => (+v || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
@@ -222,6 +228,12 @@ function telLink(t) {
   if (d.length === 10 || d.length === 11) d = '55' + d;
   return `<a href="https://wa.me/${d}" target="_blank" rel="noopener">${esc(telBonito(t))}</a>`;
 }
+function margemDe(o) {
+  const c = custosOrc[o.id];
+  if (!c || c.custo_kit === null || c.custo_kit === undefined) return null;
+  return (+o.valor_final || 0) - (+c.custo_kit || 0) - (+c.comissao || 0);
+}
+const fmtMargem = m => m === null ? '<span class="muted">—</span>' : `<span class="${m < 0 ? 'neg' : 'pos'}">${fmtR(m)}</span>`;
 const nomeVendedor = email => nomes[email] || (email ? email.split('@')[0] : '—');
 
 function mostrar(qual, texto) {
@@ -246,6 +258,7 @@ async function iniciar() {
   perfil = r.data || { email: data.session.user.email, admin:false, vendedor:false };
   renderHeader();
   if (!perfil.vendedor) { mostrar('aviso', 'Seu usuário (' + esc(perfil.email) + ') ainda não tem acesso aos orçamentos. Fale com o administrador.'); return; }
+  document.body.classList.toggle('eh-admin', !!perfil.admin);
   $('f-vendedor-box').style.display = perfil.admin ? '' : 'none';
   $('card-vendedores').style.display = perfil.admin ? '' : 'none';
   mostrar('conteudo');
@@ -278,7 +291,7 @@ async function buscarTudo(tabela, colunas, ordem) {
 }
 
 async function carregar() {
-  $('tb-orcamentos').innerHTML = '<tr><td colspan="11" class="vazio">Carregando…</td></tr>';
+  $('tb-orcamentos').innerHTML = '<tr><td colspan="13" class="vazio">Carregando…</td></tr>';
   try {
     const [o, l, v] = await Promise.all([
       buscarTudo('orcamentos', 'id, lead_id, cliente_nome, telefone, email, cidade, tipo, sistema, kwp, valor_final, vendedor_email, criado_em', 'criado_em'),
@@ -286,10 +299,15 @@ async function carregar() {
       sb.from('vendedores').select('email, nome')
     ]);
     orcamentos = o; leads = l;
+    custosOrc = {};
+    if (perfil && perfil.admin) {
+      const c = await buscarTudo('orcamento_custos', 'orcamento_id, custo_kit, comissao', 'orcamento_id');
+      c.forEach(x => custosOrc[x.orcamento_id] = x);
+    }
     nomes = {}; (v.data || []).forEach(x => nomes[x.email] = x.nome);
   } catch (e) {
     console.error(e);
-    $('tb-orcamentos').innerHTML = '<tr><td colspan="11" class="vazio">⚠️ Erro ao carregar os dados. Tente atualizar.</td></tr>';
+    $('tb-orcamentos').innerHTML = '<tr><td colspan="13" class="vazio">⚠️ Erro ao carregar os dados. Tente atualizar.</td></tr>';
     return;
   }
   // opções de vendedor
@@ -352,6 +370,11 @@ function render() {
   $('k-ticket').textContent = lista.length ? fmtR0(total / lista.length) : '—';
   $('k-kwp').textContent = fmtN(kwp, 1) + ' kWp';
   $('k-pend').textContent = pend.length.toLocaleString('pt-BR');
+  if (perfil && perfil.admin) {
+    const comCusto = lista.map(margemDe).filter(m => m !== null);
+    $('k-margem').textContent = comCusto.length ? fmtR0(comCusto.reduce((a, b) => a + b, 0)) : '—';
+    $('k-margem').title = comCusto.length < lista.length ? (lista.length - comCusto.length) + ' orçamento(s) sem custo cadastrado ficaram fora da soma' : '';
+  }
   $('k-pend-box').classList.toggle('alerta', pend.length > 0);
   $('qtd-lista').textContent = lista.length + ' orçamento(s)';
 
@@ -367,16 +390,19 @@ function render() {
       <td>${esc(o.sistema || '—')}</td>
       <td class="num">${fmtN(o.kwp, 2)}</td>
       <td class="num">${fmtR(o.valor_final)}</td>
+      <td class="num so-admin">${custosOrc[o.id] && custosOrc[o.id].custo_kit !== null ? fmtR(custosOrc[o.id].custo_kit) : '<span class="muted">—</span>'}</td>
+      <td class="num so-admin">${fmtMargem(margemDe(o))}</td>
       <td>${esc(nomeVendedor(o.vendedor_email))}</td>
       <td>${o.lead_id ? '<span class="tag dc">DataCrazy</span>' : '<span class="tag">Manual</span>'}</td>
-    </tr>`).join('') : '<tr><td colspan="11" class="vazio">Nenhum orçamento neste filtro.</td></tr>';
+    </tr>`).join('') : '<tr><td colspan="13" class="vazio">Nenhum orçamento neste filtro.</td></tr>';
 
   // por vendedor (admin)
   if (perfil && perfil.admin) {
     const grupos = {};
     lista.forEach(o => {
-      const g = grupos[o.vendedor_email] || (grupos[o.vendedor_email] = { qtd:0, total:0, kwp:0, ultimo:null });
+      const g = grupos[o.vendedor_email] || (grupos[o.vendedor_email] = { qtd:0, total:0, kwp:0, ultimo:null, margem:0, comMargem:0 });
       g.qtd++; g.total += +o.valor_final || 0; g.kwp += +o.kwp || 0;
+      const m = margemDe(o); if (m !== null) { g.margem += m; g.comMargem++; }
       if (!g.ultimo || o.criado_em > g.ultimo) g.ultimo = o.criado_em;
     });
     const linhas = Object.entries(grupos).sort((a, b) => b[1].total - a[1].total);
@@ -386,9 +412,10 @@ function render() {
         <td class="num">${g.qtd}</td>
         <td class="num">${fmtR0(g.total)}</td>
         <td class="num">${fmtR0(g.total / g.qtd)}</td>
+        <td class="num">${g.comMargem ? fmtMargem(g.margem) : '<span class="muted">—</span>'}</td>
         <td class="num">${fmtN(g.kwp, 1)} kWp</td>
         <td>${fmtDataHora(g.ultimo)}</td>
-      </tr>`).join('') : '<tr><td colspan="6" class="vazio">Nenhum orçamento neste filtro.</td></tr>';
+      </tr>`).join('') : '<tr><td colspan="7" class="vazio">Nenhum orçamento neste filtro.</td></tr>';
   }
 
   // leads sem orçamento (mais antigos primeiro)
@@ -411,10 +438,18 @@ function exportarCSV() {
   const lista = filtrados();
   const num = v => (+v || 0).toFixed(2).replace('.', ',');
   const cel = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
-  const linhas = [['Nº','Data','Cliente','Telefone','E-mail','Cidade','Kit','Sistema','kWp','Valor (R$)','Vendedor','Origem']];
-  lista.forEach(o => linhas.push([o.id, fmtDataHora(o.criado_em), o.cliente_nome, telBonito(o.telefone), o.email || '', o.cidade || '',
-    o.tipo === 'importado' ? 'Importado' : 'Nacional', o.sistema || '', num(o.kwp), num(o.valor_final),
-    nomeVendedor(o.vendedor_email), o.lead_id ? 'DataCrazy' : 'Manual']));
+  const adm = perfil && perfil.admin;
+  const cab = ['Nº','Data','Cliente','Telefone','E-mail','Cidade','Kit','Sistema','kWp','Valor (R$)','Vendedor','Origem'];
+  if (adm) cab.push('Custo kit (R$)','Comissão (R$)','Margem (R$)');
+  const linhas = [cab];
+  lista.forEach(o => {
+    const l = [o.id, fmtDataHora(o.criado_em), o.cliente_nome, telBonito(o.telefone), o.email || '', o.cidade || '',
+      o.tipo === 'importado' ? 'Importado' : 'Nacional', o.sistema || '', num(o.kwp), num(o.valor_final),
+      nomeVendedor(o.vendedor_email), o.lead_id ? 'DataCrazy' : 'Manual'];
+    if (adm) { const c = custosOrc[o.id] || {}; const m = margemDe(o);
+      l.push(c.custo_kit != null ? num(c.custo_kit) : '', c.comissao != null ? num(c.comissao) : '', m !== null ? num(m) : ''); }
+    linhas.push(l);
+  });
   const csv = '﻿' + linhas.map(l => l.map(cel).join(';')).join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8' }));
