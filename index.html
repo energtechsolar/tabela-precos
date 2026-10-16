@@ -358,83 +358,14 @@
   .btn-pdf { flex:1; background:#1e3a5f; color:#60a5fa; font-family:'Barlow Condensed',sans-serif; font-size:16px; font-weight:900; letter-spacing:0.08em; padding:14px; border:2px solid #60a5fa; border-radius:10px; cursor:pointer; min-width:180px; }
   .btn-pdf:hover { background:#2a4a6f; }
 
-  /* ── IMPRESSÃO / PDF ── */
+  /* ── IMPRESSÃO (Ctrl+P) ── */
+  #aviso-impressao { display:none; }
   @media print {
-    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    body > *:not(#pdf-proposta) { display: none !important; }
-    #pdf-proposta { display: block !important; }
-    @page { margin: 0; size: A4; }
+    body > *:not(#aviso-impressao) { display:none !important; }
+    #aviso-impressao { display:block !important; font-family:Arial, sans-serif; color:#111; padding:40mm 20mm; }
+    #aviso-impressao h1 { font-size:20px; margin-bottom:12px; }
+    #aviso-impressao p { font-size:14px; margin:6px 0; }
   }
-
-  /* ── LAYOUT PDF ── */
-  #pdf-proposta { display:none; font-family:'Barlow', sans-serif; color:#111; }
-  .pdf-capa { width:210mm; min-height:297mm; position:relative; overflow:hidden; background:#0a0a0a; display:flex; flex-direction:column; justify-content:space-between; padding:0; page-break-after:always; }
-  .pdf-capa-bg { position:absolute; inset:0; background:url('https://images.unsplash.com/photo-1509391366360-2e959784a276?w=1200&q=80') center/cover no-repeat; opacity:0.22; }
-  .pdf-capa-overlay { position:absolute; inset:0; background:linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.6) 55%, rgba(0,0,0,0.96) 100%); }
-  .pdf-capa-content { position:relative; z-index:2; padding:48px 48px 0; }
-  .pdf-capa-logo { display:flex; align-items:center; gap:14px; }
-  .pdf-capa-logo-icon { width:50px; height:50px; background:#FFC107; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-  .pdf-capa-brand { font-family:'Barlow Condensed',sans-serif; font-size:26px; font-weight:900; color:#FFC107; line-height:1; }
-  .pdf-capa-brand-sub { font-size:9px; color:rgba(255,255,255,0.45); letter-spacing:0.25em; text-transform:uppercase; margin-top:2px; }
-  .pdf-capa-bottom { position:relative; z-index:2; padding:0 48px 44px; }
-  .pdf-capa-tag { display:inline-block; background:#FFC107; color:#111; font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; letter-spacing:0.15em; text-transform:uppercase; padding:4px 12px; border-radius:4px; margin-bottom:14px; }
-  .pdf-capa-titulo { font-family:'Barlow Condensed',sans-serif; font-size:52px; font-weight:900; color:#fff; line-height:1; margin-bottom:6px; }
-  .pdf-capa-subtitulo { font-size:13px; color:rgba(255,255,255,0.5); margin-bottom:26px; }
-  .pdf-capa-kwp-area { margin-bottom:24px; }
-  .pdf-capa-kwp { font-family:'Barlow Condensed',sans-serif; font-size:80px; font-weight:900; color:#FFC107; line-height:1; }
-  .pdf-capa-kwp-lbl { font-size:12px; color:rgba(255,255,255,0.45); letter-spacing:0.12em; text-transform:uppercase; margin-top:-4px; }
-  .pdf-capa-dados { display:flex; gap:28px; border-top:1px solid rgba(255,255,255,0.12); padding-top:18px; }
-  .pdf-capa-dado-lbl { font-size:9px; color:rgba(255,255,255,0.35); text-transform:uppercase; letter-spacing:0.12em; }
-  .pdf-capa-dado-val { font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:700; color:#fff; margin-top:2px; }
-  .pdf-pagina { width:210mm; min-height:297mm; background:#fff; page-break-after:always; display:flex; flex-direction:column; }
-  .pdf-pagina:last-child { page-break-after:auto; }
-  .pdf-header { background:#111; padding:16px 36px; display:flex; align-items:center; justify-content:space-between; }
-  .pdf-header-brand { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:900; color:#FFC107; }
-  .pdf-header-pag { font-size:10px; color:#555; letter-spacing:0.1em; }
-  .pdf-body { flex:1; padding:32px 40px; }
-  .pdf-section-tag { font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; letter-spacing:0.18em; text-transform:uppercase; color:#999; margin-bottom:4px; }
-  .pdf-section-nome { font-family:'Barlow Condensed',sans-serif; font-size:26px; font-weight:900; color:#111; margin-bottom:22px; line-height:1.1; }
-  .pdf-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:16px; }
-  .pdf-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:16px; }
-  .pdf-card { background:#f8f8f8; border-radius:8px; padding:14px 18px; border-left:4px solid #FFC107; }
-  .pdf-card.destaque { background:#111; border-left-color:#FFC107; }
-  .pdf-card.verde { background:#f0faf4; border-left-color:#4ade80; }
-  .pdf-card.azul { background:#eff6ff; border-left-color:#60a5fa; }
-  .pdf-card.vermelho { background:#fef2f2; border-left-color:#f87171; }
-  .pdf-card-lbl { font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:0.12em; color:#888; margin-bottom:5px; }
-  .pdf-card.destaque .pdf-card-lbl { color:#666; }
-  .pdf-card-val { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:900; color:#111; line-height:1; }
-  .pdf-card.destaque .pdf-card-val { color:#FFC107; }
-  .pdf-card.verde .pdf-card-val { color:#16a34a; }
-  .pdf-card.azul .pdf-card-val { color:#2563eb; }
-  .pdf-card.vermelho .pdf-card-val { color:#dc2626; }
-  .pdf-card-sub { font-size:10px; color:#888; margin-top:3px; }
-  .pdf-card.destaque .pdf-card-sub { color:#555; }
-  .pdf-divider { border:none; border-top:1px solid #eee; margin:18px 0; }
-  .pdf-fase-titulo { font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:10px; padding:6px 12px; border-radius:6px; }
-  .pdf-fase-titulo.fase1 { background:#fffbeb; color:#92400e; }
-  .pdf-fase-titulo.fase2 { background:#eff6ff; color:#1e40af; }
-  .pdf-linha { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid #f5f5f5; font-size:12px; }
-  .pdf-linha:last-child { border-bottom:none; }
-  .pdf-linha-lbl { color:#666; }
-  .pdf-linha-val { font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:700; color:#111; }
-  .pdf-linha-val.verde { color:#16a34a; }
-  .pdf-linha-val.vermelho { color:#dc2626; }
-  .pdf-linha-val.azul { color:#2563eb; }
-  .pdf-linha-val.amarelo { color:#d97706; }
-  .pdf-nota { background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:10px 14px; font-size:10px; color:#92400e; margin-top:14px; line-height:1.5; }
-  .pdf-footer { background:#111; padding:12px 36px; display:flex; justify-content:space-between; align-items:center; }
-  .pdf-footer-txt { font-size:9px; color:#555; }
-  .pdf-footer-marca { font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; color:#FFC107; }
-  .pdf-sobre-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:18px; }
-  .pdf-sobre-item { display:flex; align-items:flex-start; gap:10px; }
-  .pdf-sobre-icon { font-size:18px; flex-shrink:0; margin-top:2px; }
-  .pdf-sobre-titulo { font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; color:#111; margin-bottom:3px; }
-  .pdf-sobre-txt { font-size:11px; color:#666; line-height:1.5; }
-  .pdf-slogan { text-align:center; font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:900; color:#FFC107; background:#111; border-radius:8px; padding:16px; margin:16px 0; }
-  .pdf-contatos { display:flex; gap:14px; flex-wrap:wrap; background:#f8f8f8; border-radius:8px; padding:14px 18px; }
-  .pdf-contato-item { font-size:11px; color:#555; }
-  .pdf-contato-item strong { color:#111; }
 </style>
 </head>
 <body>
@@ -892,250 +823,11 @@
 
 </div>
 
-<!-- PDF PROPOSTA -->
-<div id="pdf-proposta">
-
-  <!-- CAPA -->
-  <div class="pdf-capa">
-    <div class="pdf-capa-bg"></div>
-    <div class="pdf-capa-overlay"></div>
-    <div class="pdf-capa-content">
-      <div class="pdf-capa-logo">
-        <div class="pdf-capa-logo-icon">
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="13" fill="#FFC107"/><path d="M16 3L8 15h7l-3 10 10-13h-7l1-9z" fill="#111"/></svg>
-        </div>
-        <div>
-          <div class="pdf-capa-brand">Energtech</div>
-          <div class="pdf-capa-brand-sub">Engenharia Solar</div>
-        </div>
-      </div>
-    </div>
-    <div class="pdf-capa-bottom">
-      <div class="pdf-capa-tag">Proposta Comercial</div>
-      <div class="pdf-capa-titulo" id="pdf-capa-nome">—</div>
-      <div class="pdf-capa-subtitulo" id="pdf-capa-cpf"></div>
-      <div class="pdf-capa-kwp-area">
-        <div class="pdf-capa-kwp" id="pdf-capa-kwp">—</div>
-        <div class="pdf-capa-kwp-lbl">Sistema Fotovoltaico</div>
-      </div>
-      <div class="pdf-capa-dados">
-        <div>
-          <div class="pdf-capa-dado-lbl">Data</div>
-          <div class="pdf-capa-dado-val" id="pdf-capa-data">—</div>
-        </div>
-        <div>
-          <div class="pdf-capa-dado-lbl">Sistema</div>
-          <div class="pdf-capa-dado-val" id="pdf-capa-sistema">—</div>
-        </div>
-        <div>
-          <div class="pdf-capa-dado-lbl">Estrutura</div>
-          <div class="pdf-capa-dado-val" id="pdf-capa-estrutura">—</div>
-        </div>
-        <div>
-          <div class="pdf-capa-dado-lbl">Orientação</div>
-          <div class="pdf-capa-dado-val" id="pdf-capa-orientacao">—</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- PÁGINA 2 — DETALHES -->
-  <div class="pdf-pagina">
-    <div class="pdf-header">
-      <div class="pdf-header-brand">Energtech Engenharia Solar</div>
-      <div class="pdf-header-pag">DETALHES DA PROPOSTA</div>
-    </div>
-    <div class="pdf-body">
-      <div class="pdf-section-tag">Proposta Comercial</div>
-      <div class="pdf-section-nome">Detalhes do Investimento</div>
-
-      <div class="pdf-grid-3">
-        <div class="pdf-card">
-          <div class="pdf-card-lbl">Consumo Atual</div>
-          <div class="pdf-card-val" id="pdf-consumo-kwh">—</div>
-          <div class="pdf-card-sub" id="pdf-consumo-rs">—</div>
-        </div>
-        <div class="pdf-card verde">
-          <div class="pdf-card-lbl">Produção Estimada/mês</div>
-          <div class="pdf-card-val" id="pdf-producao-mensal">—</div>
-          <div class="pdf-card-sub" id="pdf-producao-anual">—</div>
-        </div>
-        <div class="pdf-card azul">
-          <div class="pdf-card-lbl">Orientação do Telhado</div>
-          <div class="pdf-card-val" id="pdf-orientacao">—</div>
-          <div class="pdf-card-sub" id="pdf-fator-orientacao">—</div>
-        </div>
-      </div>
-
-      <div class="pdf-divider"></div>
-      <div class="pdf-section-tag" style="margin-bottom:12px">Condições Comerciais</div>
-
-      <!-- Importado -->
-      <div id="pdf-pagamento-importado">
-        <div class="pdf-grid-2">
-          <div class="pdf-card destaque">
-            <div class="pdf-card-lbl">Valor Total do Sistema</div>
-            <div class="pdf-card-val" id="pdf-imp-valor-total">—</div>
-            <div class="pdf-card-sub">Valor final ao cliente</div>
-          </div>
-          <div class="pdf-card">
-            <div class="pdf-card-lbl">Entrada</div>
-            <div class="pdf-card-val" id="pdf-imp-entrada">—</div>
-            <div class="pdf-card-sub">No ato do pedido</div>
-          </div>
-        </div>
-        <div class="pdf-grid-2">
-          <div class="pdf-card azul">
-            <div class="pdf-card-lbl">Saldo Restante</div>
-            <div class="pdf-card-val" id="pdf-imp-saldo">—</div>
-            <div class="pdf-card-sub">Dividido em 10 vezes</div>
-          </div>
-          <div class="pdf-card">
-            <div class="pdf-card-lbl">Parcela (10×)</div>
-            <div class="pdf-card-val" id="pdf-imp-parcela">—</div>
-            <div class="pdf-card-sub">Parcelas mensais</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Nacional/FINAME -->
-      <div id="pdf-pagamento-nacional" style="display:none">
-        <div class="pdf-grid-2">
-          <div class="pdf-card">
-            <div class="pdf-card-lbl">Valor do Kit (NF Fornecedor)</div>
-            <div class="pdf-card-val" id="pdf-nac-kit">—</div>
-            <div class="pdf-card-sub">Financiado via FINAME</div>
-          </div>
-          <div class="pdf-card">
-            <div class="pdf-card-lbl">Serviços de Instalação</div>
-            <div class="pdf-card-val" id="pdf-nac-servicos">—</div>
-            <div class="pdf-card-sub">Mão de obra e projeto</div>
-          </div>
-        </div>
-        <div class="pdf-grid-3">
-          <div class="pdf-card destaque">
-            <div class="pdf-card-lbl">Valor Total</div>
-            <div class="pdf-card-val" id="pdf-nac-total">—</div>
-            <div class="pdf-card-sub">Kit + Serviços</div>
-          </div>
-          <div class="pdf-card verde">
-            <div class="pdf-card-lbl">Parcela Mensal</div>
-            <div class="pdf-card-val" id="pdf-nac-parc-m">—</div>
-            <div class="pdf-card-sub" id="pdf-nac-parc-m-sub">—</div>
-          </div>
-          <div class="pdf-card azul">
-            <div class="pdf-card-lbl">Parcela Anual</div>
-            <div class="pdf-card-val" id="pdf-nac-parc-a">—</div>
-            <div class="pdf-card-sub">FINAME</div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="pdf-footer">
-      <div class="pdf-footer-txt">energtechsolar.com.br · energtechsolar@gmail.com · (49) 99182-8095</div>
-      <div class="pdf-footer-marca">Energtech</div>
-    </div>
-  </div>
-
-  <!-- PÁGINA 3 — RETORNO -->
-  <div class="pdf-pagina">
-    <div class="pdf-header">
-      <div class="pdf-header-brand">Energtech Engenharia Solar</div>
-      <div class="pdf-header-pag">SEU RETORNO</div>
-    </div>
-    <div class="pdf-body">
-      <div class="pdf-section-tag">Análise Financeira</div>
-      <div class="pdf-section-nome">O Retorno do Seu Investimento</div>
-
-      <div class="pdf-fase-titulo fase1">⏳ Fase 1 — Durante o Financiamento</div>
-      <div id="pdf-retorno-fase1">
-        <div class="pdf-linha"><span class="pdf-linha-lbl">Conta de energia que já pagava</span><span class="pdf-linha-val verde" id="pdf-r-gastava">—</span></div>
-        <div class="pdf-linha"><span class="pdf-linha-lbl">Parcela mensal do sistema</span><span class="pdf-linha-val vermelho" id="pdf-r-parcela">—</span></div>
-        <div class="pdf-linha"><span class="pdf-linha-lbl">Taxa fixa concessionária</span><span class="pdf-linha-val vermelho" id="pdf-r-taxa">—</span></div>
-        <div class="pdf-linha"><span class="pdf-linha-lbl">Custo extra real por mês</span><span class="pdf-linha-val amarelo" id="pdf-r-extra">—</span></div>
-      </div>
-
-      <div class="pdf-divider"></div>
-      <div class="pdf-fase-titulo fase2">🏆 Fase 2 — Após Quitar (Para Sempre)</div>
-      <div class="pdf-linha"><span class="pdf-linha-lbl">Energia gerada por mês</span><span class="pdf-linha-val azul" id="pdf-r-producao">—</span></div>
-      <div class="pdf-linha"><span class="pdf-linha-lbl">Créditos gerados em reais</span><span class="pdf-linha-val verde" id="pdf-r-creditos">—</span></div>
-      <div class="pdf-linha"><span class="pdf-linha-lbl">Taxa fixa concessionária</span><span class="pdf-linha-val vermelho" id="pdf-r-taxa2">—</span></div>
-      <div class="pdf-linha"><span class="pdf-linha-lbl">Economia líquida por mês</span><span class="pdf-linha-val verde" id="pdf-r-eco-mes">—</span></div>
-      <div class="pdf-linha"><span class="pdf-linha-lbl">Economia líquida por ano</span><span class="pdf-linha-val verde" id="pdf-r-eco-ano">—</span></div>
-
-      <div class="pdf-divider"></div>
-      <div class="pdf-grid-2">
-        <div class="pdf-card vermelho">
-          <div class="pdf-card-lbl">Custo Real do Investimento</div>
-          <div class="pdf-card-val" id="pdf-r-custo-real">—</div>
-          <div class="pdf-card-sub">Descontando o que já gastaria</div>
-        </div>
-        <div class="pdf-card destaque">
-          <div class="pdf-card-lbl">Payback Total</div>
-          <div class="pdf-card-val" id="pdf-r-payback">—</div>
-          <div class="pdf-card-sub">Retorno do investimento</div>
-        </div>
-      </div>
-
-      <div class="pdf-nota">
-        📦 Os créditos de energia ficam armazenados na concessionária por até <strong>60 meses</strong>. Mesmo que não consuma toda a energia gerada, o saldo é garantido — você nunca perde o que produziu.
-      </div>
-    </div>
-    <div class="pdf-footer">
-      <div class="pdf-footer-txt">energtechsolar.com.br · energtechsolar@gmail.com · (49) 99182-8095</div>
-      <div class="pdf-footer-marca">Energtech</div>
-    </div>
-  </div>
-
-  <!-- PÁGINA 4 — SOBRE -->
-  <div class="pdf-pagina">
-    <div class="pdf-header">
-      <div class="pdf-header-brand">Energtech Engenharia Solar</div>
-      <div class="pdf-header-pag">QUEM SOMOS</div>
-    </div>
-    <div class="pdf-body">
-      <div class="pdf-section-tag">Nossa Empresa</div>
-      <div class="pdf-section-nome">Por que escolher a Energtech?</div>
-
-      <p style="font-size:13px;color:#555;line-height:1.7;margin-bottom:22px;">
-        A <strong>Energtech Engenharia Solar</strong> nasceu com um propósito claro: tornar a energia solar acessível, confiável e vantajosa para cada cliente que atendemos. Atuamos no oeste de Santa Catarina com uma equipe técnica qualificada, liderada por engenheiros registrados no CREA, oferecendo soluções completas em geração distribuída — do dimensionamento à homologação junto à concessionária.
-      </p>
-
-      <div class="pdf-sobre-grid">
-        <div class="pdf-sobre-item">
-          <div class="pdf-sobre-icon">📋</div>
-          <div><div class="pdf-sobre-titulo">Projeto Assinado por Engenheiro</div><div class="pdf-sobre-txt">ART registrada no CREA. Toda instalação com responsabilidade técnica e documentação completa.</div></div>
-        </div>
-        <div class="pdf-sobre-item">
-          <div class="pdf-sobre-icon">🏆</div>
-          <div><div class="pdf-sobre-titulo">Acompanhamento Total</div><div class="pdf-sobre-txt">Do dimensionamento até a homologação final junto à CELESC. Você não precisa se preocupar com nada.</div></div>
-        </div>
-        <div class="pdf-sobre-item">
-          <div class="pdf-sobre-icon">🔋</div>
-          <div><div class="pdf-sobre-titulo">Equipamentos com Garantia</div><div class="pdf-sobre-txt">Trabalhamos com marcas certificadas e com procedência comprovada no mercado nacional.</div></div>
-        </div>
-        <div class="pdf-sobre-item">
-          <div class="pdf-sobre-icon">📞</div>
-          <div><div class="pdf-sobre-titulo">Suporte Pós-Instalação</div><div class="pdf-sobre-txt">Nossa relação não termina na instalação. Estamos disponíveis para acompanhar sua geração.</div></div>
-        </div>
-      </div>
-
-      <div class="pdf-slogan">"Energia limpa, economia real."</div>
-
-      <div class="pdf-contatos">
-        <div class="pdf-contato-item">🌐 <strong>energtechsolar.com.br</strong></div>
-        <div class="pdf-contato-item">📧 <strong>energtechsolar@gmail.com</strong></div>
-        <div class="pdf-contato-item">📱 <strong>(49) 99182-8095</strong></div>
-        <div class="pdf-contato-item">📍 <strong>Quilombo — SC</strong></div>
-        <div class="pdf-contato-item">📄 <strong>CNPJ 40.297.488/0001-85</strong></div>
-      </div>
-    </div>
-    <div class="pdf-footer">
-      <div class="pdf-footer-txt">Esta proposta tem validade de 15 dias a partir da data de emissão.</div>
-      <div class="pdf-footer-marca">Energtech</div>
-    </div>
-  </div>
-
+<!-- Ctrl+P: aviso (a proposta é gerada pelo botão "Gerar PDF") -->
+<div id="aviso-impressao">
+  <h1>Energtech — CRM</h1>
+  <p>Para imprimir ou salvar a proposta, use o botão <b>"Gerar PDF"</b> na tela do orçamento.</p>
+  <p>Dica: com um orçamento aberto, o atalho Ctrl+P já gera o PDF da proposta.</p>
 </div>
 
 <!-- FOOTER -->
@@ -2602,6 +2294,13 @@ function enviarWhatsApp() {
 }
 
 // celular: compartilhar o PDF direto (WhatsApp, e-mail…) quando o aparelho permite
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P') && propostaItem && propostaCalc
+      && document.getElementById('proposta-card').classList.contains('visivel')) {
+    e.preventDefault();
+    gerarPDF('baixar');
+  }
+});
 function podeCompartilharPDF() {
   try {
     return !!(navigator.canShare && navigator.canShare({ files:[new File([''], 'teste.pdf', { type:'application/pdf' })] }));
