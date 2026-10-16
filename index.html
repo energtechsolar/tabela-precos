@@ -745,6 +745,16 @@
       <label class="tit" for="prop-servico">Descrição do serviço</label>
       <textarea id="prop-servico" rows="2"></textarea>
       <button class="link-mini" onclick="restaurarItensPadrao()">↺ Voltar aos itens padrão deste kit</button>
+      <div class="proposta-grid" style="margin-bottom:4px">
+        <div class="proposta-field">
+          <label>Fornecedor do kit (dados no PDF)</label>
+          <select class="proposta-select" id="prop-fornecedor"></select>
+        </div>
+        <div class="proposta-field">
+          <label>Conta Energtech para pagamento</label>
+          <select class="proposta-select" id="prop-conta-pag"></select>
+        </div>
+      </div>
       <label class="tit">Como mostrar o valor no PDF</label>
       <div class="modo-valor">
         <label><input type="radio" name="modo-valor" value="global" checked onchange="atualizarModoValor()"> Valor global (kit + serviço juntos)</label>
@@ -1021,6 +1031,9 @@
             </div>
           </div>
         </div>
+        <div class="admin-section-titulo">Fornecedores do kit e contas para pagamento</div>
+        <div class="regiao-aviso" style="margin-bottom:10px">Os dados aparecem na página 4 da proposta. Em cada orçamento o vendedor escolhe o fornecedor; a conta padrão da Energtech já vem marcada. Depois de editar, clique em "Salvar Configurações".</div>
+        <div id="admin-fornecedores"></div>
         <div class="admin-section-titulo">Proposta (PDF) — imagens</div>
         <div class="regiao-aviso" style="margin-bottom:10px">Troque as fotos direto por aqui. A imagem é enviada, ajustada e salva para todos os vendedores na hora. Use fotos na horizontal (paisagem).</div>
         <div class="admin-cfg-grid" id="admin-proposta-imagens"></div>
@@ -1408,6 +1421,7 @@ function abrirProposta(tipo, idx, item, calc) {
   propostaTipo = tipo;
   ultimoOrcamentoId = null;
   if (capaDaProposta) usarCapaPadrao();
+  preencherSelectsPagamento(true);
   preencherItensProposta();
   atualizarBlocoLead();
   statusProposta('', '');
@@ -1548,8 +1562,37 @@ const PROPOSTA_PADRAO = {
   fin_obs: 'Programa Reforma Casa Brasil\nSomente imóvel urbano\nSujeito às regras e limites do programa',
   rodape_legal: 'Energtech Engenharia Solar · CNPJ 40.297.488/0001-85 · Responsável técnico: Eng. Eletricista Eider Balena – CREA-SC 171497-7',
   imagens: { capa:'', pag2:'', pag3:'', pag4:'' },
+  // fornecedores do kit (dados bancários + FINAME) — editáveis em Configurações
+  fornecedores: [
+    { id:'viener', nome:'Viener Tecnologia e Inovação LTDA', finame:'',
+      dados:'CNPJ: 33.105.788/0001-50\nIE: 260017736\nRua A, Loteamento Mumbach 2, nº 457 · CEP 89891-000\nfaturamento@viener.com.br\nBanco Cresol (133) · Agência 1616 · Conta 28391-6' },
+    { id:'maxsul', nome:'Maxsul Distribuidora de Combustíveis LTDA', finame:'Livoltek 750W~75kWp: 04340203',
+      dados:'CNPJ: 00.326.969/0001-57\nBanco Itaú (341) · Agência 1312 · C/C 0099634-9' },
+  ],
+  fornecedor_padrao: '',
+  // contas da Energtech para receber (a padrão já vem marcada na proposta)
+  contas: [
+    { id:'sicoob', rotulo:'Sicoob', dados:'ENERGTECH ENERGIA SOLAR LTDA\nCNPJ: 40.297.488/0001-85\nPIX: 40297488000185\nBanco Sicoob (756) · Agência 3069 · C/C 271.041-2' },
+    { id:'caixa', rotulo:'Caixa', dados:'ENERGTECH ENERGIA SOLAR LTDA\nCNPJ: 40.297.488/0001-85\nPIX: 49991825362\nBanco Caixa (104) · Agência 4626 · C/C 000566314883-0' },
+  ],
+  conta_padrao: 'sicoob',
 };
-let PROPOSTA_CFG = { ...PROPOSTA_PADRAO };
+let PROPOSTA_CFG = JSON.parse(JSON.stringify(PROPOSTA_PADRAO));
+function fornecedorSel() { const id = (document.getElementById('prop-fornecedor') || {}).value; return (PROPOSTA_CFG.fornecedores || []).find(f => f.id === id) || null; }
+function contaSel() {
+  const cs = PROPOSTA_CFG.contas || [];
+  const id = (document.getElementById('prop-conta-pag') || {}).value || PROPOSTA_CFG.conta_padrao;
+  return cs.find(c => c.id === id) || cs[0] || { rotulo:'', dados: PROPOSTA_CFG.pagamento || '' };
+}
+function preencherSelectsPagamento(reiniciar) {
+  const sf = document.getElementById('prop-fornecedor'), sc = document.getElementById('prop-conta-pag');
+  if (!sf || !sc) return;
+  const fAtual = reiniciar ? '' : sf.value, cAtual = reiniciar ? '' : sc.value;
+  sf.innerHTML = '<option value="">— Não mostrar fornecedor —</option>' + (PROPOSTA_CFG.fornecedores || []).map(f => `<option value="${escHtml(f.id)}">${escHtml(f.nome)}</option>`).join('');
+  sc.innerHTML = (PROPOSTA_CFG.contas || []).map(c => `<option value="${escHtml(c.id)}">${escHtml(c.rotulo)}${c.id === PROPOSTA_CFG.conta_padrao ? ' (padrão)' : ''}</option>`).join('');
+  sf.value = [...sf.options].some(o => o.value === fAtual) && fAtual ? fAtual : (PROPOSTA_CFG.fornecedor_padrao || '');
+  sc.value = [...sc.options].some(o => o.value === cAtual) && cAtual ? cAtual : (PROPOSTA_CFG.conta_padrao || '');
+}
 
 // variação típica da geração ao longo do ano no Sul (média = 1)
 const PERFIL_MENSAL = [1.15, 1.10, 1.06, 0.96, 0.85, 0.78, 0.83, 0.93, 0.95, 1.06, 1.15, 1.18];
@@ -1656,6 +1699,7 @@ function coletarDadosProposta() {
     regiao: regiaoSel(), numero, data: hoje.toLocaleDateString('pt-BR'), validade: validade.toLocaleDateString('pt-BR'),
     vendedor: perfil && perfil.vendedor ? (perfil.nome || perfil.email) : '',
     potW: Math.round(item.kwp * 1000 / (item.mod || 1)),
+    fornecedor: fornecedorSel(), contaPag: contaSel(),
   };
 }
 
@@ -2008,13 +2052,35 @@ function montarPropostaPDF(d, fotos) {
   y += hEco + 7;
   const obs = [];
   if (sep) obs.push('Composição do valor: kit gerador ' + brl(d.valorKit) + ' + serviços de instalação ' + brl(d.valorServico) + '.');
-  if (!imp && PROPOSTA_CFG.codigo_finame) obs.push('Código FINAME do kit: ' + PROPOSTA_CFG.codigo_finame + '.');
+  if (!imp && !(d.fornecedor && d.fornecedor.finame) && PROPOSTA_CFG.codigo_finame) obs.push('Código FINAME do kit: ' + PROPOSTA_CFG.codigo_finame + '.');
   obs.push('Condições de financiamento sujeitas à análise de crédito.');
   rotulo('Dados para pagamento', X0, y); y += 2;
-  const pagTxt = linhas(PROPOSTA_CFG.pagamento, CW - 10);
-  caixa(X0, y, CW, 6 + pagTxt.length * 3.8, CZC, BD);
-  cor(PR); fonte(8); doc.text(pagTxt, X0 + 5, y + 5.5, { lineHeightFactor:1.35 });
-  y += 6 + pagTxt.length * 3.8 + 5;
+  const blocos = [];
+  if (d.fornecedor) {
+    const extra = [];
+    if (d.fornecedor.finame) extra.push('Código FINAME: ' + d.fornecedor.finame);
+    if (sep) extra.push('Valor do kit: ' + brl(d.valorKit));
+    blocos.push({ tit:'FORNECEDOR DO KIT', nome:d.fornecedor.nome, destaque:extra, txt:d.fornecedor.dados });
+  }
+  blocos.push({ tit: d.fornecedor ? 'INTEGRADOR (ENERGTECH)' : 'ENERGTECH', nome:'', destaque: d.fornecedor && sep ? ['Serviços de instalação: ' + brl(d.valorServico)] : [], txt:d.contaPag.dados });
+  const bwP = blocos.length > 1 ? (CW - 4) / 2 : CW;
+  const med = blocos.map(b => {
+    fonte(7.8, 'bold'); const n = b.nome ? linhas(b.nome, bwP - 10) : [];
+    fonte(7.8, 'bold'); const dz = b.destaque.flatMap(x => linhas(x, bwP - 10));
+    fonte(7.8); const tx = linhas(b.txt, bwP - 10);
+    return { n, dz, tx, h: 11 + (n.length + dz.length + tx.length) * 3.6 + (dz.length ? 1.5 : 0) };
+  });
+  const hP = Math.max(...med.map(m => m.h));
+  blocos.forEach((b, i) => {
+    const x = X0 + i * (bwP + 4), m = med[i];
+    caixa(x, y, bwP, hP, CZC, BD);
+    rotulo(b.tit, x + 5, y + 6);
+    let yy = y + 11;
+    cor(PR); fonte(7.8, 'bold'); if (m.n.length) { doc.text(m.n, x + 5, yy); yy += m.n.length * 3.6; }
+    if (m.dz.length) { cor([150,100,0]); fonte(7.8, 'bold'); doc.text(m.dz, x + 5, yy); yy += m.dz.length * 3.6 + 1.5; }
+    cor(PR); fonte(7.8); doc.text(m.tx, x + 5, yy);
+  });
+  y += hP + 5;
   cor(CZ); fonte(6.6); obs.forEach(t => { const l = linhas(t, CW); doc.text(l, X0, y); y += l.length * 3 + 0.6; });
   fotoRodape(fotos.pag4, y);
 
@@ -2170,7 +2236,7 @@ const CAMPOS_PROPOSTA = [
   ['prazo_entrega', 'Prazo de entrega', 'input'],
   ['validade_dias', 'Validade da proposta (dias)', 'number'],
   ['concessionaria', 'Concessionária (aparece nos textos)', 'input'],
-  ['codigo_finame', 'Código FINAME (kits nacionais)', 'input'],
+  ['codigo_finame', 'Código FINAME padrão (usado quando não há fornecedor escolhido)', 'input'],
   ['fator_kit', 'Divisor padrão do kit ao separar valores (ex.: 1,30 → kit = total ÷ 1,30)', 'number'],
   ['telefone_aprovacao', 'WhatsApp do botão "Aprovar proposta" (com DDD, só números)', 'input'],
   ['telefone_exibir', 'Telefone que aparece na página 5', 'input'],
@@ -2184,7 +2250,6 @@ const CAMPOS_PROPOSTA = [
   ['fin_obs', 'Financiamento — condições (uma por linha)', 'textarea'],
   ['servico_desc', 'Descrição padrão do serviço', 'textarea'],
   ['inclusos', 'Serviços inclusos (um por linha)', 'textarea'],
-  ['pagamento', 'Dados para pagamento', 'textarea'],
   ['contatos', 'Contatos (rodapé)', 'input'],
   ['rodape_legal', 'Linha legal (página 5)', 'input'],
 ];
@@ -2268,6 +2333,57 @@ function usarCapaPadrao() {
   const inp = document.getElementById('prop-capa'); if (inp) inp.value = '';
   document.getElementById('prop-capa-info').textContent = 'Usando a capa padrão da empresa.';
   document.getElementById('btn-capa-padrao').style.display = 'none';
+}
+
+// ── admin: fornecedores e contas ──
+function renderAdminFornecedores() {
+  const box = document.getElementById('admin-fornecedores');
+  if (!box) return;
+  const F = PROPOSTA_CFG.fornecedores || (PROPOSTA_CFG.fornecedores = []);
+  const C = PROPOSTA_CFG.contas || (PROPOSTA_CFG.contas = []);
+  const campo = (rot, html, larg) => `<div style="${larg ? 'grid-column:1/-1' : ''}"><div class="admin-cfg-lbl">${rot}</div>${html}</div>`;
+  box.innerHTML = `
+    <div class="admin-cfg-grid">${F.map((f, i) => `
+      <div class="admin-cfg-item" style="display:grid;gap:8px">
+        ${campo('Fornecedor', `<input class="admin-input" value="${escHtml(f.nome)}" oninput="PROPOSTA_CFG.fornecedores[${i}].nome=this.value">`)}
+        ${campo('Código FINAME (marca / código)', `<input class="admin-input" placeholder="Ex.: Livoltek 750W~75kWp: 04340203" value="${escHtml(f.finame)}" oninput="PROPOSTA_CFG.fornecedores[${i}].finame=this.value">`)}
+        ${campo('Dados bancários e cadastro', `<textarea class="admin-input" rows="5" style="resize:vertical" oninput="PROPOSTA_CFG.fornecedores[${i}].dados=this.value">${escHtml(f.dados)}</textarea>`)}
+        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+          <label style="display:flex;gap:6px;align-items:center;font-size:12px;cursor:pointer"><input type="radio" name="forn-padrao" ${PROPOSTA_CFG.fornecedor_padrao === f.id ? 'checked' : ''} onchange="PROPOSTA_CFG.fornecedor_padrao='${f.id}'"> Já vir selecionado</label>
+          <button class="link-mini" onclick="removerFornecedor(${i})">✕ Remover</button>
+        </div>
+      </div>`).join('')}
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 16px">
+      <button class="admin-btn-add" onclick="adicionarFornecedor()">+ Adicionar fornecedor</button>
+      <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);cursor:pointer"><input type="radio" name="forn-padrao" ${!PROPOSTA_CFG.fornecedor_padrao ? 'checked' : ''} onchange="PROPOSTA_CFG.fornecedor_padrao=''"> Nenhum fornecedor pré-selecionado</label>
+    </div>
+    <div class="admin-cfg-grid">${C.map((c, i) => `
+      <div class="admin-cfg-item" style="display:grid;gap:8px">
+        ${campo('Conta Energtech — nome curto', `<input class="admin-input" value="${escHtml(c.rotulo)}" oninput="PROPOSTA_CFG.contas[${i}].rotulo=this.value">`)}
+        ${campo('Dados que aparecem no PDF', `<textarea class="admin-input" rows="5" style="resize:vertical" oninput="PROPOSTA_CFG.contas[${i}].dados=this.value">${escHtml(c.dados)}</textarea>`)}
+        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+          <label style="display:flex;gap:6px;align-items:center;font-size:12px;cursor:pointer"><input type="radio" name="conta-padrao" ${PROPOSTA_CFG.conta_padrao === c.id ? 'checked' : ''} onchange="PROPOSTA_CFG.conta_padrao='${c.id}'"> Conta padrão</label>
+          ${C.length > 1 ? `<button class="link-mini" onclick="removerConta(${i})">✕ Remover</button>` : ''}
+        </div>
+      </div>`).join('')}
+    </div>
+    <button class="admin-btn-add" style="margin-top:8px" onclick="adicionarConta()">+ Adicionar conta Energtech</button>`;
+}
+function idNovo(p) { return p + Date.now().toString(36); }
+function adicionarFornecedor() { PROPOSTA_CFG.fornecedores.push({ id:idNovo('f'), nome:'Novo fornecedor', finame:'', dados:'' }); renderAdminFornecedores(); }
+function removerFornecedor(i) {
+  if (!confirm('Remover este fornecedor?')) return;
+  const [f] = PROPOSTA_CFG.fornecedores.splice(i, 1);
+  if (PROPOSTA_CFG.fornecedor_padrao === f.id) PROPOSTA_CFG.fornecedor_padrao = '';
+  renderAdminFornecedores();
+}
+function adicionarConta() { PROPOSTA_CFG.contas.push({ id:idNovo('c'), rotulo:'Nova conta', dados:'ENERGTECH ENERGIA SOLAR LTDA\nCNPJ: 40.297.488/0001-85\n' }); renderAdminFornecedores(); }
+function removerConta(i) {
+  if (!confirm('Remover esta conta?')) return;
+  const [c] = PROPOSTA_CFG.contas.splice(i, 1);
+  if (PROPOSTA_CFG.conta_padrao === c.id) PROPOSTA_CFG.conta_padrao = PROPOSTA_CFG.contas[0].id;
+  renderAdminFornecedores();
 }
 
 function renderAdminProposta() {
@@ -2362,7 +2478,7 @@ function aplicarDados(linhas) {
       ['desconto_livre','desconto_max','split_adicional','split_desconto_extra']
         .forEach(k => { if (typeof c[k] === 'number') CFG[k] = c[k]; });
       if (Array.isArray(c.regioes) && c.regioes.length) REGIOES = clonar(c.regioes);
-      if (c.proposta && typeof c.proposta === 'object') PROPOSTA_CFG = { ...PROPOSTA_PADRAO, ...c.proposta };
+      if (c.proposta && typeof c.proposta === 'object') PROPOSTA_CFG = { ...JSON.parse(JSON.stringify(PROPOSTA_PADRAO)), ...c.proposta }; preencherSelectsPagamento();
       if (typeof c.adicional_max === 'number')
         document.getElementById('slider-adicional').max = c.adicional_max;
     }
@@ -2537,6 +2653,8 @@ async function salvarOrcamento() {
       itens: document.getElementById('prop-itens').value.split('\n').map(t => t.trim()).filter(Boolean),
       servico_desc: document.getElementById('prop-servico').value.trim(),
       modo_valor: (document.querySelector('input[name="modo-valor"]:checked') || {}).value || 'global',
+      fornecedor: (fornecedorSel() || {}).nome || null,
+      conta_pagamento: contaSel().rotulo || null,
       valor_kit: (document.querySelector('input[name="modo-valor"]:checked') || {}).value === 'separado' ? (+document.getElementById('prop-valor-kit').value || null) : null,
       conta_atual: +document.getElementById('prop-conta').value || null,
       consumo_kwh: +document.getElementById('prop-consumo').value || null,
@@ -3058,6 +3176,7 @@ function carregarConfig() {
   renderAdminRegioes();
   renderAdminProposta();
   renderAdminImagens();
+  renderAdminFornecedores();
 }
 
 async function salvarConfig() {
@@ -3086,6 +3205,7 @@ async function salvarConfig() {
   novo.proposta = lerAdminProposta();
   PROPOSTA_CFG = { ...novo.proposta };
   for (const k in _cacheImg) delete _cacheImg[k];
+  preencherSelectsPagamento();
   renderSeletorRegiao();
   atualizar();
   const r = await gravarNoSupabase([{ id:'cfg', dados: novo }]);
