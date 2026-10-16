@@ -514,7 +514,7 @@
     <div class="dash-imp-inputs">
       <div class="dash-imp-input-group">
         <label>Conta atual do cliente</label>
-        <input type="number" id="imp-conta-atual" value="400" step="10" min="0" oninput="atualizarDashImp()">
+        <input type="number" id="imp-conta-atual" placeholder="400" step="10" min="0" oninput="sincronizarConta(this.value, 'imp-conta-atual'); atualizarDashImp()">
         <span>R$/mês</span>
       </div>
       <div class="dash-imp-input-group">
@@ -726,11 +726,16 @@
     <div class="proposta-grid">
       <div class="proposta-field">
         <label>Conta de luz atual (R$/mês)</label>
-        <input type="number" class="proposta-input" id="prop-conta" min="0" step="10" placeholder="Ex: 450">
+        <input type="number" class="proposta-input" id="prop-conta" min="0" step="10" placeholder="Ex: 450" oninput="sincronizarConta(this.value, 'prop-conta')">
       </div>
       <div class="proposta-field">
         <label>Consumo médio (kWh/mês) — opcional</label>
         <input type="number" class="proposta-input" id="prop-consumo" min="0" step="10" placeholder="Ex: 520">
+      </div>
+      <div class="proposta-field">
+        <label>Quer gerar para (R$/mês) — opcional</label>
+        <input type="number" class="proposta-input" id="prop-conta-meta" min="0" step="10" placeholder="Ex: 800">
+        <div class="regiao-aviso" style="margin-top:4px">Só se o cliente quer gerar mais do que gasta hoje (aumento de consumo, ar-condicionado, carro elétrico, créditos para outra unidade). A economia da proposta passa a ser calculada sobre esse valor.</div>
       </div>
       <div class="proposta-field">
         <label>CPF / CNPJ — opcional</label>
@@ -1670,6 +1675,11 @@ function coletarDadosProposta() {
   let consumo  = +valorCampo('prop-consumo') || 0;
   if (!consumo && conta) consumo = Math.round(conta / tarifa);
   if (!conta && consumo) conta = consumo * tarifa;
+  // consumo previsto: cliente quer gerar mais do que gasta hoje
+  const contaHoje = conta, consumoHoje = consumo;
+  const meta = +valorCampo('prop-conta-meta') || 0;
+  const usaMeta = meta > 0 && meta > conta;
+  if (usaMeta) { consumo = consumo && conta ? Math.round(consumo * meta / conta) : Math.round(meta / tarifa); conta = meta; }
   const geracao  = Math.round(item.kwp * fatorRegiao() * FATOR_ORIENTACAO[orientacao]);
   const creditos = geracao * tarifa;
   const economia = conta ? Math.max(0, Math.min(creditos, conta - taxa)) : Math.max(0, creditos - taxa);
@@ -1693,6 +1703,7 @@ function coletarDadosProposta() {
   return {
     modoValor, valorKit, valorServico, itens: itensTxt.split('\n').map(t => t.trim()).filter(Boolean),
     servicoDesc: valorCampo('prop-servico') || PROPOSTA_CFG.servico_desc,
+    contaHoje, consumoHoje, usaMeta,
     tipo, item, valor, orientacao, estrutura, tarifa, taxa, conta, consumo, geracao, economia, novaConta, paybackMeses, eco25, pag,
     nome: valorCampo('prop-nome') || 'Cliente', cpf: valorCampo('prop-cpf'), telefone: valorCampo('prop-telefone'),
     email: valorCampo('prop-email'), cidade: valorCampo('prop-cidade'),
@@ -1857,7 +1868,8 @@ function montarPropostaPDF(d, fotos) {
     ['moeda', 'Economia estimada', brl0(d.economia) + '/mês', brl0(d.economia * 12) + ' no 1º ano', PR],
   ];
   if (d.conta) {
-    res.push(['casa', 'Conta atual (estimada)', brl0(d.conta) + '/mês', d.consumo ? kwh(d.consumo) + ' kWh/mês' : '', AZ]);
+    if (d.usaMeta) res.push(['casa', 'Conta prevista (sem solar)', brl0(d.conta) + '/mês', d.contaHoje ? 'hoje: ' + brl0(d.contaHoje) + '/mês' : 'consumo previsto', AZ]);
+    else res.push(['casa', 'Conta atual (estimada)', brl0(d.conta) + '/mês', d.consumo ? kwh(d.consumo) + ' kWh/mês' : '', AZ]);
     res.push(['casa', 'Nova conta (estimada)', brl0(d.novaConta) + '/mês', 'apenas taxa mínima', VD]);
   }
   const rw = (CW - 3 * (res.length - 1)) / res.length;
@@ -1887,7 +1899,7 @@ function montarPropostaPDF(d, fotos) {
   if (d.consumo) {
     const yc = ay + ah - (d.consumo / topo) * ah;
     draw([90,90,90]); doc.setLineWidth(0.4); doc.setLineDashPattern([1.2, 1], 0); doc.line(ax, yc, ax + aw, yc); doc.setLineDashPattern([], 0);
-    fonte(6.5, 'bold'); const lc = 'Seu consumo: ' + kwh(d.consumo) + ' kWh/mês', wl = doc.getTextWidth(lc) + 3;
+    fonte(6.5, 'bold'); const lc = (d.usaMeta ? 'Consumo previsto: ' : 'Seu consumo: ') + kwh(d.consumo) + ' kWh/mês', wl = doc.getTextWidth(lc) + 3;
     fill(BR); draw([90,90,90]); doc.setLineWidth(0.25); doc.roundedRect(ax + aw - wl, yc - 4.6, wl, 4.2, 1, 1, 'FD');
     cor([70,70,70]); texto(lc, ax + aw - 1.5, yc - 1.6, { align:'right' });
   }
@@ -1911,7 +1923,8 @@ function montarPropostaPDF(d, fotos) {
   cor(CZ); fonte(6.3);
   texto('Estimativas para o primeiro ano de operação, com base na irradiação solar média da região.', X0, 211);
   texto('A geração real varia com o clima, sombreamento e manutenção, e a economia depende do seu consumo e das tarifas da concessionária.', X0, 214.5);
-  fotoRodape(fotos.pag2, 216);
+  if (d.usaMeta) texto('Economia calculada sobre o consumo previsto informado pelo cliente: ' + brl0(d.conta) + ' por mês' + (d.contaHoje ? ' (hoje ' + brl0(d.contaHoje) + ').' : '.'), X0, 218);
+  fotoRodape(fotos.pag2, 220);
 
   // ═══════════════ PÁGINA 3 — EQUIPAMENTOS E SERVIÇOS ═══════════════
   doc.addPage(); cabecalho();
@@ -2159,7 +2172,8 @@ function mensagemProposta(d) {
     `⚡ *Geração estimada:* ${Math.round(d.geracao).toLocaleString('pt-BR')} kWh por mês`,
     `💡 *Economia estimada:* ${brl(d.economia)} por mês`,
   ];
-  if (d.conta) linhasMsg.push(`📉 *Sua conta de luz:* de ${brl(d.conta)} para cerca de ${brl(d.novaConta)}`);
+  if (d.conta && d.usaMeta) linhasMsg.push(`📉 *Conta de luz:* considerando o consumo previsto de ${brl(d.conta)} por mês, passa para cerca de ${brl(d.novaConta)}`);
+  else if (d.conta) linhasMsg.push(`📉 *Sua conta de luz:* de ${brl(d.conta)} para cerca de ${brl(d.novaConta)}`);
   linhasMsg.push(`💰 *Investimento:* ${brl(d.valor)}`);
   if (d.modoValor === 'separado') linhasMsg.push(`     (kit ${brl(d.valorKit)} + mão de obra ${brl(d.valorServico)})`);
   linhasMsg.push(`💳 *Pagamento:* ${pagamento}`);
@@ -2429,6 +2443,11 @@ document.addEventListener('keydown', e => {
     gerarPDF('baixar');
   }
 });
+// conta de luz: um valor só para a análise de investimento e para a proposta
+function sincronizarConta(v, origem) {
+  ['imp-conta-atual', 'prop-conta'].forEach(id => { if (id !== origem) { const el = document.getElementById(id); if (el && el.value !== v) el.value = v; } });
+  if (origem !== 'imp-conta-atual' && typeof atualizarDashImp === 'function') atualizarDashImp();
+}
 function podeCompartilharPDF() {
   try {
     return !!(navigator.canShare && navigator.canShare({ files:[new File([''], 'teste.pdf', { type:'application/pdf' })] }));
@@ -2657,6 +2676,7 @@ async function salvarOrcamento() {
       conta_pagamento: contaSel().rotulo || null,
       valor_kit: (document.querySelector('input[name="modo-valor"]:checked') || {}).value === 'separado' ? (+document.getElementById('prop-valor-kit').value || null) : null,
       conta_atual: +document.getElementById('prop-conta').value || null,
+      conta_meta: +document.getElementById('prop-conta-meta').value || null,
       consumo_kwh: +document.getElementById('prop-consumo').value || null,
       cpf_cnpj: document.getElementById('prop-cpf').value.trim() || null,
       regiao: { id: regiaoSel().id, nome: regiaoSel().nome, uf: regiaoSel().uf, fator: fatorRegiao() },
