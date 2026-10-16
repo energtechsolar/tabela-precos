@@ -298,6 +298,12 @@
   .senha-ok { color:var(--verde); font-size:13px; margin-top:8px; display:none; }
   .senha-dica { font-size:11px; color:var(--muted); margin:-4px 0 12px; text-align:left; }
   .th-custo { color:var(--amarelo) !important; }
+  .admin-tabela td.arrastar { white-space:nowrap; cursor:grab; color:var(--muted); user-select:none; }
+  .admin-tabela td.arrastar .alca { font-size:16px; padding:0 4px; }
+  .admin-tabela td.arrastar .setas button { background:none; border:none; color:var(--muted); cursor:pointer; font-size:10px; padding:2px; }
+  .admin-tabela td.arrastar .setas button:hover { color:var(--amarelo); }
+  .admin-tabela tr.arrastando { opacity:0.4; }
+  .admin-tabela tr.alvo td { border-top:2px solid var(--amarelo); }
   .admin-input-custo { border-color:#5a4a10 !important; }
   .res-admin { display:none; }
   body.eh-admin .res-admin { display:block; }
@@ -916,6 +922,7 @@
           <table class="admin-tabela" id="admin-tabela-importado">
             <thead>
               <tr>
+                <th title="Arraste para mudar a ordem"></th>
                 <th>Nome</th>
                 <th>Top</th>
                 <th>kWp</th>
@@ -933,6 +940,8 @@
           </table>
         </div>
         <button class="admin-btn-add" onclick="adicionarLinha('importado')">+ Adicionar Sistema</button>
+        <button class="admin-btn-add" onclick="ordenarPorPotencia('importado')" title="Coloca do menor para o maior kWp e renumera">↕ Ordenar por potência</button>
+        <div class="regiao-aviso" style="margin:6px 0">Arraste pela alça ⠿ (ou use ▲▼) para mudar a posição. Nomes no padrão "Sistema N" se renumeram sozinhos; nomes personalizados são mantidos.</div>
         <button class="admin-salvar" onclick="salvarAdmin()">💾 Salvar Alterações</button>
         <div class="admin-msg" id="admin-msg-imp">✅ Alterações salvas com sucesso!</div>
       </div>
@@ -944,6 +953,7 @@
           <table class="admin-tabela" id="admin-tabela-nacional">
             <thead>
               <tr>
+                <th title="Arraste para mudar a ordem"></th>
                 <th>Nome</th>
                 <th>Top</th>
                 <th>kWp</th>
@@ -962,6 +972,8 @@
           </table>
         </div>
         <button class="admin-btn-add" onclick="adicionarLinha('nacional')">+ Adicionar Sistema</button>
+        <button class="admin-btn-add" onclick="ordenarPorPotencia('nacional')" title="Coloca do menor para o maior kWp e renumera">↕ Ordenar por potência</button>
+        <div class="regiao-aviso" style="margin:6px 0">Arraste pela alça ⠿ (ou use ▲▼) para mudar a posição. Nomes no padrão "Sistema N" se renumeram sozinhos; nomes personalizados são mantidos.</div>
         <button class="admin-salvar" onclick="salvarAdmin()">💾 Salvar Alterações</button>
         <div class="admin-msg" id="admin-msg-nac">✅ Alterações salvas com sucesso!</div>
       </div>
@@ -2880,6 +2892,7 @@ function renderAdminTabela(tipo) {
     const tr = document.createElement('tr');
     if (tipo === 'importado') {
       tr.innerHTML = `
+        <td class="arrastar" title="Arraste para mudar a posição"><span class="alca">⠿</span><span class="setas"><button onclick="moverSistema('importado',${idx},-1)" title="Subir">▲</button><button onclick="moverSistema('importado',${idx},1)" title="Descer">▼</button></span></td>
         <td><input class="admin-input admin-input-md" value="${item.nome}" onchange="IMPORTADO[${idx}].nome=this.value"></td>
         <td style="text-align:center"><input type="checkbox" class="admin-check" ${item.top?'checked':''} onchange="IMPORTADO[${idx}].top=this.checked"></td>
         <td><input class="admin-input admin-input-sm" type="number" step="0.01" value="${item.kwp}" onchange="IMPORTADO[${idx}].kwp=+this.value"></td>
@@ -2893,6 +2906,7 @@ function renderAdminTabela(tipo) {
         <td style="white-space:nowrap"><button class="admin-btn-del" title="Itens do kit" style="color:var(--amarelo)" onclick="editarItensKit('importado',${idx})">📦</button> <button class="admin-btn-del" onclick="removerLinha('importado',${idx})">✕</button></td>`;
     } else {
       tr.innerHTML = `
+        <td class="arrastar" title="Arraste para mudar a posição"><span class="alca">⠿</span><span class="setas"><button onclick="moverSistema('nacional',${idx},-1)" title="Subir">▲</button><button onclick="moverSistema('nacional',${idx},1)" title="Descer">▼</button></span></td>
         <td><input class="admin-input admin-input-md" value="${item.nome}" onchange="NACIONAL[${idx}].nome=this.value"></td>
         <td style="text-align:center"><input type="checkbox" class="admin-check" ${item.top?'checked':''} onchange="NACIONAL[${idx}].top=this.checked"></td>
         <td><input class="admin-input admin-input-sm" type="number" step="0.01" value="${item.kwp}" onchange="NACIONAL[${idx}].kwp=+this.value"></td>
@@ -2906,9 +2920,44 @@ function renderAdminTabela(tipo) {
         <td><input class="admin-input admin-input-sm" type="number" step="0.01" value="${(item.com_pct*100).toFixed(1)}" onchange="NACIONAL[${idx}].com_pct=+this.value/100"></td>
         <td style="white-space:nowrap"><button class="admin-btn-del" title="Itens do kit" style="color:var(--amarelo)" onclick="editarItensKit('nacional',${idx})">📦</button> <button class="admin-btn-del" onclick="removerLinha('nacional',${idx})">✕</button></td>`;
     }
+    tr.draggable = true;
+    tr.dataset.idx = idx;
+    tr.addEventListener('dragstart', e => {
+      if (e.target.closest && e.target.closest('input,button')) { e.preventDefault(); return; }
+      _arrasto = { tipo, de: idx }; tr.classList.add('arrastando'); e.dataTransfer.effectAllowed = 'move';
+    });
+    tr.addEventListener('dragend', () => { tr.classList.remove('arrastando'); tbody.querySelectorAll('.alvo').forEach(x => x.classList.remove('alvo')); });
+    tr.addEventListener('dragover', e => { if (_arrasto && _arrasto.tipo === tipo) { e.preventDefault(); tbody.querySelectorAll('.alvo').forEach(x => x.classList.remove('alvo')); tr.classList.add('alvo'); } });
+    tr.addEventListener('drop', e => { e.preventDefault(); if (_arrasto && _arrasto.tipo === tipo) moverPara(tipo, _arrasto.de, idx); _arrasto = null; });
     tbody.appendChild(tr);
   });
 }
+
+// ── ordem dos sistemas: arrastar, setas, ordenar por potência; nomes "Sistema N" se renumeram sozinhos ──
+let _arrasto = null;
+function listaDo(tipo) { return tipo === 'importado' ? IMPORTADO : NACIONAL; }
+function renumerarSistemas(lista) {
+  lista.forEach((it, i) => { if (!it.nome || /^\s*(sistema\s*\d+|novo sistema)\s*$/i.test(it.nome)) it.nome = 'Sistema ' + (i + 1); });
+}
+function aposMudarOrdem(tipo) {
+  renumerarSistemas(listaDo(tipo));
+  renderAdminTabela(tipo);
+  const msg = tipo === 'importado' ? 'admin-msg-imp' : 'admin-msg-nac';
+  mostrarMsgAdmin(msg, 'Ordem alterada. Clique em "Salvar Alterações" para gravar.', true);
+}
+function moverPara(tipo, de, para) {
+  const l = listaDo(tipo);
+  if (de === para || de < 0 || para < 0 || de >= l.length || para >= l.length) return;
+  const [it] = l.splice(de, 1); l.splice(para, 0, it);
+  aposMudarOrdem(tipo);
+}
+function moverSistema(tipo, idx, dir) { moverPara(tipo, idx, idx + dir); }
+function ordenarPorPotencia(tipo) {
+  listaDo(tipo).sort((a, b) => (+a.kwp || 0) - (+b.kwp || 0));
+  aposMudarOrdem(tipo);
+}
+// "3" → "3 kW", "3+4" → "3+4 kW"
+function normalizarInversor(lista) { lista.forEach(it => { const v = String(it.inv || '').trim(); if (v && !/[a-z]/i.test(v)) it.inv = v + ' kW'; }); }
 
 function adicionarLinha(tipo) {
   if (tipo === 'importado') {
@@ -2916,14 +2965,14 @@ function adicionarLinha(tipo) {
   } else {
     NACIONAL.push({ uid:novoUid(), nome:"Novo Sistema", top:false, kwp:0, mod:0, inv:"", kwh:0, inv_r:0, parc_a:0, parc_m:0, com_pct:0.06 });
   }
-  renderAdminTabela(tipo);
+  aposMudarOrdem(tipo);
 }
 
 function removerLinha(tipo, idx) {
   if (!confirm('Remover este sistema?')) return;
   if (tipo === 'importado') IMPORTADO.splice(idx, 1);
   else NACIONAL.splice(idx, 1);
-  renderAdminTabela(tipo);
+  aposMudarOrdem(tipo);
 }
 
 function validarSistemas(lista, campos) {
@@ -2974,6 +3023,9 @@ async function salvarAdmin() {
   if (problema) { mostrarMsgAdmin(msgId, '⚠️ ' + problema, false); return; }
 
   garantirUids();
+  renumerarSistemas(IMPORTADO); renumerarSistemas(NACIONAL);
+  normalizarInversor(IMPORTADO); normalizarInversor(NACIONAL);
+  renderAdminTabela('importado'); renderAdminTabela('nacional');
   const botoes = document.querySelectorAll('.admin-salvar');
   botoes.forEach(b => b.disabled = true);
   let r = await gravarNoSupabase([
