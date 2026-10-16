@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://images.unsplash.com https://nominatim.openstreetmap.org; connect-src 'self' https://nominatim.openstreetmap.org https://cmrndntnaaooapbdmgip.supabase.co;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://images.unsplash.com https://nominatim.openstreetmap.org https://cmrndntnaaooapbdmgip.supabase.co; connect-src 'self' https://nominatim.openstreetmap.org https://cmrndntnaaooapbdmgip.supabase.co;">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Precificação — Energtech Engenharia Solar</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -849,6 +849,16 @@
       </div>
     </div>
 
+    <!-- Foto de capa desta proposta -->
+    <div class="proposta-itens">
+      <label class="tit" for="prop-capa">Foto de capa (opcional) — foto do projeto ou do local do cliente</label>
+      <input type="file" id="prop-capa" accept="image/*" onchange="escolherCapaProposta(this)" style="color:var(--muted);font-size:13px">
+      <div style="display:flex;gap:12px;align-items:center">
+        <span class="regiao-aviso" id="prop-capa-info">Usando a capa padrão da empresa.</span>
+        <button class="link-mini" id="btn-capa-padrao" onclick="usarCapaPadrao()" style="display:none">↺ Usar capa padrão</button>
+      </div>
+    </div>
+
     <!-- Estimativa de produção -->
     <div class="proposta-producao" id="proposta-producao">
       <div class="pp-titulo">☀️ Estimativa de Produção — <span id="pp-regiao">Oeste SC</span></div>
@@ -1307,6 +1317,9 @@
             </div>
           </div>
         </div>
+        <div class="admin-section-titulo">Proposta (PDF) — imagens</div>
+        <div class="regiao-aviso" style="margin-bottom:10px">Troque as fotos direto por aqui. A imagem é enviada, ajustada e salva para todos os vendedores na hora. Use fotos na horizontal (paisagem).</div>
+        <div class="admin-cfg-grid" id="admin-proposta-imagens"></div>
         <div class="admin-section-titulo">Proposta (PDF) — textos que aparecem para o cliente</div>
         <div class="admin-cfg-grid" id="admin-proposta-campos"></div>
         <div class="admin-section-titulo">Geração por Região — kWh por kWp instalado, por mês (telhado ao norte)</div>
@@ -1690,6 +1703,7 @@ function abrirProposta(tipo, idx, item, calc) {
   propostaCalc = calc;
   propostaTipo = tipo;
   ultimoOrcamentoId = null;
+  if (capaDaProposta) usarCapaPadrao();
   preencherItensProposta();
   atualizarBlocoLead();
   statusProposta('', '');
@@ -1817,13 +1831,36 @@ const PROPOSTA_PADRAO = {
   servico_desc: 'Serviço de instalação elétrica, mecânica e civil do sistema solar na propriedade do cliente. Inclui projeto e homologação do sistema na concessionária de energia.',
   fator_kit: 1.30,
   contatos: 'www.energtechsolar.com.br  ·  energtechsolar@gmail.com  ·  (49) 99182-8095  ·  Quilombo/SC e Aratiba/RS',
+  concessionaria: 'Celesc',
+  telefone_aprovacao: '49991828095',
+  telefone_exibir: '(49) 99182-8095',
+  avista_itens: 'Pagamento único, sem juros\nMelhor valor final\nLiberação imediata do projeto',
+  parcelado_itens: 'Condição facilitada\nSem burocracia\nParcelamento direto com a Energtech',
+  finame_itens: 'Linha BNDES para equipamentos nacionais\nParcelas fixas',
+  fin_ativo: true,
+  fin_banco: 'Caixa',
+  fin_taxa_mes: 0.99,
+  fin_prazos: '36, 48, 60, 72',
+  fin_obs: 'Programa Reforma Casa Brasil\nSomente imóvel urbano\nSujeito às regras e limites do programa',
+  rodape_legal: 'Energtech Engenharia Solar · CNPJ 40.297.488/0001-85 · Responsável técnico: Eng. Eletricista Eider Balena – CREA-SC 171497-7',
+  imagens: { capa:'', pag2:'', pag3:'', pag4:'' },
 };
 let PROPOSTA_CFG = { ...PROPOSTA_PADRAO };
 
 // variação típica da geração ao longo do ano no Sul (média = 1)
 const PERFIL_MENSAL = [1.15, 1.10, 1.06, 0.96, 0.85, 0.78, 0.83, 0.93, 0.95, 1.06, 1.15, 1.18];
 const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-const FOTOS_PROPOSTA = { capa:'proposta-capa.jpg', faixa:'proposta-foto2.jpg', inversor:'proposta-foto3.jpg' };
+const LOGO_TOPO = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDAwMDAgQDAwMEBAQFBgoGBgUFBgwICQcKDgwPDg4MDQ0PERYTDxAVEQ0NExoTFRcYGRkZDxIbHRsYHRYYGRj/2wBDAQQEBAYFBgsGBgsYEA0QGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBj/wAARCADwA4QDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD4hooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK9B8AfBb4gfEfZcaHpH2fTWz/wATTUCYbY/fHytg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BRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFe2eAP2nviB4Q2WeuS/8ACVaaM/u9QlIuU++fluMFjlmGd4fhQq7a8Torz8yyrB5lS9jjKanHz3Xo90/NNG+HxVXDy56UrP8Ar7z9BPB/7Rfws8X+bH/bn9g3EeT5OulLXeo2/Msm4xnJbAXdu+VjtwM16tX5S103hT4h+N/BEyv4V8Tahp0ayNKbZJN9u7suws0LZjY4A5KnGAeoGPy/NfCilO88vrcv92Wq/wDAlqvuZ9JhuJ5LSvC/mv8AL/go/TSiviHQ/wBrj4ladDaW+r2OiazHHJmeeWBobidN2SN0bCNTg7QRGcYBIY5z21r+2fbPfQpe/DuWG2MiiaSHVBI6Jn5iqGFQxAzgFhnpkda+LxPhxntFtRpKa7qUf1af4Hr0+IMFNayt6p/pc+qKK+ff+Gwfhp/0A/Ff/gNb/wDx+j/hsH4af9APxX/4DW//AMfrzP8AUzO/+gWX9fM6f7Xwf/PxH0FRXy7qf7ZumRapLHo/gG7u7IY8ua71BbeRuBndGsbhecgYY5AB4zgcdrv7X/jy9mu49B0LRNKtpY9kDSrJc3EBK4L7yyoxDZYZjx0BDYOfQw3h1ntZrmoqKfVyj+Sbf4HPUz/BQ2nf0T/4Y+06858b/HP4a+BIZE1HX4tQv45GiOm6Uy3NwrowV1cAhYyuekjLnawGSMV8OeK/ir8RPG0LQeJfFuoXds8axvaIwgt5ArbwWijCoxDYO4gngc8DHHV9nlXhPGLU8xrX/uw/+Sev/kq9TycTxO3ph4fN/wCS/wAz6C+In7Vni3xH5+m+C4P+Eb01tyfaciS9lU71zu+7FlWU4TLKy8SV4FdXVzfX017e3EtzczyNLNPM5d5HY5ZmY8kkkkk9aior9QyvJcFlVP2WDpqK6936vdnzeJxlbEy5qsr/ANdgooor1DmCiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/9k=';
+// imagens padrão (arquivos do site). O admin pode trocar cada uma pelo painel → Configurações → Imagens da proposta
+const FOTOS_PROPOSTA = { capa:'proposta-capa.jpg', pag2:'', pag3:'', pag4:'' };
+const SLOTS_IMAGEM = [
+  ['capa', 'Capa (página 1)', 168, 95],
+  ['pag2', 'Página 2 — rodapé (opcional)', 184, 52],
+  ['pag3', 'Página 3 — rodapé (opcional)', 184, 52],
+  ['pag4', 'Página 4 — rodapé (opcional)', 184, 52],
+];
+let capaDaProposta = null; // foto escolhida pelo vendedor só para esta proposta
+function urlImagem(slot) { const im = PROPOSTA_CFG.imagens || {}; return im[slot] || FOTOS_PROPOSTA[slot] || ''; }
 let ultimoOrcamentoId = null;
 const _cacheImg = {};
 
@@ -1832,10 +1869,13 @@ async function fotoRecortada(url, wmm, hmm, larguraPx) {
   const chave = url + '|' + wmm + 'x' + hmm;
   if (chave in _cacheImg) return _cacheImg[chave];
   try {
-    const r = await fetch(url, { cache:'no-cache' });
-    if (!r.ok) throw new Error('sem foto');
-    const blob = await r.blob();
-    const img = await new Promise((ok, erro) => { const i = new Image(); i.onload = () => ok(i); i.onerror = erro; i.src = URL.createObjectURL(blob); });
+    let src = url;
+    if (!/^data:/.test(url)) {
+      const r = await fetch(url, { cache:'no-cache' });
+      if (!r.ok) throw new Error('sem foto');
+      src = URL.createObjectURL(await r.blob());
+    }
+    const img = await new Promise((ok, erro) => { const i = new Image(); i.onload = () => ok(i); i.onerror = erro; i.src = src; });
     const W = larguraPx || 1400, H = Math.round(W * hmm / wmm);
     const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
     const ctx = cv.getContext('2d');
@@ -1923,12 +1963,14 @@ async function gerarPDF(modo) {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando…'; }
   try {
     const d = coletarDadosProposta();
-    const [fCapa, fFaixa, fInv] = await Promise.all([
-      fotoRecortada(FOTOS_PROPOSTA.capa, 210, 172, 1400),
-      fotoRecortada(FOTOS_PROPOSTA.faixa, 210, 58, 1400),
-      fotoRecortada(FOTOS_PROPOSTA.inversor, 58, 78, 600),
-    ]);
-    const { doc, arq } = montarPropostaPDF(d, { capa:fCapa, faixa:fFaixa, inversor:fInv });
+    const fotos = {};
+    await Promise.all(SLOTS_IMAGEM.map(async ([slot, , w, h]) => {
+      let url = slot === 'capa' && capaDaProposta ? capaDaProposta : urlImagem(slot);
+      let img = url ? await fotoRecortada(url, w, h, 1400) : null;
+      if (!img && slot === 'capa' && url !== FOTOS_PROPOSTA.capa) img = await fotoRecortada(FOTOS_PROPOSTA.capa, w, h, 1400);
+      fotos[slot] = img;
+    }));
+    const { doc, arq } = montarPropostaPDF(d, fotos);
     if (modo === 'compartilhar') {
       const arquivo = new File([doc.output('blob')], arq, { type:'application/pdf' });
       try {
@@ -1950,306 +1992,385 @@ async function gerarPDF(modo) {
 function montarPropostaPDF(d, fotos) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
-  const W = 210, H = 297, M = 16;
-  const AM = [255,193,7], PR = [17,17,17], CZ = [110,110,110], CZC = [244,244,244], BR = [255,255,255], VD = [22,128,61];
+  const W = 210, H = 297, X0 = 13, X1 = 197, CW = X1 - X0;
+  const AM = [255,193,7], PR = [17,17,17], PR2 = [31,31,31], CZ = [102,102,102], CZC = [243,243,243], BD = [221,221,221],
+        BR = [255,255,255], CL = [204,204,204], AZ = [21,101,192], VD = [46,125,50];
   const cor  = c => doc.setTextColor(c[0], c[1], c[2]);
   const fill = c => doc.setFillColor(c[0], c[1], c[2]);
   const draw = c => doc.setDrawColor(c[0], c[1], c[2]);
   const fonte = (tam, estilo) => { doc.setFontSize(tam); doc.setFont('helvetica', estilo || 'normal'); };
-  const opac = o => { try { doc.setGState(new doc.GState({ opacity:o })); } catch (e) {} };
   const texto = (t, x, y, o) => doc.text(String(t), x, y, o || {});
-
-  const logo = (x, y, tam, claro) => {
-    try { doc.addImage(LOGO_SIMBOLO, 'JPEG', x, y, tam, tam); } catch (e) {}
-    cor(claro ? BR : PR); fonte(tam * 1.55, 'bold'); texto('Energtech', x + tam + 2.5, y + tam * 0.62);
-    cor(AM); fonte(tam * 0.62, 'bold'); texto('ENGENHARIA SOLAR', x + tam + 2.7, y + tam * 0.98, { charSpace:0.6 });
-  };
-  const cabecalho = (titulo, sub) => {
-    fill(PR); doc.rect(0, 0, W, 24, 'F');
-    fill(AM); doc.rect(0, 24, W, 1.2, 'F');
-    logo(M, 6.5, 11, true);
-    cor(AM); fonte(8, 'bold'); texto('PROPOSTA Nº ' + d.numero, W - M, 11, { align:'right', charSpace:0.4 });
-    cor([200,200,200]); fonte(8); texto(d.nome, W - M, 16.5, { align:'right' });
-    cor(PR); fonte(20, 'bold'); texto(titulo, M, 40);
-    if (sub) { cor(CZ); fonte(9.5); texto(sub, M, 46.5); }
-  };
-  const rodape = (n, TOTAL) => {
-    draw([225,225,225]); doc.setLineWidth(0.3); doc.line(M, H - 14, W - M, H - 14);
-    cor(CZ); fonte(7.2);
-    texto(PROPOSTA_CFG.contatos || PROPOSTA_PADRAO.contatos, M, H - 9);
-    texto('Proposta Nº ' + d.numero + ' · ' + d.data + ' · página ' + n + ' de ' + TOTAL, W - M, H - 5, { align:'right' });
-  };
-  const cartao = (x, y, w, h, rotulo, valor, sub, escuro) => {
-    fill(escuro ? PR : CZC); doc.roundedRect(x, y, w, h, 3, 3, 'F');
-    cor(escuro ? AM : CZ); fonte(7.5, 'bold'); texto(rotulo.toUpperCase(), x + 5, y + 8, { charSpace:0.3 });
-    cor(escuro ? BR : PR); fonte(16, 'bold'); texto(valor, x + 5, y + 18);
-    if (sub) { cor(escuro ? [190,190,190] : CZ); fonte(7.5); texto(sub, x + 5, y + h - 4.5); }
-  };
-  const tituloSecao = (t, y) => { fill(AM); doc.rect(M, y - 4, 1.6, 5.5, 'F'); cor(PR); fonte(11, 'bold'); texto(t, M + 4, y); };
   const linhas = (t, larg) => doc.splitTextToSize(String(t || ''), larg);
+  const caixa = (x, y, w, h, c, borda) => { fill(c); if (borda) { draw(borda); doc.setLineWidth(0.25); doc.rect(x, y, w, h, 'FD'); } else doc.rect(x, y, w, h, 'F'); };
+  // fonte que cabe na largura (nomes longos, valores grandes)
+  const caber = (t, larg, tam, min, estilo) => { let s = tam; fonte(s, estilo); while (s > min && doc.getTextWidth(String(t)) > larg) { s -= 0.5; fonte(s, estilo); } return s; };
+  const logo = (x, y, w) => { try { doc.addImage(LOGO_TOPO, 'JPEG', x, y, w, w * 240 / 900); } catch (e) {} };
 
-  // ═══════════════ PÁGINA 1 — CAPA ═══════════════
-  const HF = 172;
-  if (fotos.capa) doc.addImage(fotos.capa, 'JPEG', 0, 0, W, HF);
-  else { fill(PR); doc.rect(0, 0, W, HF, 'F'); }
-  // escurecimento para leitura do texto
-  fill([0,0,0]); opac(0.25); doc.rect(0, 0, W, HF, 'F');
-  opac(0.55); doc.rect(0, HF - 62, W, 62, 'F'); opac(0.35); doc.rect(0, 0, W, 30, 'F'); opac(1);
-  logo(M, 10, 13, true);
-  cor(AM); fonte(11, 'bold'); texto('SISTEMA DE ENERGIA SOLAR FOTOVOLTAICA', M, HF - 40, { charSpace:0.5 });
-  cor(BR); fonte(36, 'bold'); texto('PROPOSTA', M, HF - 25); texto('COMERCIAL', M, HF - 11);
-  fill(AM); doc.rect(0, HF, W, 2.2, 'F');
+  // ── ícones simples desenhados (o PDF não tem emoji) ──
+  const icone = (tipo, cx, cy, s, c) => {
+    c = c || AM; fill(c); draw(c); doc.setLineWidth(s * 0.09);
+    if (tipo === 'raio') doc.lines([[s*0.35,-s*0.5],[-s*0.1,s*0.4],[s*0.3,0],[-s*0.55,s*0.62],[s*0.12,-s*0.45],[-s*0.3,0]], cx - s*0.05, cy - s*0.03, [1,1], 'F', true);
+    else if (tipo === 'grafico') { [0.4, 0.7, 1.0].forEach((h, i) => doc.rect(cx - s*0.45 + i*s*0.33, cy + s*0.45 - h*s*0.9, s*0.24, h*s*0.9, 'F')); }
+    else if (tipo === 'moeda') { doc.circle(cx, cy, s*0.48, 'F'); cor(PR); fonte(s*1.9, 'bold'); texto('$', cx, cy + s*0.24, { align:'center' }); }
+    else if (tipo === 'casa') { doc.lines([[s*0.5,-s*0.45],[s*0.5,s*0.45]], cx - s*0.5, cy, [1,1], 'F', true); doc.rect(cx - s*0.35, cy - s*0.02, s*0.7, s*0.48, 'F'); }
+    else if (tipo === 'pin') { doc.circle(cx, cy - s*0.15, s*0.32, 'F'); doc.lines([[s*0.3,0],[-s*0.3,s*0.58]], cx - s*0.15, cy - s*0.02, [1,1], 'F', true); fill(BR); doc.circle(cx, cy - s*0.15, s*0.12, 'F'); }
+    else if (tipo === 'sol') { doc.circle(cx, cy, s*0.24, 'F'); for (let a = 0; a < 8; a++) { const r = a * Math.PI / 4; doc.line(cx + Math.cos(r)*s*0.33, cy + Math.sin(r)*s*0.33, cx + Math.cos(r)*s*0.5, cy + Math.sin(r)*s*0.5); } }
+    else if (tipo === 'painel') { doc.lines([[s*0.75,0],[s*0.2,s*0.55],[-s*0.75,0]], cx - s*0.47, cy - s*0.3, [1,1], 'F', true); draw(BR); doc.setLineWidth(s*0.05); doc.line(cx - s*0.1, cy - s*0.3, cx + s*0.0, cy + s*0.25); doc.line(cx - s*0.37, cy - s*0.03, cx + s*0.38, cy - s*0.03); }
+    else if (tipo === 'escudo') { doc.lines([[s*0.42,-s*0.14],[s*0.42,s*0.14],[0,s*0.38],[-s*0.42,s*0.34],[-s*0.42,-s*0.34]], cx - s*0.42, cy - s*0.36, [1,1], 'F', true); }
+  };
+  const check = (x, y, c) => { draw(c || AM); doc.setLineWidth(0.55); doc.line(x, y - 1.1, x + 0.9, y - 0.1); doc.line(x + 0.9, y - 0.1, x + 2.5, y - 2.2); };
+  const listaCheck = (itens, x, y, larg, tam, c, entre) => {
+    fonte(tam); itens.forEach(t => { const l = linhas(t, larg - 4); check(x, y); cor(c || PR); fonte(tam); doc.text(l, x + 4, y); y += l.length * tam * 0.42 + (entre || 1.6); });
+    return y;
+  };
+  const anos = t => { const m = String(t || '').match(/\d+\s*(anos?|meses?)/i); return m ? m[0] : ''; };
 
-  let y = HF + 15;
-  cor(CZ); fonte(8.5, 'bold'); texto('PREPARADA PARA', M, y, { charSpace:0.5 });
-  cor(PR); fonte(22, 'bold'); texto(linhas(d.nome, W - 2 * M)[0], M, y + 10);
-  cor(CZ); fonte(10); texto(d.cidade || (d.regiao.nome.split(' (')[0] + ' / ' + d.regiao.uf), M, y + 17);
+  const cabecalho = () => {
+    caixa(X0, 7, CW, 16.5, PR);
+    logo(X0 + 4, 10.3, 36);
+    cor(BR); fonte(7.5, 'bold'); texto('Proposta Nº', X1 - 4, 12, { align:'right' }); texto(d.numero, X1 - 4, 15.6, { align:'right' });
+    cor(CL); fonte(7); texto(linhas(d.nome, 80)[0], X1 - 4, 19.6, { align:'right' });
+  };
+  const secao = (n, titulo, sub) => {
+    cor(AM); fonte(13, 'bold'); texto(n + '.', X0, 32);
+    cor(PR); texto(titulo, X0 + doc.getTextWidth(n + '. '), 32);
+    fill(AM); doc.rect(X0 - 3, 34.6, 0.9, 3.8, 'F');
+    cor(CZ); fonte(7.5); texto(sub, X0, 37.6);
+  };
+  const rodape = (n, total) => {
+    draw([225,225,225]); doc.setLineWidth(0.25); doc.line(X0, 279, X1, 279);
+    cor(CZ); fonte(6.8); texto(PROPOSTA_CFG.contatos || PROPOSTA_PADRAO.contatos, X0, 288);
+    cor(PR); fonte(8, 'bold'); texto(n + '/' + total, X1, 288, { align:'right' });
+  };
+  // cartão cinza com rótulo pequeno em cima
+  const rotulo = (t, x, y, c) => { cor(c || CZ); fonte(6.4, 'bold'); texto(t.toUpperCase(), x, y, { charSpace:0.15 }); };
+  const fotoRodape = (img, yTopo) => {
+    if (!img) return;
+    const h = 52, y = 274 - h;
+    if (yTopo > y - 4) return;
+    doc.addImage(img, 'JPEG', X0, y, CW, h);
+  };
 
-  y += 25;
-  const cw = (W - 2 * M - 8) / 3;
-  cartao(M, y, cw, 27, 'Potência', d.item.kwp.toLocaleString('pt-BR') + ' kWp', d.item.mod + ' módulos de ' + d.potW + ' W', true);
-  cartao(M + cw + 4, y, cw, 27, 'Geração estimada', kwhTxt(d.geracao), 'por mês, em média', true);
-  cartao(M + 2 * (cw + 4), y, cw, 27, 'Economia estimada', brl0(d.economia), 'por mês na conta de luz', true);
-
-  y += 36;
-  const info = [['Proposta Nº', d.numero], ['Emitida em', d.data], ['Válida até', d.validade], ['Consultor', d.vendedor || 'Energtech']];
-  const iw = (W - 2 * M) / 4;
-  info.forEach(([r, v], i) => { cor(CZ); fonte(7.5, 'bold'); texto(r.toUpperCase(), M + i * iw, y); cor(PR); fonte(10, 'bold'); texto(linhas(v, iw - 3)[0], M + i * iw, y + 5.5); });
-
-  // ═══════════════ PÁGINA 2 — SEU SISTEMA ═══════════════
-  doc.addPage();
-  cabecalho('Detalhes da proposta', 'O que o seu sistema vai produzir e quanto você vai economizar.');
-  y = 56;
-  const c2 = (W - 2 * M - 5) / 2;
-  cartao(M, y, c2, 27, 'Geração estimada', kwhTxt(d.geracao) + ' /mês', kwhTxt(d.geracao * 12) + ' por ano', true);
-  cartao(M + c2 + 5, y, c2, 27, 'Economia estimada', brl(d.economia) + ' /mês', brl(d.economia * 12) + ' no primeiro ano', true);
-  if (d.conta) {
-    cartao(M, y + 32, c2, 27, 'Sua conta hoje', brl(d.conta) + ' /mês', d.consumo ? 'consumo de ' + kwhTxt(d.consumo) + ' por mês' : '', false);
-    cartao(M + c2 + 5, y + 32, c2, 27, 'Sua conta com energia solar', brl(d.novaConta) + ' /mês', 'custo mínimo da concessionária', false);
-    y += 64;
-  } else y += 32;
-
-  // gráfico geração × consumo
-  y += 8; tituloSecao('Estimativa de geração' + (d.consumo ? ' e consumo' : '') + ' mês a mês', y);
-  const gx = M + 10, gy = y + 8, gw = W - 2 * M - 12, gh = 62;
-  const ger = PERFIL_MENSAL.map(f => d.geracao * f);
-  const maxV = Math.max(...ger, d.consumo || 0) * 1.12;
-  const passo = Math.pow(10, Math.floor(Math.log10(maxV / 4))); const marca = Math.ceil(maxV / 4 / passo) * passo;
-  draw([230,230,230]); doc.setLineWidth(0.2); cor(CZ); fonte(6.5);
-  for (let v = 0; v <= marca * 4 + 0.1; v += marca) {
-    const yy = gy + gh - (v / (marca * 4)) * gh; doc.line(gx, yy, gx + gw, yy);
-    texto(Math.round(v).toLocaleString('pt-BR'), gx - 2, yy + 1.2, { align:'right' });
-  }
-  const bw = gw / 12;
-  ger.forEach((v, i) => {
-    const x0 = gx + i * bw;
-    const larg = d.consumo ? bw * 0.32 : bw * 0.5;
-    if (d.consumo) { const hc = (d.consumo / (marca * 4)) * gh; fill([170,170,170]); doc.rect(x0 + bw * 0.16, gy + gh - hc, larg, hc, 'F'); }
-    const hg = (v / (marca * 4)) * gh; fill(AM);
-    doc.rect(x0 + (d.consumo ? bw * 0.52 : bw * 0.25), gy + gh - hg, larg, hg, 'F');
-    cor(CZ); fonte(7); texto(MESES[i], x0 + bw / 2, gy + gh + 5, { align:'center' });
-  });
-  cor(CZ); fonte(6.5); texto('kWh', gx - 2, gy - 3, { align:'right' });
-  const ly = gy + gh + 11;
-  fill(AM); doc.rect(M + 10, ly - 2.6, 3, 3, 'F'); cor(PR); fonte(8); texto('Geração solar', M + 15, ly);
-  if (d.consumo) { fill([170,170,170]); doc.rect(M + 45, ly - 2.6, 3, 3, 'F'); texto('Seu consumo', M + 50, ly); }
-
-  y = ly + 9;
-  const orientTxt = { norte:'Norte', leste:'Leste', oeste:'Oeste', sul:'Sul' }[d.orientacao] || d.orientacao;
-  const estrTxt = { fibrocimento:'Fibrocimento', ceramico:'Cerâmico', metalico:'Metálico', laje:'Laje', solo:'Solo' }[d.estrutura] || d.estrutura;
-  const fatos = [['Local', d.cidade || d.regiao.nome.split(' (')[0] + ' / ' + d.regiao.uf], ['Telhado voltado para', orientTxt], ['Estrutura', estrTxt]];
-  const fw = (W - 2 * M) / 3;
-  fatos.forEach(([r, v], i) => { cor(CZ); fonte(7.5, 'bold'); texto(r.toUpperCase(), M + i * fw, y); cor(PR); fonte(10, 'bold'); texto(linhas(v, fw - 4)[0], M + i * fw, y + 5.5); });
-  y += 12;
-  cor(CZ); fonte(7.2);
-  doc.text(linhas('Estimativas para o primeiro ano de operação, com base na irradiação solar média da região. A geração real varia com o clima, sombreamento e manutenção, e a economia depende do seu consumo e das tarifas da concessionária.', W - 2 * M), M, y);
-  if (fotos.faixa) doc.addImage(fotos.faixa, 'JPEG', 0, H - 14 - 1 - 46, W, 46);
-
-  // ═══════════════ PÁGINA 3 — OS PRODUTOS ═══════════════
-  doc.addPage();
-  cabecalho('Os produtos', 'Equipamentos e serviços incluídos nesta proposta.');
-  y = 56;
   const imp = d.tipo === 'importado';
   const sep = d.modoValor === 'separado';
-  const LIM = H - 22;
-  const continuar = () => { doc.addPage(); cabecalho('Os produtos', '(continuação)'); y = 56; };
-  const xQtd = sep ? W - M - 44 : W - M - 4, xVal = W - M - 4, largDesc = (sep ? W - 2 * M - 62 : W - 2 * M - 30);
-  fill(PR); doc.roundedRect(M, y, W - 2 * M, 9, 1.5, 1.5, 'F');
-  cor(AM); fonte(7.5, 'bold'); texto('PRODUTO', M + 4, y + 6); texto('QTD.', xQtd, y + 6, { align:'right' });
-  if (sep) texto('VALOR', xVal, y + 6, { align:'right' });
-  y += 13;
-  // kit
-  cor(PR); fonte(10.5, 'bold'); texto('Kit gerador fotovoltaico de ' + d.item.kwp.toLocaleString('pt-BR') + ' kWp', M + 4, y);
-  fonte(9, 'bold'); texto('1 kit', xQtd, y, { align:'right' });
-  if (sep) texto(brl(d.valorKit), xVal, y, { align:'right' });
-  cor(CZ); fonte(8); texto('Estrutura para telhado ' + estrTxt.toLowerCase() + ' · equipamentos com certificação Inmetro', M + 4, y + 4.8);
-  y += 9;
-  const linhasItens = [];
-  d.itens.forEach(t => linhas('•  ' + t, largDesc).forEach(l => linhasItens.push(l)));
-  let iL = 0;
-  while (iL < linhasItens.length) {
-    const cabem = Math.max(1, Math.floor((LIM - y - 8) / 4.6));
-    const bloco = linhasItens.slice(iL, iL + cabem);
-    fill(CZC); doc.roundedRect(M, y, W - 2 * M, 5 + bloco.length * 4.6, 2, 2, 'F');
-    cor([60,60,60]); fonte(8.2); doc.text(bloco, M + 5, y + 5.5, { lineHeightFactor:1.55 });
-    y += 5 + bloco.length * 4.6 + 4; iL += bloco.length;
-    if (iL < linhasItens.length) continuar();
-  }
-  // serviço
-  const desc = linhas(d.servicoDesc, largDesc);
-  if (y + 14 + desc.length * 4.4 > LIM) continuar();
-  draw([225,225,225]); doc.setLineWidth(0.3); doc.line(M, y - 1, W - M, y - 1);
-  y += 5;
-  cor(PR); fonte(10.5, 'bold'); texto('Serviços de instalação', M + 4, y);
-  fonte(9, 'bold'); texto('1 serv.', xQtd, y, { align:'right' });
-  if (sep) texto(brl(d.valorServico), xVal, y, { align:'right' });
-  cor(CZ); fonte(8.2); doc.text(desc, M + 4, y + 5, { lineHeightFactor:1.45 });
-  y += 6 + desc.length * 4.2 + 4;
-  if (sep) {
-    draw([225,225,225]); doc.line(M, y, W - M, y); y += 5;
-    cor(CZ); fonte(8); texto('Kit gerador (valor financiável) + serviços = valor total da proposta', M + 4, y);
-    y += 6;
-  }
+  const local = d.cidade || (d.regiao.nome.split(' (')[0] + ' / ' + d.regiao.uf);
+  const orientTxt = { norte:'Norte', leste:'Leste', oeste:'Oeste', sul:'Sul' }[d.orientacao] || d.orientacao;
+  const estrTxt = { fibrocimento:'Fibrocimento', ceramico:'Cerâmico', metalico:'Metálico', laje:'Laje', solo:'Solo' }[d.estrutura] || d.estrutura;
+  const kwpTxt = d.item.kwp.toLocaleString('pt-BR');
+  const kwh = v => Math.round(+v || 0).toLocaleString('pt-BR');
+  const conc = PROPOSTA_CFG.concessionaria || 'concessionária';
 
-  // serviços inclusos + foto
-  const incl = String(PROPOSTA_CFG.inclusos || '').split('\n').map(t => t.trim()).filter(Boolean);
-  const hInclTexto = 12 + incl.length * 7;
-  if (y + hInclTexto + 44 > LIM) continuar();
-  y += 4; tituloSecao('Serviços inclusos', y); y += 7;
-  const espacoFoto = LIM - 44 - (y - 6);
-  const usaFoto = fotos.inversor && espacoFoto >= 45;
-  const hFoto = usaFoto ? Math.min(78, espacoFoto) : 0;
-  const largIncl = usaFoto ? W - 2 * M - hFoto * 58 / 78 - 6 : W - 2 * M;
-  const yIncl = y;
-  incl.forEach(t => {
-    fill(AM); doc.circle(M + 2.2, y - 1.2, 1.2, 'F');
-    cor(PR); fonte(9.5); const l = linhas(t, largIncl - 8); doc.text(l, M + 6, y); y += 6 * l.length + 1;
+  // ═══════════════ PÁGINA 1 — CAPA ═══════════════
+  caixa(X0, 10, CW, 242, PR);
+  fill(AM); doc.rect(X0, 251.4, CW, 0.6, 'F');
+  logo(21, 15.5, 45);
+  cor(BR); fonte(8.5, 'bold'); texto('SUA ENERGIA,', 189, 20, { align:'right' });
+  cor(AM); texto('NOSSA SOLUÇÃO', 189, 24.4, { align:'right' });
+  const FX = 21, FY = 35, FW = 168, FH = 95;
+  if (fotos.capa) doc.addImage(fotos.capa, 'JPEG', FX, FY, FW, FH);
+  else { caixa(FX, FY, FW, FH, PR2); icone('sol', FX + FW / 2, FY + FH / 2, 16, [70,70,70]); }
+
+  cor(BR); fonte(8.5, 'bold'); texto('SISTEMA DE ENERGIA SOLAR FOTOVOLTAICA', 21, 141, { charSpace:0.7 });
+  fonte(36, 'bold'); texto('PROPOSTA', 20.3, 156.5); texto('COMERCIAL', 20.3, 172);
+  cor(AM); fonte(8, 'bold'); texto('PREPARADA PARA', 21, 184.5, { charSpace:0.8 });
+  cor(BR); caber(d.nome, 165, 20, 12, 'bold'); texto(d.nome, 21, 193.5);
+  cor(CL); fonte(9.5); texto(local, 21, 199.5);
+
+  const c1w = (168 - 8) / 3;
+  const capaCards = [
+    ['raio', kwpTxt + ' kWp', d.item.mod + ' módulos de ' + d.potW + ' W', 'POTÊNCIA DO SISTEMA'],
+    ['grafico', kwh(d.geracao) + ' kWh/mês', kwh(d.geracao * 12) + ' kWh/ano', 'GERAÇÃO ESTIMADA'],
+    ['moeda', brl0(d.economia) + '/mês', 'na conta de luz', 'ECONOMIA ESTIMADA'],
+  ];
+  capaCards.forEach(([ic, val, sub, rot], i) => {
+    const x = 21 + i * (c1w + 4), y = 205;
+    caixa(x, y, c1w, 33, PR2); fill(AM); doc.rect(x, y, c1w, 0.6, 'F');
+    icone(ic, x + c1w / 2, y + 7, 4.2);
+    cor(BR); caber(val, c1w - 6, 14, 9, 'bold'); texto(val, x + c1w / 2, y + 19, { align:'center' });
+    cor(AM); fonte(7); texto(sub, x + c1w / 2, y + 25.5, { align:'center' });
+    fill(AM); doc.rect(x, y + 37, c1w, 5.2, 'F');
+    cor(PR); fonte(6.8, 'bold'); texto(rot, x + c1w / 2, y + 40.6, { align:'center' });
   });
-  if (usaFoto) doc.addImage(fotos.inversor, 'JPEG', W - M - hFoto * 58 / 78, yIncl - 6, hFoto * 58 / 78, hFoto);
-  y = Math.max(y, yIncl - 6 + hFoto) + 6;
 
-  // valor total
-  if (y + 38 > LIM) continuar();
-  fill(PR); doc.roundedRect(M, y, W - 2 * M, 38, 3, 3, 'F');
-  cor(AM); fonte(8.5, 'bold'); texto('VALOR TOTAL DA PROPOSTA', M + 7, y + 10, { charSpace:0.4 });
-  cor(BR); fonte(26, 'bold'); texto(brl(d.valor), M + 7, y + 23);
-  cor([190,190,190]); fonte(8);
-  texto(sep ? 'Kit ' + brl(d.valorKit) + '  +  serviços ' + brl(d.valorServico) : brl(d.valor / (d.item.kwp * 1000)) + ' por Wp instalado', M + 7, y + 31);
-  const xd = W - M - 62;
-  cor([190,190,190]); fonte(7.5, 'bold'); texto('PRAZO DE ENTREGA', xd, y + 10);
-  cor(BR); fonte(10, 'bold'); doc.text(linhas(PROPOSTA_CFG.prazo_entrega, 56), xd, y + 15.5);
-  cor([190,190,190]); fonte(7.5, 'bold'); texto('RETORNO DO INVESTIMENTO', xd, y + 26);
-  cor(AM); fonte(10, 'bold'); texto(anosMeses(d.paybackMeses), xd, y + 31.5);
-
-  // ═══════════════ PÁGINA 4 — INVESTIMENTO E RETORNO ═══════════════
-  doc.addPage();
-  cabecalho('Investimento e retorno', 'Formas de pagamento e o retorno que o sistema traz.');
-  y = 56;
-  tituloSecao('Formas de pagamento', y); y += 6;
-  const opcoes = imp
-    ? [['À vista', brl(d.valor), 'pagamento único'], ['Entrada + 10 parcelas', brl(d.pag.entrada) + ' + 10× ' + brl(d.pag.parcela10), 'saldo de ' + brl(d.pag.saldo) + ' em 10 vezes']]
-    : [['À vista', brl(d.valor), 'pagamento único'], ['FINAME em 96 parcelas', '96× ' + brl(d.pag.p96), 'sem juros'], ['FINAME em 120 parcelas', '120× ' + brl(d.pag.p120), 'prazo estendido']];
-  const ow = (W - 2 * M - 4 * (opcoes.length - 1)) / opcoes.length;
-  opcoes.forEach((o, i) => {
-    const x = M + i * (ow + 4);
-    fill(i === 0 ? PR : CZC); doc.roundedRect(x, y, ow, 30, 3, 3, 'F');
-    cor(i === 0 ? AM : CZ); fonte(7.5, 'bold'); texto(o[0].toUpperCase(), x + 5, y + 8);
-    cor(i === 0 ? BR : PR); fonte(opcoes.length === 3 ? 11.5 : 13, 'bold'); doc.text(linhas(o[1], ow - 8), x + 5, y + 17);
-    cor(i === 0 ? [190,190,190] : CZ); fonte(7.5); texto(o[2], x + 5, y + 26);
+  const info = [['Proposta Nº', d.numero], ['Emissão', d.data], ['Válida até', d.validade], ['Consultor', d.vendedor || 'Energtech']];
+  const iw = CW / 4;
+  info.forEach(([r, v], i) => {
+    const x = X0 + i * iw;
+    if (i) { draw(BD); doc.setLineWidth(0.25); doc.line(x, 254, x, 271); }
+    rotulo(r, x + 4.5, 258.5);
+    cor(PR); fonte(9.5, 'bold'); texto(linhas(v, iw - 8)[0], x + 4.5, 263.8);
   });
-  y += 38;
-  if (d.modoValor === 'separado') {
-    cor(PR); fonte(8.5, 'bold'); texto('Composição: kit gerador ' + brl(d.valorKit) + '  ·  mão de obra ' + brl(d.valorServico), M, y); y += 6;
-  }
-  cor(CZ); fonte(7.5);
-  doc.text(linhas('Condições sujeitas à análise de crédito. Também trabalhamos com financiamento bancário e linhas de crédito para energia solar — consulte seu consultor.', W - 2 * M), M, y);
 
-  y += 14;
-  tituloSecao('O retorno do seu investimento', y); y += 6;
-  const r3 = (W - 2 * M - 8) / 3;
-  cartao(M, y, r3, 30, 'Economia no 1º ano', brl0(d.economia * 12), brl0(d.economia) + ' por mês', true);
-  cartao(M + r3 + 4, y, r3, 30, 'Retorno em', anosMeses(d.paybackMeses), 'o sistema se paga com a economia', true);
-  cartao(M + 2 * (r3 + 4), y, r3, 30, 'Economia em 25 anos', brl0(d.eco25), 'vida útil estimada do sistema', true);
-  y += 38;
+  // ═══════════════ PÁGINA 2 — RESULTADOS ═══════════════
+  doc.addPage(); cabecalho();
+  secao(2, 'RESULTADOS DO SEU SISTEMA', 'O que o seu sistema vai produzir e quanto você vai economizar.');
+  const res = [
+    ['raio', 'Geração estimada', kwh(d.geracao) + ' kWh/mês', kwh(d.geracao * 12) + ' kWh por ano', PR],
+    ['moeda', 'Economia estimada', brl0(d.economia) + '/mês', brl0(d.economia * 12) + ' no 1º ano', PR],
+  ];
   if (d.conta) {
-    const sem = d.conta * 12 * 25, com = d.novaConta * 12 * 25;
-    cor(PR); fonte(9, 'bold'); texto('Gasto com energia em 25 anos', M, y); y += 6;
-    const bx = M + 40, bwMax = W - 2 * M - 40 - 30;
-    [['Sem energia solar', sem, [170,170,170]], ['Com energia solar', com + d.valor, AM]].forEach(([r, v, c], i) => {
-      const yy = y + i * 11;
-      cor(CZ); fonte(8.5); texto(r, M, yy + 5);
-      fill(c); doc.roundedRect(bx, yy, Math.max(2, bwMax * v / Math.max(sem, com + d.valor)), 7, 1.5, 1.5, 'F');
-      cor(PR); fonte(9, 'bold'); texto(brl0(v), bx + bwMax * v / Math.max(sem, com + d.valor) + 3, yy + 5.2);
-    });
-    y += 24;
-    cor(CZ); fonte(7.2);
-    doc.text(linhas('"Com energia solar" soma o investimento no sistema e o custo mínimo da concessionária em 25 anos. Valores sem reajuste de tarifa: com os reajustes anuais, a economia real tende a ser ainda maior.', W - 2 * M), M, y);
-    y += 10;
-  } else {
-    cor(CZ); fonte(7.2);
-    doc.text(linhas('Valores sem reajuste de tarifa e considerando o desgaste natural dos módulos ao longo dos anos. Com os reajustes anuais, a economia real tende a ser ainda maior.', W - 2 * M), M, y);
-    y += 10;
+    res.push(['casa', 'Conta atual (estimada)', brl0(d.conta) + '/mês', d.consumo ? kwh(d.consumo) + ' kWh/mês' : '', AZ]);
+    res.push(['casa', 'Nova conta (estimada)', brl0(d.novaConta) + '/mês', 'apenas taxa mínima', VD]);
   }
-
-  y += 4;
-  tituloSecao('Dados para pagamento', y); y += 4;
-  const pagTxt = linhas(PROPOSTA_CFG.pagamento, W - 2 * M - 12);
-  const extraFin = !imp && PROPOSTA_CFG.codigo_finame ? ['Código FINAME do kit: ' + PROPOSTA_CFG.codigo_finame] : [];
-  const hPag = 8 + 5 * (pagTxt.length + extraFin.length);
-  fill(CZC); doc.roundedRect(M, y, W - 2 * M, hPag, 3, 3, 'F');
-  cor(PR); fonte(9); doc.text(pagTxt, M + 6, y + 7);
-  if (extraFin.length) { fonte(9, 'bold'); texto(extraFin[0], M + 6, y + 7 + 5 * pagTxt.length); }
-
-  // ═══════════════ PÁGINA 5 — GARANTIAS E ACEITE ═══════════════
-  doc.addPage();
-  cabecalho('Garantias e próximos passos', 'Segurança para você e o caminho até a usina funcionando.');
-  y = 56;
-  const gar = [['Inversor', PROPOSTA_CFG.garantia_inversor], ['Módulos', PROPOSTA_CFG.garantia_modulos], ['Serviços', PROPOSTA_CFG.garantia_servicos]];
-  const gw3 = (W - 2 * M - 8) / 3;
-  gar.forEach(([r, t], i) => {
-    const x = M + i * (gw3 + 4);
-    fill(CZC); doc.roundedRect(x, y, gw3, 34, 3, 3, 'F');
-    fill(AM); doc.rect(x, y + 4, 1.4, 26, 'F');
-    cor(PR); fonte(10, 'bold'); texto(r, x + 6, y + 9);
-    cor(CZ); fonte(8); doc.text(linhas(t, gw3 - 10).slice(0, 5), x + 6, y + 15);
+  const rw = (CW - 3 * (res.length - 1)) / res.length;
+  res.forEach(([ic, r, v, s, c], i) => {
+    const x = X0 + i * (rw + 3), y = 41;
+    caixa(x, y, rw, 36, CZC, BD);
+    icone(ic, x + rw / 2, y + 6, 3.4);
+    cor(CZ); fonte(6.4, 'bold'); texto(r.toUpperCase(), x + rw / 2, y + 12.5, { align:'center' });
+    cor(c); caber(v, rw - 5, 13, 8, 'bold'); texto(v, x + rw / 2, y + 21.5, { align:'center' });
+    cor(CZ); fonte(6.8); texto(s, x + rw / 2, y + 29, { align:'center' });
   });
 
-  y += 46;
-  tituloSecao('Próximos passos', y); y += 10;
-  const passos = ['Aceite da proposta', 'Projeto e ART', 'Homologação na concessionária', 'Instalação', 'Vistoria e troca do medidor', 'Usina ligada e monitorada'];
-  const pw = (W - 2 * M) / passos.length;
-  draw(AM); doc.setLineWidth(0.8); doc.line(M + pw / 2, y, W - M - pw / 2, y);
-  passos.forEach((p, i) => {
-    const cx = M + pw * i + pw / 2;
-    fill(i === passos.length - 1 ? AM : PR); doc.circle(cx, y, 4.2, 'F');
-    cor(i === passos.length - 1 ? PR : AM); fonte(9, 'bold'); texto(String(i + 1), cx, y + 1.3, { align:'center' });
-    cor(PR); fonte(7.5); doc.text(linhas(p, pw - 3), cx, y + 9, { align:'center' });
+  icone('grafico', X0 + 2, 86.5, 3.4); cor(PR); fonte(9, 'bold'); texto('Estimativa de geração mês a mês', X0 + 6, 87.6);
+  const GX = 21, GY = 91, GW = 169, GH = 72;
+  caixa(GX, GY, GW, GH, BR, BD);
+  const ger = PERFIL_MENSAL.map(f => d.geracao * f);
+  const maxV = Math.max(...ger, d.consumo || 0) * 1.15;
+  const ax = GX + 13, aw = GW - 18, ay = GY + 8, ah = GH - 18;
+  const passo = Math.pow(10, Math.floor(Math.log10(maxV / 4))); const marca = Math.ceil(maxV / 4 / passo) * passo, topo = marca * 4;
+  draw([236,236,236]); doc.setLineWidth(0.2); cor([150,150,150]); fonte(6);
+  for (let v = 0; v <= topo + 0.1; v += marca) { const yy = ay + ah - (v / topo) * ah; doc.line(ax, yy, ax + aw, yy); texto(Math.round(v).toLocaleString('pt-BR'), ax - 2, yy + 1, { align:'right' }); }
+  const bw = aw / 12;
+  ger.forEach((v, i) => {
+    const hb = (v / topo) * ah; fill(AM); doc.rect(ax + i * bw + bw * 0.18, ay + ah - hb, bw * 0.64, hb, 'F');
+    cor(CZ); fonte(6.8); texto(MESES[i], ax + i * bw + bw / 2, ay + ah + 4.5, { align:'center' });
+  });
+  if (d.consumo) {
+    const yc = ay + ah - (d.consumo / topo) * ah;
+    draw([90,90,90]); doc.setLineWidth(0.4); doc.setLineDashPattern([1.2, 1], 0); doc.line(ax, yc, ax + aw, yc); doc.setLineDashPattern([], 0);
+    fonte(6.5, 'bold'); const lc = 'Seu consumo: ' + kwh(d.consumo) + ' kWh/mês', wl = doc.getTextWidth(lc) + 3;
+    fill(BR); draw([90,90,90]); doc.setLineWidth(0.25); doc.roundedRect(ax + aw - wl, yc - 4.6, wl, 4.2, 1, 1, 'FD');
+    cor([70,70,70]); texto(lc, ax + aw - 1.5, yc - 1.6, { align:'right' });
+  }
+  cor(CZ); fonte(6); texto('kWh', ax - 2, ay - 3, { align:'right' });
+  // tabela dos valores mensais
+  const tw = CW / 12;
+  caixa(X0, 165, CW, 5.5, PR); caixa(X0, 170.5, CW, 6, CZC);
+  ger.forEach((v, i) => {
+    cor(AM); fonte(6.6, 'bold'); texto(MESES[i], X0 + i * tw + tw / 2, 168.8, { align:'center' });
+    cor(PR); fonte(7, 'bold'); texto(kwh(v), X0 + i * tw + tw / 2, 174.6, { align:'center' });
+  });
+  cor(CZ); fonte(6.3); texto('Valores em kWh. Geração solar estimada mês a mês para o 1º ano de operação.', X0, 181);
+
+  const fw = (CW - 6) / 3;
+  [['pin', 'Local', local], ['sol', 'Telhado voltado para', orientTxt], ['painel', 'Estrutura', estrTxt]].forEach(([ic, r, v], i) => {
+    const x = X0 + i * (fw + 3), y = 186;
+    caixa(x, y, fw, 18, CZC, BD);
+    icone(ic, x + 6, y + 5.3, 3); rotulo(r, x + 9.5, y + 6.4);
+    cor(PR); caber(v, fw - 9, 10, 7, 'bold'); texto(v, x + 4.5, y + 13);
+  });
+  cor(CZ); fonte(6.3);
+  texto('Estimativas para o primeiro ano de operação, com base na irradiação solar média da região.', X0, 211);
+  texto('A geração real varia com o clima, sombreamento e manutenção, e a economia depende do seu consumo e das tarifas da concessionária.', X0, 214.5);
+  fotoRodape(fotos.pag2, 216);
+
+  // ═══════════════ PÁGINA 3 — EQUIPAMENTOS E SERVIÇOS ═══════════════
+  doc.addPage(); cabecalho();
+  secao(3, 'EQUIPAMENTOS E SERVIÇOS', 'Soluções de qualidade, com marcas reconhecidas e certificadas.');
+  const marcaMod = imp ? PROPOSTA_CFG.modulos_importado : PROPOSTA_CFG.modulos_nacional;
+  const marcaInv = imp ? PROPOSTA_CFG.inversor_importado : PROPOSTA_CFG.inversor_nacional;
+  const bw2 = (CW - 5) / 2;
+  const equip = [
+    ['Módulos fotovoltaicos', d.item.mod + ' x ' + d.potW + ' W', marcaMod, ['Alta eficiência', (anos(PROPOSTA_CFG.garantia_modulos) || '12 anos') + ' de garantia', 'Certificação Inmetro', 'Resistência a intempéries']],
+    ['Inversor', 'Inversor ' + d.item.inv, marcaInv, ['Monitoramento via Wi-Fi', 'Alta confiabilidade', 'Proteções integradas', 'Garantia de ' + (anos(PROPOSTA_CFG.garantia_inversor) || '10 anos')]],
+  ];
+  equip.forEach(([r, v, m, it], i) => {
+    const x = X0 + i * (bw2 + 5), y = 41;
+    caixa(x, y, bw2, 48, CZC, BD);
+    rotulo(r, x + 5, y + 7);
+    cor(PR); caber(v, bw2 - 10, 15, 10, 'bold'); texto(v, x + 5, y + 15);
+    cor(CZ); fonte(7.3); texto(linhas(m ? '(' + m + ')' : '', bw2 - 10)[0] || '', x + 5, y + 20.5);
+    listaCheck(it, x + 5, y + 27.5, bw2 - 10, 7.6, PR, 1.4);
+  });
+  const sw4 = (CW - 9) / 4;
+  [['Estrutura', estrTxt, 'Para telhado ' + estrTxt.toLowerCase() + ', com certificação'], ['Cabos solares', 'Preto e vermelho', '4 mm, padrão solar'],
+   ['Quadro de proteção', 'DPS e disjuntores', 'conforme norma'], ['Kit aterramento', 'Padrão', 'da concessionária']].forEach(([r, v, s], i) => {
+    const x = X0 + i * (sw4 + 3), y = 93;
+    caixa(x, y, sw4, 23, CZC, BD);
+    rotulo(r, x + 4, y + 6.5);
+    cor(PR); caber(v, sw4 - 8, 9.5, 7, 'bold'); texto(v, x + 4, y + 12.5);
+    cor(CZ); fonte(6.5); doc.text(linhas(s, sw4 - 8).slice(0, 2), x + 4, y + 17);
   });
 
-  y += 26;
-  tituloSecao('Aceite da proposta', y); y += 7;
-  cor(CZ); fonte(8.5);
-  const aceite = linhas('Estando de acordo com os produtos, valores e condições desta proposta, as partes firmam o presente aceite. Proposta válida até ' + d.validade + '.', W - 2 * M);
-  doc.text(aceite, M, y); y += 5 * aceite.length + 5;
-  const campos = [['Nome', d.nome], ['CPF / CNPJ', d.cpf], ['Telefone', d.telefone], ['E-mail', d.email], ['Endereço da instalação', ''], ['Cidade / UF', d.cidade]];
-  const cw2b = (W - 2 * M - 10) / 2;
-  campos.forEach(([r, v], i) => {
-    const x = M + (i % 2) * (cw2b + 10), yy = y + Math.floor(i / 2) * 13;
-    cor(CZ); fonte(7, 'bold'); texto(r.toUpperCase(), x, yy);
-    cor(PR); fonte(9.5); texto(linhas(v || '', cw2b)[0] || '', x, yy + 6);
-    draw([200,200,200]); doc.setLineWidth(0.3); doc.line(x, yy + 7.5, x + cw2b, yy + 7.5);
+  // itens do kit (editáveis pelo vendedor)
+  let y = 122;
+  rotulo('Itens do kit', X0, y); y += 2;
+  const colW = (CW - 14) / 2;
+  const itensL = d.itens.map(t => linhas(t, colW - 4));
+  const metade = Math.ceil(itensL.length / 2);
+  const altCol = arr => arr.reduce((s, l) => s + l.length * 3.2 + 1.3, 0);
+  const hItens = Math.max(altCol(itensL.slice(0, metade)), altCol(itensL.slice(metade))) + 6;
+  caixa(X0, y, CW, hItens, BR, BD);
+  [itensL.slice(0, metade), itensL.slice(metade)].forEach((col, ci) => {
+    let yy = y + 5.5; const x = X0 + 5 + ci * (colW + 4);
+    col.forEach(l => { fill(AM); doc.circle(x + 0.8, yy - 1, 0.8, 'F'); cor(PR); fonte(7.2); doc.text(l, x + 3.5, yy); yy += l.length * 3.2 + 1.3; });
   });
-  y += 13 * Math.ceil(campos.length / 2) + 16;
-  const sw = (W - 2 * M - 20) / 2;
-  draw(PR); doc.setLineWidth(0.4);
-  doc.line(M, y, M + sw, y); doc.line(W - M - sw, y, W - M, y);
-  cor(PR); fonte(9, 'bold'); texto(linhas(d.nome, sw)[0], M + sw / 2, y + 5, { align:'center' }); texto('Energtech Energia Solar Ltda', W - M - sw / 2, y + 5, { align:'center' });
-  cor(CZ); fonte(8); texto(d.cpf || 'CPF / CNPJ', M + sw / 2, y + 10, { align:'center' }); texto('CNPJ 40.297.488/0001-85', W - M - sw / 2, y + 10, { align:'center' });
+  y += hItens + 7;
 
-  const totalPag = doc.getNumberOfPages();
-  for (let i = 1; i <= totalPag; i++) { doc.setPage(i); rodape(i, totalPag); }
+  // serviços inclusos (esquerda) + investimento (direita)
+  const incl = String(PROPOSTA_CFG.inclusos || '').split('\n').map(t => t.trim()).filter(Boolean);
+  const lw = bw2, rx = X0 + bw2 + 5;
+  const yS = y;
+  cor(PR); fonte(9, 'bold'); texto('SERVIÇOS INCLUSOS', X0, y); y += 6;
+  y = listaCheck(incl, X0, y, lw, 8, PR, 1.5);
+  if (d.servicoDesc) { y += 1; cor(CZ); fonte(6.8); const l = linhas(d.servicoDesc, lw); doc.text(l, X0, y); y += l.length * 2.9; }
 
-  const arq = ('Proposta Energtech - ' + d.nome + ' - ' + d.numero).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9 ._-]/g, '').slice(0, 90) + '.pdf';
+  let yr = yS - 4;
+  const hInv = sep ? 44 : 40;
+  caixa(rx, yr, bw2, hInv, PR);
+  cor(AM); fonte(7, 'bold'); texto('INVESTIMENTO TOTAL', rx + 5, yr + 7.5);
+  cor(BR); caber(brl(d.valor), bw2 - 10, 21, 13, 'bold'); texto(brl(d.valor), rx + 5, yr + 19);
+  cor(CL); fonte(7.2);
+  if (sep) { texto('Kit gerador: ' + brl(d.valorKit), rx + 5, yr + 27); texto('Serviços de instalação: ' + brl(d.valorServico), rx + 5, yr + 31.5); texto(brl(d.valor / (d.item.kwp * 1000)) + ' por Wp instalado', rx + 5, yr + 36); }
+  else texto(brl(d.valor / (d.item.kwp * 1000)) + ' por Wp instalado', rx + 5, yr + 27);
+  yr += hInv + 3;
+  const pw2 = (bw2 - 3) / 2;
+  [['Prazo de entrega', PROPOSTA_CFG.prazo_entrega || '—', ''], ['Retorno do investimento', anosMeses(d.paybackMeses), 'tempo estimado']].forEach(([r, v, s], i) => {
+    const x = rx + i * (pw2 + 3);
+    caixa(x, yr, pw2, 20, CZC, BD);
+    rotulo(r, x + 3.5, yr + 6);
+    cor(PR); fonte(9, 'bold'); const l = linhas(v, pw2 - 7).slice(0, 2); doc.text(l, x + 3.5, yr + 11.5);
+    if (s) { cor(CZ); fonte(6.4); texto(s, x + 3.5, yr + 11.5 + l.length * 3.8); }
+  });
+  yr += 20;
+  fotoRodape(fotos.pag3, Math.max(y, yr));
+
+  // ═══════════════ PÁGINA 4 — INVESTIMENTO E FORMAS DE PAGAMENTO ═══════════════
+  doc.addPage(); cabecalho();
+  secao(4, 'INVESTIMENTO E FORMAS DE PAGAMENTO', 'Escolha a condição que melhor se adapta a você.');
+  const itensCfg = k => String(PROPOSTA_CFG[k] || '').split('\n').map(t => t.trim()).filter(Boolean);
+  const opcoes = [];
+  opcoes.push({ titulo:'À VISTA', desenha:(x, y, w) => {
+    cor(PR); caber(brl(d.valor), w - 8, 15, 10, 'bold'); texto(brl(d.valor), x + 4, y + 9);
+    fill(AM); doc.rect(x + 4, y + 13, w - 8, 5, 'F'); cor(PR); fonte(6.6, 'bold'); texto('Melhor custo-benefício', x + w / 2, y + 16.4, { align:'center' });
+    return listaCheck(itensCfg('avista_itens'), x + 4, y + 25, w - 8, 7.2, PR, 1.3) - y;
+  }});
+  if (imp) opcoes.push({ titulo:'ENTRADA + PARCELAS', desenha:(x, y, w) => {
+    cor(PR); fonte(11, 'bold'); texto('Entrada: ' + brl(d.pag.entrada), x + 4, y + 8);
+    cor(CZ); fonte(6.5); texto('no ato do pedido', x + 4, y + 12);
+    cor(PR); fonte(11, 'bold'); doc.text(linhas('10x ' + brl(d.pag.parcela10), w - 8), x + 4, y + 19.5);
+    cor(CZ); fonte(6.5); texto('parcelas mensais', x + 4, y + 23.5);
+    return listaCheck(itensCfg('parcelado_itens'), x + 4, y + 30, w - 8, 7.2, PR, 1.3) - y;
+  }});
+  else opcoes.push({ titulo:'FINAME (BNDES)', desenha:(x, y, w) => {
+    cor(PR); fonte(11, 'bold'); texto('96x ' + brl(d.pag.p96), x + 4, y + 8);
+    cor(CZ); fonte(6.5); texto('em 8 anos', x + 4, y + 12);
+    cor(PR); fonte(11, 'bold'); texto('120x ' + brl(d.pag.p120), x + 4, y + 19.5);
+    cor(CZ); fonte(6.5); texto('em 10 anos', x + 4, y + 23.5);
+    let yy = listaCheck(itensCfg('finame_itens'), x + 4, y + 30, w - 8, 7.2, PR, 1.3);
+    if (sep) { cor(CZ); fonte(6.5); doc.text(linhas('Kit financiável: ' + brl(d.valorKit), w - 8), x + 4, yy + 0.5); yy += 4; }
+    return yy - y;
+  }});
+  const prazos = String(PROPOSTA_CFG.fin_prazos || '').split(/[,;\s]+/).map(Number).filter(n => n > 0).slice(0, 6);
+  const taxaFin = (+PROPOSTA_CFG.fin_taxa_mes || 0) / 100;
+  const pmt = (v, n) => taxaFin > 0 ? v * taxaFin / (1 - Math.pow(1 + taxaFin, -n)) : v / n;
+  if (PROPOSTA_CFG.fin_ativo && prazos.length) opcoes.push({ titulo:'FINANCIAMENTO', sub: PROPOSTA_CFG.fin_banco, desenha:(x, y, w) => {
+    cor(PR); fonte(8.5, 'bold'); texto('Parcelas estimadas', x + 4, y + 7);
+    let yy = y + 10;
+    caixa(x + 4, yy, w - 8, 5, CZC, BD); cor(PR); fonte(6.5, 'bold');
+    texto('Prazo', x + 4 + (w - 8) * 0.25, yy + 3.4, { align:'center' }); texto('Parcela estimada', x + 4 + (w - 8) * 0.72, yy + 3.4, { align:'center' });
+    yy += 5;
+    prazos.forEach(n => {
+      caixa(x + 4, yy, w - 8, 5, BR, BD); cor(PR); fonte(7);
+      texto(n + ' meses', x + 4 + (w - 8) * 0.25, yy + 3.4, { align:'center' }); fonte(7, 'bold'); texto(brl(pmt(d.valor, n)), x + 4 + (w - 8) * 0.72, yy + 3.4, { align:'center' });
+      yy += 5;
+    });
+    return listaCheck(itensCfg('fin_obs'), x + 4, yy + 5, w - 8, 6.8, PR, 1.2) - y;
+  }});
+  const ow = (CW - 4 * (opcoes.length - 1)) / opcoes.length;
+  // desenha uma vez fora da página para medir a altura e deixar as colunas iguais
+  const yOp = 42, hHead = 10;
+  let hBody = 0;
+  opcoes.forEach((o, i) => { const x = X0 + i * (ow + 4); hBody = Math.max(hBody, o.desenha(x, yOp + hHead + 400, ow) + 4); });
+  doc.deletePage(doc.getNumberOfPages()); doc.addPage(); cabecalho();
+  secao(4, 'INVESTIMENTO E FORMAS DE PAGAMENTO', 'Escolha a condição que melhor se adapta a você.');
+  opcoes.forEach((o, i) => {
+    const x = X0 + i * (ow + 4);
+    caixa(x, yOp, ow, hHead, PR);
+    cor(BR); fonte(6.9, 'bold'); const tt = linhas('OPÇÃO ' + (i + 1) + ' — ' + o.titulo + (o.sub ? ' ' + o.sub.toUpperCase() : ''), ow - 8).slice(0, 2);
+    doc.text(tt, x + 4, yOp + (tt.length > 1 ? 4.2 : 6.2));
+    caixa(x, yOp + hHead, ow, hBody, BR, BD);
+    o.desenha(x, yOp + hHead, ow);
+  });
+  y = yOp + hHead + hBody + 8;
+  const menorParcela = Math.min(...[imp ? d.pag.parcela10 : d.pag.p120].concat(PROPOSTA_CFG.fin_ativo ? prazos.map(n => pmt(d.valor, n)) : []).filter(v => v > 0));
+  const msgEco = (d.economia > 0 && menorParcela <= d.economia) ? 'Sua economia estimada é de ' + brl0(d.economia) + ' por mês, e a parcela pode começar em ' + brl0(menorParcela) + '.' : '';
+  fonte(7.4); const corpo = linhas('Em muitos casos, o valor da parcela pode ser igual ou menor do que a sua conta de luz atual. Ou seja: você troca a conta de energia por um investimento que fica seu.' + (msgEco ? ' ' + msgEco : ''), CW - 16);
+  const hEco = 13 + corpo.length * 3.4;
+  caixa(X0, y, CW, hEco, AM);
+  cor(PR); fonte(10, 'bold'); texto('Parcela menor que a economia', X0 + 8, y + 7.5);
+  fonte(7.4); doc.text(corpo, X0 + 8, y + 12.5);
+  y += hEco + 7;
+  const obs = [];
+  if (sep) obs.push('Composição do valor: kit gerador ' + brl(d.valorKit) + ' + serviços de instalação ' + brl(d.valorServico) + '.');
+  if (!imp && PROPOSTA_CFG.codigo_finame) obs.push('Código FINAME do kit: ' + PROPOSTA_CFG.codigo_finame + '.');
+  obs.push('Condições de financiamento sujeitas à análise de crédito.');
+  rotulo('Dados para pagamento', X0, y); y += 2;
+  const pagTxt = linhas(PROPOSTA_CFG.pagamento, CW - 10);
+  caixa(X0, y, CW, 6 + pagTxt.length * 3.8, CZC, BD);
+  cor(PR); fonte(8); doc.text(pagTxt, X0 + 5, y + 5.5, { lineHeightFactor:1.35 });
+  y += 6 + pagTxt.length * 3.8 + 5;
+  cor(CZ); fonte(6.6); obs.forEach(t => { const l = linhas(t, CW); doc.text(l, X0, y); y += l.length * 3 + 0.6; });
+  fotoRodape(fotos.pag4, y);
+
+  // ═══════════════ PÁGINA 5 — GARANTIAS, PROCESSO E PRÓXIMOS PASSOS ═══════════════
+  doc.addPage(); cabecalho();
+  secao(5, 'GARANTIAS, PROCESSO E PRÓXIMOS PASSOS', 'Segurança para você do início ao fim.');
+  cor(PR); fonte(9, 'bold'); texto('GARANTIAS', X0 + 1, 46); texto('NOSSO PROCESSO', X0 + bw2 + 6, 46);
+  y = 50;
+  [['Módulos fotovoltaicos', PROPOSTA_CFG.garantia_modulos], ['Inversor', PROPOSTA_CFG.garantia_inversor], ['Instalação e serviços', PROPOSTA_CFG.garantia_servicos]].forEach(([r, t]) => {
+    const l = linhas(t, bw2 - 15);
+    const h = 10 + l.length * 3.1;
+    caixa(X0, y, bw2, h, CZC, BD);
+    icone('escudo', X0 + 5, y + 5.4, 3.6);
+    cor(PR); fonte(8.5, 'bold'); texto(r, X0 + 9, y + 6.3);
+    cor(CZ); fonte(7); doc.text(l, X0 + 9, y + 10.5);
+    y += h + 3;
+  });
+  const passos = [['Aprovação da proposta', 'Definição da forma de pagamento'], ['Projeto e documentação', 'Projeto elétrico, ART e homologação na ' + conc],
+                  ['Instalação', 'Equipe técnica especializada'], ['Homologação', 'Acompanhamento até a aprovação'], ['Sistema em funcionamento', 'Monitoramento e suporte contínuo']];
+  let yp = 50;
+  passos.forEach(([t, s], i) => {
+    const x = X0 + bw2 + 5;
+    caixa(x, yp, 9, 10, PR); cor(BR); fonte(9, 'bold'); texto(String(i + 1), x + 4.5, yp + 6.7, { align:'center' });
+    cor(PR); fonte(8.3, 'bold'); texto(t, x + 12, yp + 4.3);
+    cor(CZ); fonte(6.9); texto(linhas(s, bw2 - 14)[0], x + 12, yp + 8.3);
+    yp += 11.5;
+  });
+  y = Math.max(y, yp) + 8;
+  // por que escolher + próximos passos
+  const hb = 52;
+  caixa(X0, y, bw2, hb, PR);
+  cor(AM); fonte(8.5, 'bold'); texto('POR QUE ESCOLHER A ENERGTECH?', X0 + 5, y + 9);
+  const motivos = [['Engenharia especializada', 'Projeto assinado por engenheiro com ART no CREA'], ['Solução completa', 'Do projeto à homologação'],
+                   ['Equipamentos de qualidade', 'Marcas reconhecidas e certificadas'], ['Suporte pós-instalação', 'Acompanhamento e atendimento direto com a nossa equipe']];
+  const mw = (bw2 - 13) / 2;
+  motivos.forEach(([t, s], i) => {
+    const x = X0 + 5 + (i % 2) * (mw + 3), yy = y + 17 + Math.floor(i / 2) * 17;
+    fill(AM); doc.circle(x + 1, yy - 1.1, 1, 'F');
+    cor(BR); fonte(7.4, 'bold'); const lt = linhas(t, mw - 4).slice(0, 2); doc.text(lt, x + 3.5, yy);
+    cor(CL); fonte(6.4); doc.text(linhas(s, mw - 4).slice(0, 3), x + 3.5, yy + 3.3 * lt.length + 0.4);
+  });
+  const px = X0 + bw2 + 5;
+  caixa(px, y, bw2, hb, CZC, BD);
+  cor(CZ); fonte(6.6, 'bold'); texto('PRÓXIMOS PASSOS', px + bw2 / 2, y + 9, { align:'center', charSpace:0.2 });
+  cor(PR); fonte(10.5, 'bold'); texto('Vamos seguir com o seu projeto?', px + bw2 / 2, y + 17, { align:'center' });
+  const btW = 56, btX = px + (bw2 - btW) / 2, btY = y + 22;
+  fill(AM); doc.rect(btX, btY, btW, 9, 'F'); cor(PR); fonte(8.5, 'bold'); texto('APROVAR PROPOSTA', px + bw2 / 2, btY + 6, { align:'center' });
+  const foneAprov = String(PROPOSTA_CFG.telefone_aprovacao || '').replace(/\D/g, '');
+  if (foneAprov) {
+    const num = foneAprov.length <= 11 ? '55' + foneAprov : foneAprov;
+    doc.link(btX, btY, btW, 9, { url: 'https://wa.me/' + num + '?text=' + encodeURIComponent('Olá! Quero aprovar a proposta Nº ' + d.numero + ' (' + d.nome + ').') });
+  }
+  cor(CZ); fonte(7); texto('Em caso de dúvidas, estou à disposição!', px + bw2 / 2, y + 38, { align:'center' });
+  cor(PR); fonte(7.6, 'bold'); texto(linhas([d.vendedor || 'Energtech', PROPOSTA_CFG.telefone_exibir].filter(Boolean).join('  ·  '), bw2 - 6)[0], px + bw2 / 2, y + 43, { align:'center' });
+  y += hb + 6;
+  cor(CZ); fonte(6.2); texto(PROPOSTA_CFG.rodape_legal || '', W / 2, y, { align:'center' });
+
+  const total = doc.getNumberOfPages();
+  for (let i = 1; i <= total; i++) { doc.setPage(i); rodape(i, total); }
+  const arq = ('Proposta Energtech - ' + d.nome + ' - ' + d.numero).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9 ._-]/g, '').slice(0, 90) + '.pdf';
   return { doc, arq };
 }
 
@@ -2344,20 +2465,116 @@ const CAMPOS_PROPOSTA = [
   ['garantia_servicos', 'Garantia dos serviços', 'input'],
   ['prazo_entrega', 'Prazo de entrega', 'input'],
   ['validade_dias', 'Validade da proposta (dias)', 'number'],
+  ['concessionaria', 'Concessionária (aparece nos textos)', 'input'],
   ['codigo_finame', 'Código FINAME (kits nacionais)', 'input'],
   ['fator_kit', 'Divisor padrão do kit ao separar valores (ex.: 1,30 → kit = total ÷ 1,30)', 'number'],
+  ['telefone_aprovacao', 'WhatsApp do botão "Aprovar proposta" (com DDD, só números)', 'input'],
+  ['telefone_exibir', 'Telefone que aparece na página 5', 'input'],
+  ['avista_itens', 'Opção à vista — vantagens (uma por linha)', 'textarea'],
+  ['parcelado_itens', 'Entrada + parcelas (importados) — vantagens', 'textarea'],
+  ['finame_itens', 'FINAME (nacionais) — vantagens', 'textarea'],
+  ['fin_ativo', 'Mostrar opção 3 — financiamento bancário', 'check'],
+  ['fin_banco', 'Financiamento — banco', 'input'],
+  ['fin_taxa_mes', 'Financiamento — taxa ao mês usada no cálculo (não aparece no PDF)', 'number'],
+  ['fin_prazos', 'Financiamento — prazos em meses (separados por vírgula)', 'input'],
+  ['fin_obs', 'Financiamento — condições (uma por linha)', 'textarea'],
   ['servico_desc', 'Descrição padrão do serviço', 'textarea'],
   ['inclusos', 'Serviços inclusos (um por linha)', 'textarea'],
   ['pagamento', 'Dados para pagamento', 'textarea'],
   ['contatos', 'Contatos (rodapé)', 'input'],
+  ['rodape_legal', 'Linha legal (página 5)', 'input'],
 ];
+
+// ── admin: imagens da proposta (Supabase Storage, bucket "proposta") ──
+function renderAdminImagens() {
+  const box = document.getElementById('admin-proposta-imagens');
+  if (!box) return;
+  box.innerHTML = SLOTS_IMAGEM.map(([slot, rot]) => {
+    const url = urlImagem(slot);
+    const propria = !!(PROPOSTA_CFG.imagens || {})[slot];
+    return `<div class="admin-cfg-item">
+      <div class="admin-cfg-lbl">${rot}</div>
+      <div style="aspect-ratio:16/9;background:#1f1f1f;border-radius:6px;overflow:hidden;margin:6px 0;display:flex;align-items:center;justify-content:center;color:#777;font-size:12px">
+        ${url ? `<img src="${escHtml(url)}" alt="" style="width:100%;height:100%;object-fit:cover" onerror="this.replaceWith(document.createTextNode('imagem não encontrada'))">` : 'sem imagem'}
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <label class="admin-btn-add" style="margin:0;cursor:pointer">📷 Trocar imagem<input type="file" accept="image/*" style="display:none" onchange="enviarImagemProposta('${slot}', this)"></label>
+        ${propria ? `<button class="link-mini" onclick="removerImagemProposta('${slot}')">${slot === 'capa' ? '↺ Voltar à padrão' : '✕ Remover'}</button>` : ''}
+        <span class="regiao-aviso" id="img-msg-${slot}"></span>
+      </div>
+    </div>`;
+  }).join('');
+}
+// reduz a foto no aparelho antes de enviar (máx. 1800 px, JPEG)
+function reduzirImagem(arquivo, maxPx) {
+  return new Promise((ok, erro) => {
+    const img = new Image();
+    img.onload = () => {
+      const esc = Math.min(1, maxPx / Math.max(img.width, img.height));
+      const cv = document.createElement('canvas'); cv.width = Math.round(img.width * esc); cv.height = Math.round(img.height * esc);
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      cv.toBlob(b => b ? ok(b) : erro(new Error('falha ao converter')), 'image/jpeg', 0.85);
+      URL.revokeObjectURL(img.src);
+    };
+    img.onerror = () => erro(new Error('arquivo de imagem inválido'));
+    img.src = URL.createObjectURL(arquivo);
+  });
+}
+async function enviarImagemProposta(slot, input) {
+  const arq = input.files && input.files[0]; input.value = '';
+  const msg = document.getElementById('img-msg-' + slot);
+  if (!arq) return;
+  if (!sb) { msg.textContent = 'Sem conexão com o banco.'; return; }
+  try {
+    msg.textContent = '⏳ Enviando…';
+    const blob = await reduzirImagem(arq, 1800);
+    const caminho = slot + '-' + Date.now() + '.jpg';
+    const { error } = await sb.storage.from('proposta').upload(caminho, blob, { contentType:'image/jpeg', upsert:false });
+    if (error) throw error;
+    const url = sb.storage.from('proposta').getPublicUrl(caminho).data.publicUrl;
+    PROPOSTA_CFG.imagens = { ...(PROPOSTA_CFG.imagens || {}), [slot]: url };
+    await salvarConfig();
+    renderAdminImagens();
+    document.getElementById('img-msg-' + slot).textContent = '✅ Imagem trocada';
+  } catch (e) {
+    console.error(e);
+    msg.textContent = '⚠️ Não foi possível enviar: ' + (e.message || e);
+  }
+}
+async function removerImagemProposta(slot) {
+  PROPOSTA_CFG.imagens = { ...(PROPOSTA_CFG.imagens || {}), [slot]: '' };
+  await salvarConfig();
+  renderAdminImagens();
+}
+
+// ── vendedor: foto de capa só desta proposta (ex.: foto do telhado do cliente) ──
+async function escolherCapaProposta(input) {
+  const arq = input.files && input.files[0];
+  const info = document.getElementById('prop-capa-info');
+  if (!arq) return;
+  try {
+    const blob = await reduzirImagem(arq, 1600);
+    capaDaProposta = await new Promise(ok => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.readAsDataURL(blob); });
+    info.textContent = '✅ Capa desta proposta: ' + arq.name;
+    document.getElementById('btn-capa-padrao').style.display = '';
+  } catch (e) { info.textContent = '⚠️ ' + e.message; }
+}
+function usarCapaPadrao() {
+  capaDaProposta = null;
+  const inp = document.getElementById('prop-capa'); if (inp) inp.value = '';
+  document.getElementById('prop-capa-info').textContent = 'Usando a capa padrão da empresa.';
+  document.getElementById('btn-capa-padrao').style.display = 'none';
+}
+
 function renderAdminProposta() {
   const box = document.getElementById('admin-proposta-campos');
   if (!box) return;
   box.innerHTML = CAMPOS_PROPOSTA.map(([k, rot, t]) => `
     <div class="admin-cfg-item" style="${t === 'textarea' ? 'grid-column:1/-1' : ''}">
       <div class="admin-cfg-lbl">${rot}</div>
-      ${t === 'textarea'
+      ${t === 'check'
+        ? `<label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="pcfg-${k}" ${PROPOSTA_CFG[k] ? 'checked' : ''}> Sim</label>`
+        : t === 'textarea'
         ? `<textarea class="admin-input" id="pcfg-${k}" rows="5" style="width:100%;resize:vertical">${escHtml(PROPOSTA_CFG[k])}</textarea>`
         : `<input class="admin-input" id="pcfg-${k}" type="${t === 'number' ? 'number' : 'text'}" style="width:100%" value="${escHtml(PROPOSTA_CFG[k])}">`}
     </div>`).join('');
@@ -2367,7 +2584,7 @@ function lerAdminProposta() {
   CAMPOS_PROPOSTA.forEach(([k, , t]) => {
     const el = document.getElementById('pcfg-' + k);
     if (!el) return;
-    novo[k] = t === 'number' ? (+el.value || PROPOSTA_PADRAO[k]) : el.value.trim();
+    novo[k] = t === 'check' ? el.checked : t === 'number' ? (+el.value || PROPOSTA_PADRAO[k]) : el.value.trim();
   });
   return novo;
 }
@@ -3089,6 +3306,7 @@ function carregarConfig() {
   document.getElementById('cfg-adicional-max').value = document.getElementById('slider-adicional').max;
   renderAdminRegioes();
   renderAdminProposta();
+  renderAdminImagens();
 }
 
 async function salvarConfig() {
@@ -3116,6 +3334,7 @@ async function salvarConfig() {
   novo.regioes = clonar(REGIOES);
   novo.proposta = lerAdminProposta();
   PROPOSTA_CFG = { ...novo.proposta };
+  for (const k in _cacheImg) delete _cacheImg[k];
   renderSeletorRegiao();
   atualizar();
   const r = await gravarNoSupabase([{ id:'cfg', dados: novo }]);
