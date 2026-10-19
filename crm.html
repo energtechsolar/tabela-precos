@@ -620,11 +620,34 @@ function montarContratoPDF(d, p, conc, conta) {
     y = 30; doc.setTextColor(17);
   };
   const precisa = h => { if (y + h > LIM) novaPag(); };
+  // parágrafo com justificação real (espaço distribuído entre as palavras) e prefixo "PARÁGRAFO ... –" em negrito
   const par = (txt, o) => {
     o = o || {};
-    doc.setFont('helvetica', o.bold ? 'bold' : 'normal'); doc.setFontSize(o.tam || 10);
-    const ls = doc.splitTextToSize(String(txt), LW - (o.rec || 0));
-    ls.forEach(l => { if (y + 5 > LIM) { novaPag(); doc.setFont('helvetica', o.bold ? 'bold' : 'normal'); doc.setFontSize(o.tam || 10); } doc.text(l, M + (o.rec || 0), y, o.just && l !== ls[ls.length - 1] ? { align:'justify', maxWidth: LW - (o.rec || 0) } : {}); y += (o.tam || 10) * 0.48; });
+    const tam = o.tam || 10, x0 = M + (o.rec || 0), larg = LW - (o.rec || 0), alt = tam * 0.48;
+    txt = String(txt);
+    const m = !o.bold && txt.match(/^((?:PARÁGRAFO [A-ZÁÉÍÓÚÂÊÔÃÕÇ]+|DADOS BANCÁRIOS:)\s*–?)\s*/);
+    const nNeg = m ? m[1].split(/\s+/).length : 0;
+    const palavras = txt.split(/\s+/).filter(Boolean).map((w, i) => ({ w, neg: o.bold || i < nNeg }));
+    const fonte = neg => { doc.setFont('helvetica', neg ? 'bold' : 'normal'); doc.setFontSize(tam); };
+    const larguraDe = p => { fonte(p.neg); let w = 0; for (const c of p.w) w += doc.getTextWidth(c); return w; };  // soma letra a letra (o PDF não aplica kerning ao desenhar)
+    fonte(false); const esp = doc.getTextWidth(' ');
+    // monta as linhas
+    const linhas = []; let atual = [], usado = 0;
+    palavras.forEach(p => {
+      const w = larguraDe(p);
+      if (atual.length && usado + esp + w > larg) { linhas.push(atual); atual = []; usado = 0; }
+      usado += (atual.length ? esp : 0) + w; atual.push({ ...p, larg: w });
+    });
+    if (atual.length) linhas.push(atual);
+    linhas.forEach((ln, i) => {
+      if (y + 5 > LIM) novaPag();
+      const ultima = i === linhas.length - 1;
+      const soma = ln.reduce((s, p) => s + p.larg, 0);
+      const gap = (o.just && !ultima && ln.length > 1) ? (larg - soma) / (ln.length - 1) : esp;
+      let x = x0;
+      ln.forEach(p => { fonte(p.neg); doc.text(p.w, x, y); x += p.larg + gap; });
+      y += alt;
+    });
     y += o.depois === undefined ? 2.5 : o.depois;
   };
   const clausula = t => { y += 2; precisa(14); par(t, { bold:true, depois:1.5 }); };
