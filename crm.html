@@ -602,6 +602,15 @@ async function gerarContrato() {
   } else { $('ct-msg').textContent = '⚠️ PDF gerado, mas os dados não foram salvos: ' + error.message; $('ct-msg').classList.add('erro'); }
 }
 
+// nome padrão dos arquivos: Tipo_Nome-do-Cliente_3,72kWp_AAAA-MM-DD_N01281.pdf
+function nomeArquivoPadrao(tipo, nome, kwp, numero) {
+  const limpa = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9 ]+/g, ' ').trim().replace(/\s+/g, '-');
+  const h = new Date(), data = h.getFullYear() + '-' + String(h.getMonth() + 1).padStart(2, '0') + '-' + String(h.getDate()).padStart(2, '0');
+  const pot = (Math.round((+kwp || 0) * 100) / 100).toLocaleString('pt-BR', { maximumFractionDigits:2 }) + 'kWp';
+  const num = String(numero || '').startsWith('S') ? String(numero) : 'N' + String(numero || '').padStart(5, '0');
+  return [tipo, limpa(nome).slice(0, 50) || 'Cliente', pot, data, num].join('_') + '.pdf';
+}
+
 function montarContratoPDF(d, p, conc, conta) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'mm', format:'a4' });
@@ -774,7 +783,7 @@ function montarContratoPDF(d, p, conc, conta) {
 
   const n = doc.getNumberOfPages();
   for (let i = 1; i <= n; i++) { doc.setPage(i); doc.setFontSize(8); doc.setTextColor(120); doc.text('Página ' + i + ' de ' + n, 105, 287, { align:'center' }); doc.setTextColor(17); }
-  const arq = ('Contrato Energtech - ' + (d.nome || 'cliente') + ' - ' + String(p.id).padStart(5, '0')).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9 ._-]/g, '').slice(0, 90) + '.pdf';
+  const arq = nomeArquivoPadrao('Contrato', d.nome, p.kwp, p.id);
   return { doc, arq };
 }
 
