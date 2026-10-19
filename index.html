@@ -1,6 +1,13 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#FFC107">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Energtech">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://images.unsplash.com https://nominatim.openstreetmap.org https://cmrndntnaaooapbdmgip.supabase.co; connect-src 'self' https://nominatim.openstreetmap.org https://cmrndntnaaooapbdmgip.supabase.co;">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -364,6 +371,29 @@
   .btn-pdf { flex:1; background:#1e3a5f; color:#60a5fa; font-family:'Barlow Condensed',sans-serif; font-size:16px; font-weight:900; letter-spacing:0.08em; padding:14px; border:2px solid #60a5fa; border-radius:10px; cursor:pointer; min-width:180px; }
   .btn-pdf:hover { background:#2a4a6f; }
 
+  /* ── MODO SIMPLES (vendedor de campo / celular) ── */
+  #campo-assist { display:none; }
+  body.modo-campo #campo-assist { display:block; }
+  body.modo-campo #dash-economia, body.modo-campo #dash-importado, body.modo-campo #bloco-itens-proposta,
+  body.modo-campo .footer-bar .copy { display:none !important; }
+  .campo-card { background:linear-gradient(135deg,#1f1a08,#151515); border:1px solid #5a4a10; border-radius:14px; padding:16px; margin-bottom:14px; }
+  .campo-card h2 { font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:900; color:var(--amarelo); letter-spacing:.04em; margin-bottom:4px; }
+  .campo-card .sub { font-size:13px; color:var(--muted); margin-bottom:12px; }
+  .campo-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; }
+  .campo-grid label { display:block; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; }
+  .campo-grid input, .campo-grid select { width:100%; background:var(--card2); border:1px solid var(--borda); color:var(--texto); font-size:17px; padding:12px; border-radius:10px; font-family:'Barlow',sans-serif; }
+  .campo-btn { width:100%; margin-top:12px; background:var(--amarelo); color:#111; border:none; border-radius:10px; padding:14px; font-family:'Barlow Condensed',sans-serif; font-size:19px; font-weight:900; letter-spacing:.05em; cursor:pointer; }
+  .campo-sug { margin-top:12px; background:#111; border:1px solid var(--borda); border-radius:12px; padding:14px; display:none; }
+  .campo-sug.visivel { display:block; }
+  .campo-sug .nome { font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:900; color:#fff; }
+  .campo-sug .linha { font-size:14px; color:var(--muted); margin-top:3px; }
+  .campo-sug .valor { font-family:'Barlow Condensed',sans-serif; font-size:26px; font-weight:900; color:var(--amarelo); margin-top:6px; }
+  .campo-nav { display:flex; gap:8px; margin-top:10px; }
+  .campo-nav button { flex:1; background:var(--card2); border:1px solid var(--borda); color:var(--texto); border-radius:10px; padding:11px; font-size:14px; cursor:pointer; }
+  .campo-nav .usar { flex:2; background:#166534; border-color:#166534; color:#fff; font-weight:700; }
+  .fila-aviso { background:#3b2a07; color:#fcd34d; border:1px solid #92400e; border-radius:10px; padding:9px 13px; margin-bottom:12px; font-size:13px; display:none; }
+  .offline-aviso { background:#1e1e1e; color:#fca5a5; border:1px solid #7f1d1d; border-radius:10px; padding:9px 13px; margin-bottom:12px; font-size:13px; display:none; }
+
   /* ── IMPRESSÃO (Ctrl+P) ── */
   #aviso-impressao { display:none; }
   @media print {
@@ -404,7 +434,28 @@
     <span class="regiao-aviso" id="regiao-aviso"></span>
   </div>
 
+  <div class="offline-aviso" id="offline-aviso">📴 Sem internet — usando os preços salvos no aparelho. Os orçamentos ficam guardados e são enviados quando a conexão voltar.</div>
+  <div class="fila-aviso" id="fila-aviso"></div>
+
+  <!-- PROPOSTA RÁPIDA (modo simples) -->
+  <div id="campo-assist" class="campo-card">
+    <h2>⚡ Proposta rápida</h2>
+    <div class="sub">Informe a conta de luz do cliente e o sistema sugere o kit.</div>
+    <div class="campo-grid">
+      <div><label for="campo-tipo">Tipo de kit</label>
+        <select id="campo-tipo" onchange="trocarAbaPorNome(this.value); if (_sugestao) sugerirKit();"><option value="importado">Importado</option><option value="nacional">Nacional (FINAME)</option></select></div>
+      <div><label for="campo-conta">Conta de luz (R$/mês)</label><input type="number" inputmode="decimal" id="campo-conta" placeholder="Ex: 450" oninput="sincronizarConta(this.value, 'campo-conta')"></div>
+      <div><label for="campo-consumo">ou consumo (kWh/mês)</label><input type="number" inputmode="numeric" id="campo-consumo" placeholder="Ex: 520"></div>
+      <div><label for="campo-meta">Quer gerar para (R$/mês)</label><input type="number" inputmode="decimal" id="campo-meta" placeholder="Opcional"></div>
+      <div><label for="campo-orient">Telhado voltado para</label>
+        <select id="campo-orient"><option value="norte">Norte</option><option value="leste">Leste</option><option value="oeste">Oeste</option><option value="sul">Sul</option></select></div>
+    </div>
+    <button class="campo-btn" onclick="sugerirKit()">⚡ Sugerir kit</button>
+    <div class="campo-sug" id="campo-sug"></div>
+  </div>
+
   <!-- ABAS -->
+  <div id="aviso-crm" style="display:none; background:#1e3a5f; color:#bfdbfe; border:1px solid #60a5fa; border-radius:10px; padding:10px 14px; margin-bottom:12px; font-size:14px"></div>
   <div class="tabs">
     <button class="tab-btn ativo" onclick="trocarAba('importado', this)">
       Kits Importados
@@ -744,7 +795,7 @@
     </div>
 
     <!-- Itens e valores da proposta -->
-    <div class="proposta-itens">
+    <div class="proposta-itens" id="bloco-itens-proposta">
       <label class="tit" for="prop-itens">Itens do kit (um por linha) — pode editar, incluir ou remover</label>
       <textarea id="prop-itens" rows="6"></textarea>
       <label class="tit" for="prop-servico">Descrição do serviço</label>
@@ -1402,6 +1453,7 @@ function atualizarResumo(adicional, descPct) {
 // ── TROCA ABA ───────────────────────────────────────────────────────────────
 function trocarAba(aba, btn) {
   abaAtual = aba;
+  const ct = document.getElementById('campo-tipo'); if (ct) ct.value = aba;
   linhaFoco = null;
   document.getElementById('resumo-bar').style.display = 'none';
   document.getElementById('dash-economia').classList.remove('visivel');
@@ -2443,9 +2495,123 @@ document.addEventListener('keydown', e => {
     gerarPDF('baixar');
   }
 });
+
+// ── APP / OFFLINE ───────────────────────────────────────────────────────────
+function lerLocal(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
+function gravarLocal(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+function marcarOffline(off) { const el = document.getElementById('offline-aviso'); if (el) el.style.display = off ? 'block' : 'none'; }
+function ehFalhaDeRede(err) { const m = String((err && (err.message || err.details)) || err || ''); return /fetch|network|Failed|Load failed|NetworkError/i.test(m) && !/permission|policy|violates/i.test(m); }
+function guardarNaFila(registro, leadId) {
+  const fila = lerLocal('etg_fila') || [];
+  fila.push({ registro, leadId, quando: new Date().toISOString() });
+  gravarLocal('etg_fila', fila);
+  ultimoOrcamentoId = null;
+  statusProposta('📴 Sem internet: orçamento guardado no aparelho. Ele será enviado sozinho quando a conexão voltar. O PDF e o WhatsApp já podem ser usados.', 'aviso');
+  mostrarFila();
+}
+function mostrarFila() {
+  const el = document.getElementById('fila-aviso'); if (!el) return;
+  const n = (lerLocal('etg_fila') || []).length;
+  el.style.display = n ? 'block' : 'none';
+  el.textContent = n ? `⏳ ${n} orçamento(s) guardado(s) no aparelho, aguardando internet para enviar.` : '';
+}
+let _enviandoFila = false;
+async function enviarFila() {
+  mostrarFila();
+  const fila = lerLocal('etg_fila') || [];
+  if (!fila.length || _enviandoFila || !sb || !navigator.onLine || !perfil || !perfil.vendedor) return;
+  _enviandoFila = true;
+  const resta = [];
+  for (const f of fila) {
+    const { error } = await sb.from('orcamentos').insert(f.registro);
+    if (error) { console.error('Fila:', error); resta.push(f); continue; }
+    if (f.leadId) await sb.from('leads').update({ status:'orcamento_criado', atualizado_em: new Date().toISOString() }).eq('id', f.leadId);
+  }
+  gravarLocal('etg_fila', resta);
+  _enviandoFila = false;
+  mostrarFila();
+  if (fila.length > resta.length) statusProposta(`✅ ${fila.length - resta.length} orçamento(s) guardado(s) no aparelho foram enviados.`, 'ok');
+}
+window.addEventListener('online', () => { marcarOffline(false); enviarFila(); });
+window.addEventListener('offline', () => marcarOffline(true));
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW:', e)));
+}
+
+// ── MODO SIMPLES (vendedor de campo) ────────────────────────────────────────
+function aplicarModo() {
+  const pref = lerLocal('etg_modo');
+  const simples = pref ? pref === 'simples' : !!(perfil && perfil.papel === 'campo');
+  document.body.classList.toggle('modo-campo', simples);
+}
+function alternarModo() {
+  const simples = !document.body.classList.contains('modo-campo');
+  gravarLocal('etg_modo', simples ? 'simples' : 'completo');
+  aplicarModo(); renderUsuario();
+}
+let _sugestao = null;
+function sugerirKit() {
+  const tipo = abaAtual || 'importado';
+  const lista = tipo === 'importado' ? IMPORTADO : NACIONAL;
+  const tarifa = +(tipo === 'importado' ? valorCampo('imp-tarifa') : valorCampo('input-tarifa')) || 0.89;
+  const taxa = +valorCampo('imp-taxa-conc') || 50;
+  const conta = +valorCampo('campo-conta') || 0, meta = +valorCampo('campo-meta') || 0;
+  let consumo = +valorCampo('campo-consumo') || 0;
+  const base = Math.max(conta, meta);
+  if (meta > conta && consumo && conta) consumo = consumo * meta / conta;
+  if (!consumo && base) consumo = Math.max(0, base - taxa) / tarifa;
+  const box = document.getElementById('campo-sug');
+  if (!consumo) { box.innerHTML = '<div class="linha">Informe a conta de luz ou o consumo.</div>'; box.classList.add('visivel'); return; }
+  const ori = valorCampo('campo-orient') || 'norte';
+  const ger = it => Math.round(it.kwp * fatorRegiao() * FATOR_ORIENTACAO[ori]);
+  const ordem = lista.map((it, idx) => ({ it, idx })).filter(x => x.it.kwp > 0).sort((a, b) => a.it.kwp - b.it.kwp);
+  if (!ordem.length) return;
+  let pos = ordem.findIndex(x => ger(x.it) >= consumo);
+  const falta = pos < 0;
+  if (falta) pos = ordem.length - 1;
+  _sugestao = { tipo, ordem, pos, consumo, ori, conta, meta, ger, falta };
+  if (meta > conta) { const m = document.getElementById('prop-conta-meta'); if (m) m.value = meta; }
+  if (+valorCampo('campo-consumo')) document.getElementById('prop-consumo').value = valorCampo('campo-consumo');
+  document.getElementById('prop-orientacao').value = ori;
+  mostrarSugestao();
+}
+function mostrarSugestao() {
+  const s = _sugestao; if (!s) return;
+  const { it } = s.ordem[s.pos];
+  const adicional = +document.getElementById('slider-adicional').value, descPct = +document.getElementById('slider-desconto').value;
+  const c = calcLinha(it, adicional, descPct);
+  const g = s.ger(it), sobra = g - s.consumo;
+  const box = document.getElementById('campo-sug');
+  box.innerHTML = `
+    <div class="linha">${s.falta && s.pos === s.ordem.length - 1 ? '⚠️ Nenhum kit da tabela cobre todo o consumo — este é o maior.' : 'Kit sugerido (' + (s.tipo === 'importado' ? 'importado' : 'nacional') + '):'}</div>
+    <div class="nome">${escHtml(it.nome)} · ${String(it.kwp).replace('.', ',')} kWp</div>
+    <div class="linha">${it.mod} módulos · inversor ${escHtml(it.inv)}</div>
+    <div class="linha">Gera ~${g.toLocaleString('pt-BR')} kWh/mês · cliente precisa ~${Math.round(s.consumo).toLocaleString('pt-BR')} kWh/mês ${sobra >= 0 ? '(sobra ' + Math.round(sobra).toLocaleString('pt-BR') + ')' : '(faltam ' + Math.round(-sobra).toLocaleString('pt-BR') + ')'}</div>
+    <div class="valor">${fmt(c.valorFinal)}</div>
+    <div class="campo-nav">
+      <button onclick="trocarSugestao(-1)" ${s.pos === 0 ? 'disabled' : ''}>◀ Menor</button>
+      <button class="usar" onclick="usarSugestao()">✅ Usar este kit</button>
+      <button onclick="trocarSugestao(1)" ${s.pos === s.ordem.length - 1 ? 'disabled' : ''}>Maior ▶</button>
+    </div>`;
+  box.classList.add('visivel');
+}
+function trocarAbaPorNome(aba) {
+  const btns = document.querySelectorAll('.tab-btn');
+  trocarAba(aba, btns[aba === 'nacional' ? 1 : 0]);
+}
+function trocarSugestao(d) { if (!_sugestao) return; _sugestao.pos = Math.max(0, Math.min(_sugestao.ordem.length - 1, _sugestao.pos + d)); mostrarSugestao(); }
+function usarSugestao() {
+  const s = _sugestao; if (!s) return;
+  const { it, idx } = s.ordem[s.pos];
+  selecionarLinha(s.tipo, idx, it);
+  document.getElementById('prop-orientacao').value = s.ori;
+  if (s.conta) sincronizarConta(String(s.conta), 'campo-conta');
+  calcularProducao();
+}
+
 // conta de luz: um valor só para a análise de investimento e para a proposta
 function sincronizarConta(v, origem) {
-  ['imp-conta-atual', 'prop-conta'].forEach(id => { if (id !== origem) { const el = document.getElementById(id); if (el && el.value !== v) el.value = v; } });
+  ['imp-conta-atual', 'prop-conta', 'campo-conta'].forEach(id => { if (id !== origem) { const el = document.getElementById(id); if (el && el.value !== v) el.value = v; } });
   if (origem !== 'imp-conta-atual' && typeof atualizarDashImp === 'function') atualizarDashImp();
 }
 function podeCompartilharPDF() {
@@ -2514,14 +2680,28 @@ function aplicarDados(linhas) {
 }
 
 async function carregarDoSupabase() {
-  if (!sb) { mostrarInfo('⚠️ Sem conexão com o servidor — exibindo tabela de reserva', true); return false; }
+  if (!sb) {
+    const salvo = lerLocal('etg_config');
+    if (salvo && salvo.length) { aplicarDados(salvo); mostrarInfo('📴 Sem internet — usando os preços salvos no aparelho', true); marcarOffline(true); }
+    else mostrarInfo('⚠️ Sem conexão com o servidor — exibindo tabela de reserva', true);
+    return false;
+  }
   const { data, error } = await sb.from('config').select('id, dados, atualizado_em');
   if (error || !data || !data.length) {
     console.error('Supabase:', error);
+    const salvo = lerLocal('etg_config');
+    if (salvo && salvo.length) {
+      aplicarDados(salvo);
+      mostrarInfo('📴 Sem internet — usando os preços salvos no aparelho', true);
+      marcarOffline(true);
+      return false;
+    }
     mostrarInfo('⚠️ Sem conexão com o servidor — exibindo tabela de reserva', true);
     return false;
   }
   aplicarDados(data);
+  gravarLocal('etg_config', data);
+  marcarOffline(false);
   return true;
 }
 
@@ -2538,24 +2718,30 @@ async function carregarPerfil() {
     const { data: s } = await sb.auth.getSession();
     if (s && s.session) {
       const { data, error } = await sb.rpc('meu_perfil');
-      if (!error && data) perfil = data;
+      const salvo = lerLocal('etg_perfil');
+      if (!error && data) { perfil = data; gravarLocal('etg_perfil', data); }
+      else if (salvo && salvo.email === s.session.user.email) perfil = salvo;
       else perfil = { email: s.session.user.email, admin:false, vendedor:false, nome: s.session.user.email };
     }
   }
   adminLogado = !!(perfil && perfil.admin);
   document.body.classList.toggle('eh-admin', adminLogado);
   if (adminLogado) await carregarCustos(); else { custos = {}; custosSalvos = {}; }
+  aplicarModo();
   renderUsuario();
   if (perfil && perfil.vendedor) carregarLeads(); else limparLeads();
   atualizarBlocoLead();
+  enviarFila();
 }
 
 function renderUsuario() {
   const el = document.getElementById('usuario-bar');
   if (!el) return;
   if (perfil) {
-    const papel = perfil.admin ? 'admin' : (perfil.vendedor ? 'vendedor' : 'sem acesso');
-    el.innerHTML = `👤 ${escHtml(perfil.nome || perfil.email)} <span class="usuario-papel">(${papel})</span> · ${perfil.vendedor ? '<a href="painel.html">📊 Orçamentos</a> · ' : ''}<a href="#" onclick="abrirTrocarSenha();return false">Trocar senha</a> · <a href="#" onclick="sairAdmin();return false">Sair</a>`;
+    const papel = perfil.papel || (perfil.admin ? 'admin' : (perfil.vendedor ? 'vendedor' : 'sem acesso'));
+    const crm = perfil.admin || perfil.papel === 'interno';
+    const modoLink = document.body.classList.contains('modo-campo') ? '🖥️ Modo completo' : '📱 Modo simples';
+    el.innerHTML = `👤 ${escHtml(perfil.nome || perfil.email)} <span class="usuario-papel">(${papel})</span> · <a href="#" onclick="alternarModo();return false">${modoLink}</a> · ${crm ? '<a href="crm.html">📋 CRM</a> · ' : ''}${perfil.vendedor ? '<a href="painel.html">📊 Orçamentos</a> · ' : ''}<a href="#" onclick="abrirTrocarSenha();return false">Trocar senha</a> · <a href="#" onclick="sairAdmin();return false">Sair</a>`;
   } else {
     el.innerHTML = `<a href="#" onclick="abrirLogin();return false">🔑 Entrar (vendedores)</a>`;
   }
@@ -2594,8 +2780,14 @@ async function carregarLeads(manual) {
     .select('id, nome, telefone, email, cidade, status, recebido_em')
     .order('recebido_em', { ascending:false }).limit(300);
   if (btn) { btn.disabled = false; btn.textContent = '🔄'; }
-  if (error) { console.error('Supabase leads:', error); avisoLead('⚠️ Não foi possível carregar os clientes do DataCrazy.', true); return; }
-  leadsCache = data || [];
+  let lista = data;
+  if (error) {
+    console.error('Supabase leads:', error);
+    lista = lerLocal('etg_leads');
+    if (!lista) { avisoLead('⚠️ Não foi possível carregar os clientes do DataCrazy.', true); return; }
+    avisoLead('📴 Sem internet — lista de clientes salva no aparelho.', true);
+  } else gravarLocal('etg_leads', data);
+  leadsCache = lista || [];
   const atual = leadSelecionado;
   sel.innerHTML = '<option value="">— Digitar dados manualmente —</option>' + leadsCache.map(l => {
     const tel = telBonito(l.telefone);
@@ -2604,6 +2796,14 @@ async function carregarLeads(manual) {
   }).join('');
   if (atual && leadsCache.some(l => l.id === atual)) sel.value = atual;
   if (manual) avisoLead(`${leadsCache.length} cliente(s) carregado(s).`, false);
+  // vindo do CRM (crm.html → "Nova proposta"): já seleciona o cliente
+  const doCrm = +new URLSearchParams(location.search).get('lead');
+  if (doCrm && !leadSelecionado && leadsCache.some(l => l.id === doCrm)) {
+    sel.value = doCrm; selecionarLead();
+    avisoLead('Cliente do CRM selecionado. Agora escolha o kit na tabela.', false);
+    const fx = document.getElementById('aviso-crm');
+    if (fx) { fx.textContent = '📋 Proposta para ' + (leadsCache.find(l => l.id === doCrm).nome || 'cliente do CRM') + ' — escolha o kit na tabela abaixo.'; fx.style.display = ''; }
+  }
 }
 
 function avisoLead(txt, erro) {
@@ -2686,7 +2886,9 @@ async function salvarOrcamento() {
     }
   };
   statusProposta('⏳ Salvando orçamento…', '');
+  if (!navigator.onLine) { guardarNaFila(registro, leadSelecionado); return; }
   const { data, error } = await sb.from('orcamentos').insert(registro).select('id').single();
+  if (error && ehFalhaDeRede(error)) { guardarNaFila(registro, leadSelecionado); return; }
   if (error) {
     console.error('Supabase orçamento:', error);
     statusProposta('⚠️ Erro ao salvar o orçamento: ' + (error.message || 'tente novamente.'), 'aviso');
