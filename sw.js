@@ -1,0 +1,39 @@
+// Energtech — funcionamento offline (PWA)
+const VERSAO = 'energtech-v1';
+const CASCA = ['./', 'index.html', 'manifest.webmanifest', 'icone-192.png', 'icone-512.png', 'apple-touch-icon.png', 'proposta-capa.jpg',
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
+  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'];
+
+self.addEventListener('install', ev => {
+  ev.waitUntil(caches.open(VERSAO).then(c => Promise.all(CASCA.map(u => c.add(new Request(u, { cache: 'reload' })).catch(() => null)))));
+  self.skipWaiting();
+});
+self.addEventListener('activate', ev => {
+  ev.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSAO).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+});
+
+function guardar(req, resp) {
+  if (resp && (resp.ok || resp.type === 'opaque')) { const copia = resp.clone(); caches.open(VERSAO).then(c => c.put(req, copia)); }
+  return resp;
+}
+
+self.addEventListener('fetch', ev => {
+  const req = ev.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.hostname.endsWith('supabase.co')) {
+    if (!url.pathname.includes('/storage/v1/object/public/')) return;
+    ev.respondWith(caches.match(req).then(c => c || fetch(req).then(r => guardar(req, r))));
+    return;
+  }
+  if (url.hostname.includes('nominatim') || url.hostname.includes('wa.me')) return;
+  if (req.mode === 'navigate') {
+    ev.respondWith(fetch(req).then(r => guardar(req, r)).catch(() =>
+      caches.match(req, { ignoreSearch: true }).then(c => c || caches.match('index.html')).then(c => c || caches.match('./'))));
+    return;
+  }
+  ev.respondWith(caches.match(req).then(c => {
+    const rede = fetch(req).then(r => guardar(req, r)).catch(() => c);
+    return c || rede;
+  }));
+});
