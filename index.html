@@ -1800,6 +1800,15 @@ async function gerarPDF(modo) {
   }
 }
 
+// nome padrão dos arquivos: Tipo_Nome-do-Cliente_3,72kWp_AAAA-MM-DD_N01281.pdf
+function nomeArquivoPadrao(tipo, nome, kwp, numero) {
+  const limpa = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9 ]+/g, ' ').trim().replace(/\s+/g, '-');
+  const h = new Date(), data = h.getFullYear() + '-' + String(h.getMonth() + 1).padStart(2, '0') + '-' + String(h.getDate()).padStart(2, '0');
+  const pot = (Math.round((+kwp || 0) * 100) / 100).toLocaleString('pt-BR', { maximumFractionDigits:2 }) + 'kWp';
+  const num = String(numero || '').startsWith('S') ? String(numero) : 'N' + String(numero || '').padStart(5, '0');
+  return [tipo, limpa(nome).slice(0, 50) || 'Cliente', pot, data, num].join('_') + '.pdf';
+}
+
 function montarPropostaPDF(d, fotos) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
@@ -2205,7 +2214,7 @@ function montarPropostaPDF(d, fotos) {
 
   const total = doc.getNumberOfPages();
   for (let i = 1; i <= total; i++) { doc.setPage(i); rodape(i, total); }
-  const arq = ('Proposta Energtech - ' + d.nome + ' - ' + d.numero).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9 ._-]/g, '').slice(0, 90) + '.pdf';
+  const arq = nomeArquivoPadrao('Proposta', d.nome, d.item.kwp, d.numero);
   return { doc, arq };
 }
 
