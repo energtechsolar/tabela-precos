@@ -364,7 +364,7 @@
     <!-- Dados do cliente -->
     <div class="proposta-grid">
       <div class="proposta-field">
-        <label>Nome do Cliente <span class="obrigatorio">*</span></label>
+        <label>Nome / Razão social</label>
         <input type="text" class="proposta-input" id="prop-nome" placeholder="Ex: João da Silva" oninput="validarProposta()">
       </div>
       <div class="proposta-field">
@@ -401,9 +401,31 @@
         <input type="number" class="proposta-input" id="prop-conta-meta" min="0" step="10" placeholder="Ex: 800">
         <div class="regiao-aviso" style="margin-top:4px">Só se o cliente quer gerar mais do que gasta hoje (aumento de consumo, ar-condicionado, carro elétrico, créditos para outra unidade). A economia da proposta passa a ser calculada sobre esse valor.</div>
       </div>
+    </div>
+
+    <!-- Dados do cliente que saem no PDF (nenhum é obrigatório) -->
+    <div class="proposta-grid">
       <div class="proposta-field">
-        <label>CPF / CNPJ — opcional</label>
-        <input type="text" class="proposta-input" id="prop-cpf" placeholder="Para o aceite da proposta">
+        <label>CPF / CNPJ</label>
+        <input type="text" class="proposta-input" id="prop-cpf" placeholder="Ex: 000.000.000-00" oninput="avisoCpf()">
+        <div class="regiao-aviso" id="prop-cpf-aviso" style="margin-top:4px;color:var(--amarelo)"></div>
+      </div>
+      <div class="proposta-field">
+        <label>Unidade consumidora (UC)</label>
+        <input type="text" class="proposta-input" id="prop-uc" placeholder="Nº da UC na conta de luz">
+      </div>
+      <div class="proposta-field" style="grid-column:1/-1">
+        <label>Endereço da instalação (rua, nº, complemento, bairro)</label>
+        <input type="text" class="proposta-input" id="prop-endereco" placeholder="Ex: Rua das Flores, 100, Casa, Centro">
+      </div>
+      <div class="proposta-field">
+        <label>CEP</label>
+        <input type="text" class="proposta-input" id="prop-cep" inputmode="numeric" placeholder="Ex: 85520-000">
+      </div>
+      <div class="proposta-field">
+        <label>Concessionária</label>
+        <input type="text" class="proposta-input" id="prop-concessionaria" list="lista-concessionarias" placeholder="Ex: Celesc, Copel">
+        <datalist id="lista-concessionarias"><option value="Celesc"><option value="Copel"><option value="RGE"><option value="DCELT"><option value="Ceraçá"></datalist>
       </div>
     </div>
 
@@ -499,7 +521,7 @@
       </div>
     </div>
 
-    <div class="proposta-erro-msg" id="proposta-erro">⚠ O nome do cliente é obrigatório para criar o orçamento.</div>
+    <div class="proposta-erro-msg" id="proposta-erro"></div>
 
     <!-- Botões -->
     <div class="proposta-btns">
@@ -731,12 +753,12 @@
 </div>
 
 <script src="js/comum.js?v=20261019a"></script>
-<script src="js/precificador.js?v=20261019a"></script>
+<script src="js/precificador.js?v=20261020b"></script>
 <script src="js/logo.js?v=20261019a"></script>
-<script src="js/pdf.js?v=20261020a"></script>
-<script src="js/proposta.js?v=20261020a"></script>
+<script src="js/pdf.js?v=20261020b"></script>
+<script src="js/proposta.js?v=20261020b"></script>
 <script src="js/admin.js?v=20261019a"></script>
-<script src="js/app.js?v=20261019a"></script>
+<script src="js/app.js?v=20261020b"></script>
 <script>
 // ── INIT ────────────────────────────────────────────────────────────────────
 renderSeletorRegiao();
