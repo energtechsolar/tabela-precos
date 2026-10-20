@@ -154,6 +154,7 @@
         <div style="display:flex; gap:8px">
           <button class="btn btn-sec" onclick="carregar()" title="Recarregar dados">🔄 Atualizar</button>
           <button class="btn" onclick="exportarCSV()">⬇ Planilha</button>
+          <button class="btn btn-sec so-admin" id="btn-backup" onclick="exportarBackup()" title="Baixa uma cópia completa dos dados (somente admin)">💾 Backup</button>
         </div>
       </div>
     </div>
@@ -251,7 +252,7 @@ function renderHeader() {
 }
 
 async function iniciar() {
-  if (!sb) { mostrar('aviso', '⚠️ Sem conexão com o servidor. Verifique a internet e recarregue a página.'); return; }
+  if (!sb) { mostrar('aviso', '⚠ Sem conexão com o servidor. Verifique a internet e recarregue a página.'); return; }
   const { data } = await sb.auth.getSession();
   if (!data || !data.session) { perfil = null; renderHeader(); mostrar('login'); setTimeout(() => $('login-email').focus(), 50); return; }
   const r = await sb.rpc('meu_perfil');
@@ -307,7 +308,7 @@ async function carregar() {
     nomes = {}; (v.data || []).forEach(x => nomes[x.email] = x.nome);
   } catch (e) {
     console.error(e);
-    $('tb-orcamentos').innerHTML = '<tr><td colspan="13" class="vazio">⚠️ Erro ao carregar os dados. Tente atualizar.</td></tr>';
+    $('tb-orcamentos').innerHTML = '<tr><td colspan="13" class="vazio">⚠ Erro ao carregar os dados. Tente atualizar.</td></tr>';
     return;
   }
   // opções de vendedor
@@ -432,6 +433,33 @@ function render() {
       <td class="num ${dias >= 2 ? 'dias-alerta' : ''}">${txt}</td>
     </tr>`;
   }).join('') : '<tr><td colspan="5" class="vazio">Nenhum lead esperando orçamento. 👏</td></tr>';
+}
+
+// ── BACKUP COMPLETO (somente admin) ──
+async function exportarBackup() {
+  if (!perfil || !perfil.admin) return;
+  const btn = $('btn-backup'); const txt = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳ Gerando…';
+  const tabelas = [
+    ['config', 'id'], ['config_historico', 'hist_id'], ['kit_custos', 'kit_uid'],
+    ['vendedores', 'email'], ['leads', 'id'], ['orcamentos', 'id'], ['orcamento_custos', 'orcamento_id'],
+  ];
+  const dados = {}, contagem = {}, erros = [];
+  for (const [t, ordem] of tabelas) {
+    try { dados[t] = await buscarTudo(t, '*', ordem); contagem[t] = dados[t].length; }
+    catch (e) { erros.push(t + ': ' + (e.message || e)); }
+  }
+  const pacote = {
+    sistema: 'CRM Energtech', gerado_em: new Date().toISOString(), gerado_por: perfil.email,
+    aviso: 'Contém dados de clientes, custos e margens. Guarde em local privado.',
+    contagem, erros, dados,
+  };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(pacote, null, 1)], { type:'application/json' }));
+  a.download = 'backup_crm_energtech_' + new Date().toISOString().slice(0,10) + '.json';
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  btn.disabled = false; btn.textContent = txt;
+  if (erros.length) alert('Backup gerado, mas algumas tabelas falharam:\n' + erros.join('\n'));
 }
 
 function exportarCSV() {
