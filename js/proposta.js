@@ -144,6 +144,7 @@ function coletarDadosProposta() {
     servicoDesc: valorCampo('prop-servico') || PROPOSTA_CFG.servico_desc,
     nome: valorCampo('prop-nome') || 'Cliente', cpf: valorCampo('prop-cpf'), telefone: valorCampo('prop-telefone'),
     email: valorCampo('prop-email'), cidade: valorCampo('prop-cidade'),
+    endereco: valorCampo('prop-endereco'), cep: valorCampo('prop-cep'), uc: valorCampo('prop-uc'), concessionaria: valorCampo('prop-concessionaria'),
     regiao: { ...regiaoSel(), fator: fatorRegiao() },
     numero: ultimoOrcamentoId ? String(ultimoOrcamentoId).padStart(5, '0')
       : 'S' + hoje.toISOString().slice(2, 10).replace(/-/g, '') + String(hoje.getHours()).padStart(2, '0') + String(hoje.getMinutes()).padStart(2, '0'),
@@ -185,6 +186,7 @@ function calcularDadosProposta(e) {
     contaHoje, consumoHoje, usaMeta,
     tipo, item, valor, orientacao, estrutura, tarifa, taxa, conta, consumo, geracao, economia, novaConta, paybackMeses, eco25, pag,
     nome: e.nome, cpf: e.cpf, telefone: e.telefone, email: e.email, cidade: e.cidade,
+    endereco: e.endereco || '', cep: e.cep || '', uc: e.uc || '', concessionaria: e.concessionaria || '',
     regiao: e.regiao, numero: e.numero, emissao, data: emissao.toLocaleDateString('pt-BR'), validade: validade.toLocaleDateString('pt-BR'),
     vendedor: e.vendedor, potW: Math.round(item.kwp * 1000 / (item.mod || 1)),
     fornecedor: e.fornecedor, contaPag: e.contaPag,
@@ -215,6 +217,7 @@ async function reimprimirProposta(id) {
     itens: Array.isArray(dd.itens) && dd.itens.length ? dd.itens : itensDoKit(kit, o.tipo).split('\n'),
     servicoDesc: dd.servico_desc || PROPOSTA_CFG.servico_desc,
     nome: o.cliente_nome || 'Cliente', cpf: dd.cpf_cnpj || '', telefone: telBonito(o.telefone || ''), email: o.email || '', cidade: o.cidade || '',
+    endereco: (dd.cliente || {}).endereco || '', cep: (dd.cliente || {}).cep || '', uc: (dd.cliente || {}).uc || '', concessionaria: (dd.cliente || {}).concessionaria || '',
     regiao: dd.regiao && dd.regiao.fator ? dd.regiao : { ...regiaoSel(), fator: fatorRegiao() },
     numero: String(o.id).padStart(5, '0'), emissao: new Date(o.criado_em),
     vendedor, fornecedor: forn, contaPag,
@@ -364,6 +367,7 @@ function atualizarModoValor() {
   totEl.value = fmtReais(propostaCalc.valorFinal);
   document.getElementById('prop-valor-kit').value = sep ? lerReais(document.getElementById('prop-kit-txt').value) : '';
   mostrarRefTabela();
+  if (typeof avisoCpf === 'function') avisoCpf();
 }
 function mostrarRefTabela() {
   const el = document.getElementById('prop-total-ref');
