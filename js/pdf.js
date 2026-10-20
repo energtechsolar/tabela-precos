@@ -351,6 +351,32 @@ function montarPropostaPDF(d, fotos) {
   if (sep) obs.push('Composição do valor: kit gerador ' + brl(d.valorKit) + ' + serviços de instalação ' + brl(d.valorServico) + '.');
   if (!imp && !(d.fornecedor && d.fornecedor.finame) && PROPOSTA_CFG.codigo_finame) obs.push('Código FINAME do kit: ' + PROPOSTA_CFG.codigo_finame + '.');
   obs.push('Condições de financiamento sujeitas à análise de crédito.');
+  // dados do cliente (para cadastro do financiamento) — linhas vazias não aparecem
+  const temV = v => v && String(v).trim();
+  const linhasCli = [
+    [['Nome/Razão social', d.nome && d.nome !== 'Cliente' ? d.nome : '']],
+    [['CPF/CNPJ', d.cpf], ['Município/UF', d.cidade]],
+    [['Telefone', d.telefone], ['E-mail', d.email]],
+    [['Endereço', [d.endereco, d.cep ? 'CEP ' + d.cep : ''].filter(Boolean).join(' · ')]],
+    [['Unidade consumidora', d.uc], ['Concessionária', d.concessionaria]],
+  ].map(ln => ln.filter(([, v]) => temV(v))).filter(ln => ln.length);
+  if (linhasCli.length) {
+    rotulo('Dados do cliente', X0, y); y += 2;
+    const colW2 = (CW - 14) / 2;
+    const hCli = 5 + linhasCli.length * 5.2;
+    caixa(X0, y, CW, hCli, CZC, BD);
+    let yc = y + 6;
+    linhasCli.forEach(ln => {
+      ln.forEach(([r, v], j) => {
+        const x = X0 + 5 + j * (colW2 + 4), w = ln.length === 1 ? CW - 10 : colW2;
+        cor(CZ); fonte(7.2); const rr = r + ': '; texto(rr, x, yc);
+        const wr = doc.getTextWidth(rr);
+        cor(PR); fonte(7.8, 'bold'); texto(linhas(v, w - wr)[0], x + wr, yc);
+      });
+      yc += 5.2;
+    });
+    y += hCli + 6;
+  }
   rotulo('Dados para pagamento', X0, y); y += 2;
   const blocos = [];
   if (d.fornecedor) {
