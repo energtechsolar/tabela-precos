@@ -298,7 +298,13 @@ function preencherItensProposta() {
   document.getElementById('prop-servico').value = PROPOSTA_CFG.servico_desc || '';
   const modo = tipo === 'nacional' ? 'separado' : 'global';
   document.querySelectorAll('input[name="modo-valor"]').forEach(r => r.checked = r.value === modo);
-  document.getElementById('prop-valor-kit').value = (Math.round(propostaCalc.valorFinal / (+PROPOSTA_CFG.fator_kit || 1.30) * 100) / 100).toFixed(2);
+  // a tabela é orientativa: o vendedor pode ajustar o total, ou o kit e a mão de obra
+  if (propostaCalc.valorTabela === undefined) propostaCalc.valorTabela = propostaCalc.valorFinal;
+  const total = propostaCalc.valorFinal;
+  const kit = Math.round(total / (+PROPOSTA_CFG.fator_kit || 1.30) * 100) / 100;
+  document.getElementById('prop-total-txt').value = fmtReais(total);
+  document.getElementById('prop-kit-txt').value = fmtReais(kit);
+  document.getElementById('prop-serv-txt').value = fmtReais(total - kit);
   atualizarModoValor();
 }
 function restaurarItensPadrao() {
@@ -306,17 +312,65 @@ function restaurarItensPadrao() {
   document.getElementById('prop-itens').value = itensDoKit(propostaItem, propostaTipo || 'importado');
   document.getElementById('prop-servico').value = PROPOSTA_CFG.servico_desc || '';
 }
-function atualizarModoValor() {
-  const sep = (document.querySelector('input[name="modo-valor"]:checked') || {}).value === 'separado';
-  document.getElementById('prop-separado').style.display = sep ? '' : 'none';
+
+// valores em reais no formato brasileiro: aceita 15.538,88 · 15538,88 · 15538.88 · R$ 15.538
+function lerReais(txt) {
+  let s = String(txt || '').replace(/[^\d,.]/g, '');
+  if (!s) return 0;
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  else if ((s.match(/\./g) || []).length > 1 || /\.\d{3}$/.test(s)) s = s.replace(/\./g, '');
+  const v = parseFloat(s);
+  return isFinite(v) ? Math.round(v * 100) / 100 : 0;
+}
+const fmtReais = v => (+v || 0).toLocaleString('pt-BR', { minimumFractionDigits:2, maximumFractionDigits:2 });
+function formatarCampoReais(el) { if (el && el.value.trim()) el.value = fmtReais(lerReais(el.value)); }
+function modoSeparado() { return (document.querySelector('input[name="modo-valor"]:checked') || {}).value === 'separado'; }
+
+// grava o total escolhido na proposta (é o valor que vai para o PDF, o WhatsApp e o orçamento salvo)
+function definirTotalProposta(v) {
   if (!propostaCalc) return;
-  const total = propostaCalc.valorFinal;
-  const kit = +document.getElementById('prop-valor-kit').value || 0;
-  const serv = total - kit;
-  const el = document.getElementById('prop-valor-servico');
-  el.textContent = fmt(serv);
-  el.style.color = serv < 0 ? 'var(--vermelho)' : '';
-  document.getElementById('prop-total-ref').textContent = 'Total da proposta: ' + fmt(total) + (serv < 0 ? ' — o valor do kit não pode passar do total' : '');
+  propostaCalc.valorFinal = Math.round((+v || 0) * 100) / 100;
+  document.getElementById('psi-valor').textContent = fmt(propostaCalc.valorFinal);
+}
+function valorEditado(qual) {
+  if (!propostaCalc) return;
+  const kitEl = document.getElementById('prop-kit-txt'), servEl = document.getElementById('prop-serv-txt'), totEl = document.getElementById('prop-total-txt');
+  if (qual === 'total') {
+    const t = lerReais(totEl.value);
+    definirTotalProposta(t);
+    servEl.value = fmtReais(Math.max(0, t - lerReais(kitEl.value)));
+  } else {
+    const k = lerReais(kitEl.value), sv = lerReais(servEl.value);
+    definirTotalProposta(k + sv);
+    totEl.value = fmtReais(k + sv);
+  }
+  document.getElementById('prop-valor-kit').value = lerReais(kitEl.value) || '';
+  mostrarRefTabela();
+}
+function atualizarModoValor() {
+  const sep = modoSeparado();
+  document.querySelectorAll('.campo-separado').forEach(el => el.style.display = sep ? '' : 'none');
+  const totEl = document.getElementById('prop-total-txt');
+  totEl.readOnly = sep;
+  totEl.title = sep ? 'Soma do kit + mão de obra' : '';
+  if (!propostaCalc) return;
+  if (sep) {   // kit + mão de obra sempre fecham o total
+    const total = propostaCalc.valorFinal, kitEl = document.getElementById('prop-kit-txt');
+    let k = lerReais(kitEl.value);
+    if (!k || k > total) k = Math.round(total / (+PROPOSTA_CFG.fator_kit || 1.30) * 100) / 100;
+    kitEl.value = fmtReais(k);
+    document.getElementById('prop-serv-txt').value = fmtReais(total - k);
+  }
+  totEl.value = fmtReais(propostaCalc.valorFinal);
+  document.getElementById('prop-valor-kit').value = sep ? lerReais(document.getElementById('prop-kit-txt').value) : '';
+  mostrarRefTabela();
+}
+function mostrarRefTabela() {
+  const el = document.getElementById('prop-total-ref');
+  if (!el || !propostaCalc) return;
+  const tab = propostaCalc.valorTabela ?? propostaCalc.valorFinal, dif = propostaCalc.valorFinal - tab;
+  el.textContent = 'Valor da tabela: ' + fmt(tab) + (Math.abs(dif) < 0.01 ? ' (sem ajuste)' : (dif > 0 ? ' · acima da tabela: ' : ' · abaixo da tabela: ') + fmt(Math.abs(dif)));
+  el.style.color = dif < -0.009 ? 'var(--vermelho)' : '';
 }
 
 // admin: itens padrão de cada kit
