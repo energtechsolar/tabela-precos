@@ -285,7 +285,7 @@ async function carregarLeads(manual) {
   const btn = document.getElementById('btn-leads-reload');
   if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
   const { data, error } = await sb.from('leads')
-    .select('id, nome, telefone, email, cidade, status, recebido_em')
+    .select('id, nome, telefone, email, cidade, status, recebido_em, cpf_cnpj, endereco, cep, uc, concessionaria')
     .order('recebido_em', { ascending:false }).limit(300);
   if (btn) { btn.disabled = false; btn.textContent = '🔄'; }
   let lista = data;
@@ -344,8 +344,25 @@ function selecionarLead() {
   document.getElementById('prop-email').value    = l.email || '';
   document.getElementById('prop-telefone').value = telBonito(l.telefone);
   if (l.cidade) { document.getElementById('prop-cidade').value = l.cidade; regiaoPelaCidade(); }
+  const pre = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+  pre('prop-cpf', l.cpf_cnpj); pre('prop-endereco', l.endereco); pre('prop-cep', l.cep); pre('prop-uc', l.uc); pre('prop-concessionaria', l.concessionaria);
+  avisoCpf();
   validarProposta();
   calcularProducao();
+}
+
+// dados do cliente digitados na proposta (vão para o PDF, para o orçamento salvo e para a ficha no CRM)
+function dadosClienteTela() {
+  const v = id => (document.getElementById(id) || {}).value ? document.getElementById(id).value.trim() : '';
+  return { nome: v('prop-nome'), cpf: v('prop-cpf'), telefone: v('prop-telefone'), email: v('prop-email'), cidade: v('prop-cidade'),
+           endereco: v('prop-endereco'), cep: v('prop-cep'), uc: v('prop-uc'), concessionaria: v('prop-concessionaria') };
+}
+// CPF não bloqueia nada, mas avisa quando a proposta é para financiamento (kit nacional / kit e mão de obra separados)
+function avisoCpf() {
+  const el = document.getElementById('prop-cpf-aviso'); if (!el) return;
+  const financia = propostaTipo === 'nacional' || (typeof modoSeparado === 'function' && modoSeparado());
+  const cpf = document.getElementById('prop-cpf');
+  el.textContent = financia && cpf && !cpf.value.trim() ? '⚠ Falta o CPF/CNPJ (exigido para financiamento)' : '';
 }
 
 function statusProposta(txt, tipo) {
@@ -366,7 +383,7 @@ async function salvarOrcamento() {
   const tipo = propostaTipo || (linhaFoco && linhaFoco.startsWith('importado') ? 'importado' : 'nacional');
   const registro = {
     lead_id:      leadSelecionado,
-    cliente_nome: document.getElementById('prop-nome').value.trim(),
+    cliente_nome: document.getElementById('prop-nome').value.trim() || 'Cliente',
     telefone:     telDigitos(document.getElementById('prop-telefone').value) || null,
     email:        document.getElementById('prop-email').value.trim() || null,
     cidade:       document.getElementById('prop-cidade').value.trim() || null,
@@ -391,6 +408,7 @@ async function salvarOrcamento() {
       conta_meta: +document.getElementById('prop-conta-meta').value || null,
       consumo_kwh: +document.getElementById('prop-consumo').value || null,
       cpf_cnpj: document.getElementById('prop-cpf').value.trim() || null,
+      cliente: dadosClienteTela(),
       regiao: { id: regiaoSel().id, nome: regiaoSel().nome, uf: regiaoSel().uf, fator: fatorRegiao() },
       adicional: +document.getElementById('slider-adicional').value,
       desconto_pct: +document.getElementById('slider-desconto').value,
@@ -407,7 +425,11 @@ async function salvarOrcamento() {
     return;
   }
   if (leadSelecionado) {
-    await sb.from('leads').update({ status:'orcamento_criado', atualizado_em: new Date().toISOString() }).eq('id', leadSelecionado);
+    // devolve à ficha do cliente o que foi preenchido na proposta (só campos com valor; não apaga nada)
+    const c = dadosClienteTela(), mud = { status:'orcamento_criado', atualizado_em: new Date().toISOString() };
+    [['cpf_cnpj', c.cpf], ['endereco', c.endereco], ['cep', c.cep], ['uc', c.uc], ['concessionaria', c.concessionaria], ['email', c.email]].forEach(([k, v]) => { if (v) mud[k] = v; });
+    if (c.telefone) mud.telefone = telDigitos(c.telefone);
+    await sb.from('leads').update(mud).eq('id', leadSelecionado);
     const l = leadsCache.find(x => x.id === leadSelecionado); if (l) l.status = 'orcamento_criado';
     carregarLeads();
   }
