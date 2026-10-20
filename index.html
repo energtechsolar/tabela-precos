@@ -429,16 +429,21 @@
         <label><input type="radio" name="modo-valor" value="global" checked onchange="atualizarModoValor()"> Valor global (kit + serviço juntos)</label>
         <label><input type="radio" name="modo-valor" value="separado" onchange="atualizarModoValor()"> Separar kit e mão de obra (financiamento)</label>
       </div>
-      <div class="proposta-grid" id="prop-separado" style="display:none; margin-bottom:0">
-        <div class="proposta-field">
+      <div class="proposta-grid" style="margin-bottom:0">
+        <div class="proposta-field campo-separado">
           <label>Valor do kit (R$)</label>
-          <input type="number" class="proposta-input" id="prop-valor-kit" min="0" step="0.01" oninput="atualizarModoValor()">
+          <input type="text" inputmode="decimal" class="proposta-input" id="prop-kit-txt" placeholder="Ex: 25.384,62" oninput="valorEditado('kit')" onblur="formatarCampoReais(this)">
+        </div>
+        <div class="proposta-field campo-separado">
+          <label>Mão de obra / serviços (R$)</label>
+          <input type="text" inputmode="decimal" class="proposta-input" id="prop-serv-txt" placeholder="Ex: 7.615,38" oninput="valorEditado('servico')" onblur="formatarCampoReais(this)">
         </div>
         <div class="proposta-field">
-          <label>Mão de obra / serviços (calculado)</label>
-          <div class="proposta-input" id="prop-valor-servico" style="font-weight:700">—</div>
+          <label>Valor total da proposta (R$)</label>
+          <input type="text" inputmode="decimal" class="proposta-input" id="prop-total-txt" style="font-weight:700;color:var(--amarelo)" oninput="valorEditado('total')" onblur="formatarCampoReais(this)">
         </div>
         <div class="regiao-aviso" id="prop-total-ref" style="grid-column:1/-1"></div>
+        <input type="hidden" id="prop-valor-kit">
       </div>
     </div>
 
@@ -728,8 +733,8 @@
 <script src="js/comum.js?v=20261019a"></script>
 <script src="js/precificador.js?v=20261019a"></script>
 <script src="js/logo.js?v=20261019a"></script>
-<script src="js/pdf.js?v=20261019a"></script>
-<script src="js/proposta.js?v=20261019a"></script>
+<script src="js/pdf.js?v=20261020a"></script>
+<script src="js/proposta.js?v=20261020a"></script>
 <script src="js/admin.js?v=20261019a"></script>
 <script src="js/app.js?v=20261019a"></script>
 <script>
