@@ -8,6 +8,7 @@ const ETAPAS = [
 const NOME_ETAPA = Object.fromEntries(ETAPAS);
 const ORIGENS = { datacrazy:'Anúncio / DataCrazy', indicacao:'Indicação', whatsapp:'WhatsApp direto', telefone:'Telefone', loja:'Loja / visita', campo:'Prospecção em campo', outro:'Outro' };
 
+const COLUNAS_LEAD = 'id, nome, telefone, email, cidade, etapa, etapa_em, responsavel_email, proximo_contato, motivo_perda, origem, recebido_em, cpf_cnpj, endereco, cep, uc, concessionaria';
 let perfil = null, leads = [], orcs = [], equipe = [], filtroFollow = false, mostrarAntigos = false, arrastando = null, fichaId = null, perdaId = null;
 
 const $ = id => document.getElementById(id);
@@ -76,7 +77,7 @@ async function sair() { await sb.auth.signOut(); perfil = null; await iniciar();
 async function carregar() {
   $('kanban').innerHTML = '<div class="muted">Carregando…</div>';
   const [l, o, v] = await Promise.all([
-    sb.from('leads').select('id, nome, telefone, email, cidade, etapa, etapa_em, responsavel_email, proximo_contato, motivo_perda, origem, recebido_em').order('recebido_em', { ascending:false }).limit(2000),
+    sb.from('leads').select(COLUNAS_LEAD).order('recebido_em', { ascending:false }).limit(2000),
     sb.from('orcamentos').select('id, lead_id, sistema, kwp, valor_final, tipo, vendedor_email, criado_em').order('criado_em', { ascending:false }).limit(5000),
     sb.from('vendedores').select('email, nome, papel'),
   ]);
@@ -221,13 +222,8 @@ async function abrirFicha(id, recarregar) {
       <div><label>Origem</label><select class="select" id="fx-origem">${opOrig}</select></div>
       ${l.etapa === 'perdido' ? `<div class="largo muted">Motivo da perda: <b>${esc(l.motivo_perda || '—')}</b></div>` : ''}
     </div>
-    <h3>Contato</h3>
-    <div class="grade">
-      <div class="largo"><label>Nome</label><input class="input" id="fx-nome" value="${esc(l.nome)}"></div>
-      <div><label>Telefone / WhatsApp</label><input class="input" id="fx-tel" value="${esc(telBonito(l.telefone))}"></div>
-      <div><label>E-mail</label><input class="input" id="fx-email" value="${esc(l.email)}"></div>
-      <div class="largo"><label>Cidade</label><input class="input" id="fx-cidade" value="${esc(l.cidade)}"></div>
-    </div>
+    <h3>Dados do cliente</h3>
+    <div class="grade">${camposCliente('fx', l)}</div>
     <div class="acoes"><button class="btn" onclick="salvarFicha(${id})">💾 Salvar</button><span class="status-msg" id="fx-msg"></span></div>
     <h3>Propostas (${props.length})</h3>
     ${props.length ? props.map(p => `<div class="prop prop-click" onclick="verProposta(${p.id})"><span>Nº ${String(p.id).padStart(5, '0')} · ${esc(p.sistema || '')} · ${String(p.kwp).replace('.', ',')} kWp<br><span class="muted">${fmtDH(p.criado_em)} · ${esc(nomeDe(p.vendedor_email))}</span></span><b style="color:var(--amarelo)">${fmtR(p.valor_final)} ▾</b></div><div class="prop-det" id="pdet-${p.id}"></div>`).join('')
@@ -256,16 +252,12 @@ async function salvarFicha(id) {
   const l = leads.find(x => x.id === id);
   const prox = $('fx-prox').value;
   const mud = {
-    nome: $('fx-nome').value.trim() || null,
-    telefone: $('fx-tel').value.replace(/\D/g, '') || null,
-    email: $('fx-email').value.trim() || null,
-    cidade: $('fx-cidade').value.trim() || null,
+    ...lerCamposCliente('fx'),
     responsavel_email: $('fx-resp').value || null,
     origem: $('fx-origem').value,
     proximo_contato: prox ? new Date(prox).toISOString() : null,
     atualizado_em: new Date().toISOString(),
   };
-  if (mud.telefone && (mud.telefone.length === 10 || mud.telefone.length === 11)) mud.telefone = '55' + mud.telefone;
   const { error } = await sb.from('leads').update(mud).eq('id', id);
   const msg = $('fx-msg');
   if (error) { msg.textContent = '⚠ ' + error.message; msg.classList.add('erro'); return; }
@@ -282,14 +274,53 @@ async function anotar(id) {
   abrirFicha(id, true);
 }
 
-async function novoLead() {
-  const nome = prompt('Nome do cliente:');
-  if (!nome || !nome.trim()) return;
-  const tel = (prompt('Telefone / WhatsApp (com DDD):') || '').replace(/\D/g, '');
-  const reg = { nome: nome.trim(), telefone: tel ? (tel.length <= 11 ? '55' + tel : tel) : null, etapa: 'novo', origem: 'outro', responsavel_email: perfil.email, status: 'novo' };
-  const { data, error } = await sb.from('leads').insert(reg).select('id, nome, telefone, email, cidade, etapa, etapa_em, responsavel_email, proximo_contato, motivo_perda, origem, recebido_em').single();
-  if (error) { alert('Não foi possível criar o lead: ' + error.message); return; }
+// campos de cliente (mesmos na ficha e no novo lead) — nenhum é obrigatório
+function camposCliente(pre, l) {
+  l = l || {};
+  const c = (id, rot, val, extra, largo) => `<div${largo ? ' class="largo"' : ''}><label>${rot}</label><input class="input" id="${pre}-${id}" value="${esc(val || '')}" ${extra || ''}></div>`;
+  return c('nome', 'Nome / Razão social', l.nome, '', true)
+    + c('cpf', 'CPF / CNPJ', l.cpf_cnpj, 'placeholder="000.000.000-00"')
+    + c('tel', 'Telefone / WhatsApp', telBonito(l.telefone), 'inputmode="tel" placeholder="(49) 99999-9999"')
+    + c('email', 'E-mail', l.email, 'type="email"', true)
+    + c('end', 'Endereço da instalação (rua, nº, complemento, bairro)', l.endereco, '', true)
+    + c('cep', 'CEP', l.cep, 'inputmode="numeric" placeholder="00000-000"')
+    + c('cidade', 'Município / UF', l.cidade, 'placeholder="Chapecó / SC"')
+    + c('uc', 'Unidade consumidora (UC)', l.uc, 'inputmode="numeric"')
+    + c('conc', 'Concessionária', l.concessionaria, 'list="lista-conc" placeholder="Celesc, Copel…"');
+}
+function lerCamposCliente(pre) {
+  const v = id => ($(pre + '-' + id).value || '').trim() || null;
+  let tel = ($(pre + '-tel').value || '').replace(/\D/g, '') || null;
+  if (tel && (tel.length === 10 || tel.length === 11)) tel = '55' + tel;
+  return { nome: v('nome'), cpf_cnpj: v('cpf'), telefone: tel, email: v('email'), endereco: v('end'), cep: v('cep'),
+           cidade: v('cidade'), uc: v('uc'), concessionaria: v('conc') };
+}
+
+function novoLead() {
+  const opResp = '<option value="">— Sem responsável —</option>' + equipe.filter(e => e.papel !== 'engenheiro').map(e => `<option value="${esc(e.email)}" ${e.email === perfil.email ? 'selected' : ''}>${esc(e.nome || e.email)}</option>`).join('');
+  const opOrig = Object.entries(ORIGENS).map(([k, n]) => `<option value="${k}" ${k === 'indicacao' ? 'selected' : ''}>${n}</option>`).join('');
+  $('novo-corpo').innerHTML = `
+    <div class="grade">${camposCliente('nl', {})}
+      <div><label>Origem</label><select class="select" id="nl-origem">${opOrig}</select></div>
+      <div><label>Responsável</label><select class="select" id="nl-resp">${opResp}</select></div>
+      <div class="largo"><label>Observação (vai para o histórico)</label><textarea class="input" id="nl-obs" rows="3" placeholder="Ex.: indicação do João, conta de R$ 450, quer financiar."></textarea></div>
+    </div>
+    <div class="acoes"><button class="btn" id="nl-btn" onclick="salvarNovoLead()">💾 Criar lead</button><button class="btn btn-sec" onclick="fecharNovoLead()">Cancelar</button><span class="status-msg" id="nl-msg"></span></div>`;
+  $('ov-novo').classList.add('visivel');
+  setTimeout(() => $('nl-nome').focus(), 50);
+}
+function fecharNovoLead() { $('ov-novo').classList.remove('visivel'); }
+async function salvarNovoLead() {
+  const reg = { ...lerCamposCliente('nl'), etapa: 'novo', status: 'novo', origem: $('nl-origem').value, responsavel_email: $('nl-resp').value || null };
+  if (!reg.nome) reg.nome = reg.telefone ? 'Lead ' + telBonito(reg.telefone) : 'Lead sem nome';
+  const obs = $('nl-obs').value.trim();
+  $('nl-btn').disabled = true;
+  const { data, error } = await sb.from('leads').insert(reg).select(COLUNAS_LEAD).single();
+  $('nl-btn').disabled = false;
+  if (error) { $('nl-msg').textContent = '⚠ Não foi possível criar: ' + error.message; $('nl-msg').classList.add('erro'); return; }
+  if (obs) await sb.from('lead_eventos').insert({ lead_id: data.id, texto: obs });
+  fecharNovoLead();
   leads.unshift(data); render(); abrirFicha(data.id);
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { if ($('ov-perda').classList.contains('visivel')) fecharPerda(); else if ($('ov-contrato').classList.contains('visivel')) fecharContrato(); else fecharFicha(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { if ($('ov-perda').classList.contains('visivel')) fecharPerda(); else if ($('ov-novo').classList.contains('visivel')) fecharNovoLead(); else if ($('ov-contrato').classList.contains('visivel')) fecharContrato(); else fecharFicha(); } });

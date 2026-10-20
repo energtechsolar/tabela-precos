@@ -167,6 +167,16 @@
   </div>
 </div>
 
+<!-- NOVO LEAD -->
+<div class="overlay" id="ov-novo" style="z-index:56" onclick="if(event.target===this)fecharNovoLead()">
+  <div class="ficha">
+    <div class="ficha-topo"><h2>+ Novo lead</h2><button class="fechar" onclick="fecharNovoLead()">×</button></div>
+    <p class="muted" style="margin:4px 0 10px">Nenhum campo é obrigatório. Preencha o que tiver agora e complete depois na ficha.</p>
+    <div id="novo-corpo"></div>
+  </div>
+</div>
+<datalist id="lista-conc"><option value="Celesc"><option value="Copel"><option value="RGE"><option value="DCELT"><option value="Ceraçá"></datalist>
+
 <!-- MOTIVO DA PERDA -->
 <div class="overlay" id="ov-perda" onclick="if(event.target===this)fecharPerda()">
   <div class="modal">
@@ -182,7 +192,7 @@
 </div>
 
 <script src="js/comum.js?v=20261019a"></script>
-<script src="js/crm.js?v=20261019a"></script>
+<script src="js/crm.js?v=20261020b"></script>
 <script src="js/contrato.js?v=20261019a"></script>
 <script>
 iniciar();
