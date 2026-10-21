@@ -164,7 +164,8 @@
       <div class="kpi"><div class="kpi-val" id="k-total">—</div><div class="kpi-lbl">Valor total orçado</div></div>
       <div class="kpi"><div class="kpi-val" id="k-ticket">—</div><div class="kpi-lbl">Ticket médio</div></div>
       <div class="kpi"><div class="kpi-val" id="k-kwp">—</div><div class="kpi-lbl">Potência total orçada</div></div>
-      <div class="kpi so-admin"><div class="kpi-val" id="k-margem">—</div><div class="kpi-lbl">🔒 Margem total (após kit e comissão)</div></div>
+      <div class="kpi so-admin"><div class="kpi-val" id="k-margem">—</div><div class="kpi-lbl">🔒 Margem total (após kit, comissão e imposto do repasse)</div></div>
+      <div class="kpi so-admin"><div class="kpi-val" id="k-repasse">—</div><div class="kpi-lbl">🔒 Repasses a receber dos fornecedores (já sem o imposto)</div></div>
       <div class="kpi" id="k-pend-box"><div class="kpi-val" id="k-pend">—</div><div class="kpi-lbl">Leads qualificados sem orçamento</div></div>
     </div>
 
@@ -182,7 +183,7 @@
       <div class="linha-topo"><h2>Orçamentos</h2><span class="muted" id="qtd-lista"></span></div>
       <div class="tabela-wrap">
         <table>
-          <thead><tr><th>Nº</th><th>Data</th><th>Cliente</th><th>Telefone</th><th>Cidade</th><th>Kit</th><th>Sistema</th><th class="num">kWp</th><th class="num">Valor</th><th class="num so-admin">Custo kit 🔒</th><th class="num so-admin">Margem 🔒</th><th>Vendedor</th><th>Origem</th></tr></thead>
+          <thead><tr><th>Nº</th><th>Data</th><th>Cliente</th><th>Telefone</th><th>Cidade</th><th>Kit</th><th>Sistema</th><th class="num">kWp</th><th class="num">Valor</th><th class="num so-admin">Custo kit 🔒</th><th class="num so-admin" title="Nota de repasse do fornecedor, já descontado o imposto">Repasse a receber 🔒</th><th class="num so-admin">Margem 🔒</th><th>Vendedor</th><th>Origem</th></tr></thead>
           <tbody id="tb-orcamentos"></tbody>
         </table>
       </div>
@@ -229,11 +230,24 @@ function telLink(t) {
   if (d.length === 10 || d.length === 11) d = '55' + d;
   return `<a href="https://wa.me/${d}" target="_blank" rel="noopener">${esc(telBonito(t))}</a>`;
 }
+// kit e mão de obra separados: o kit na proposta acima do custo volta do fornecedor por nota de repasse,
+// descontado o imposto (% gravado em cada orçamento; os antigos usam 4%)
+function repasseDe(o) {
+  const c = custosOrc[o.id];
+  if (o.modo_valor !== 'separado' || !o.valor_kit || !c || c.custo_kit === null || c.custo_kit === undefined) return null;
+  const pct = o.repasse_pct != null && o.repasse_pct !== '' ? +o.repasse_pct : 4;
+  const repasse = Math.max(0, Math.round((+o.valor_kit - +c.custo_kit) * 100) / 100);
+  const imposto = Math.round(repasse * pct) / 100;
+  return { repasse, imposto, volta: repasse - imposto, pct };
+}
 function margemDe(o) {
   const c = custosOrc[o.id];
   if (!c || c.custo_kit === null || c.custo_kit === undefined) return null;
-  return (+o.valor_final || 0) - (+c.custo_kit || 0) - (+c.comissao || 0);
+  const r = repasseDe(o);
+  return (+o.valor_final || 0) - (+c.custo_kit || 0) - (+c.comissao || 0) - (r ? r.imposto : 0);
 }
+const fmtRepasse = o => { const r = repasseDe(o); return r && r.repasse > 0
+  ? `<span title="Nota de repasse ${fmtR(r.repasse)} − imposto ${fmtN(r.pct, 1)}% (${fmtR(r.imposto)})">${fmtR(r.volta)}</span>` : '<span class="muted">—</span>'; };
 const fmtMargem = m => m === null ? '<span class="muted">—</span>' : `<span class="${m < 0 ? 'neg' : 'pos'}">${fmtR(m)}</span>`;
 const nomeVendedor = email => nomes[email] || (email ? email.split('@')[0] : '—');
 
@@ -292,10 +306,10 @@ async function buscarTudo(tabela, colunas, ordem) {
 }
 
 async function carregar() {
-  $('tb-orcamentos').innerHTML = '<tr><td colspan="13" class="vazio">Carregando…</td></tr>';
+  $('tb-orcamentos').innerHTML = '<tr><td colspan="14" class="vazio">Carregando…</td></tr>';
   try {
     const [o, l, v] = await Promise.all([
-      buscarTudo('orcamentos', 'id, lead_id, cliente_nome, telefone, email, cidade, tipo, sistema, kwp, valor_final, vendedor_email, criado_em', 'criado_em'),
+      buscarTudo('orcamentos', 'id, lead_id, cliente_nome, telefone, email, cidade, tipo, sistema, kwp, valor_final, vendedor_email, criado_em, modo_valor:dados->>modo_valor, valor_kit:dados->>valor_kit, repasse_pct:dados->>repasse_pct', 'criado_em'),
       buscarTudo('leads', 'id, nome, telefone, email, status, recebido_em', 'recebido_em'),
       sb.from('vendedores').select('email, nome')
     ]);
@@ -308,7 +322,7 @@ async function carregar() {
     nomes = {}; (v.data || []).forEach(x => nomes[x.email] = x.nome);
   } catch (e) {
     console.error(e);
-    $('tb-orcamentos').innerHTML = '<tr><td colspan="13" class="vazio">⚠ Erro ao carregar os dados. Tente atualizar.</td></tr>';
+    $('tb-orcamentos').innerHTML = '<tr><td colspan="14" class="vazio">⚠ Erro ao carregar os dados. Tente atualizar.</td></tr>';
     return;
   }
   // opções de vendedor
@@ -375,6 +389,9 @@ function render() {
     const comCusto = lista.map(margemDe).filter(m => m !== null);
     $('k-margem').textContent = comCusto.length ? fmtR0(comCusto.reduce((a, b) => a + b, 0)) : '—';
     $('k-margem').title = comCusto.length < lista.length ? (lista.length - comCusto.length) + ' orçamento(s) sem custo cadastrado ficaram fora da soma' : '';
+    const voltas = lista.map(repasseDe).filter(r => r && r.repasse > 0);
+    $('k-repasse').textContent = voltas.length ? fmtR0(voltas.reduce((a, r) => a + r.volta, 0)) : '—';
+    $('k-repasse').title = voltas.length ? voltas.length + ' orçamento(s) com kit e mão de obra separados · os orçamentos são propostas, não vendas fechadas' : '';
   }
   $('k-pend-box').classList.toggle('alerta', pend.length > 0);
   $('qtd-lista').textContent = lista.length + ' orçamento(s)';
@@ -392,10 +409,11 @@ function render() {
       <td class="num">${fmtN(o.kwp, 2)}</td>
       <td class="num">${fmtR(o.valor_final)}</td>
       <td class="num so-admin">${custosOrc[o.id] && custosOrc[o.id].custo_kit !== null ? fmtR(custosOrc[o.id].custo_kit) : '<span class="muted">—</span>'}</td>
+      <td class="num so-admin">${fmtRepasse(o)}</td>
       <td class="num so-admin">${fmtMargem(margemDe(o))}</td>
       <td>${esc(nomeVendedor(o.vendedor_email))}</td>
       <td>${o.lead_id ? '<span class="tag dc">DataCrazy</span>' : '<span class="tag">Manual</span>'}</td>
-    </tr>`).join('') : '<tr><td colspan="13" class="vazio">Nenhum orçamento neste filtro.</td></tr>';
+    </tr>`).join('') : '<tr><td colspan="14" class="vazio">Nenhum orçamento neste filtro.</td></tr>';
 
   // por vendedor (admin)
   if (perfil && perfil.admin) {
@@ -468,14 +486,16 @@ function exportarCSV() {
   const cel = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
   const adm = perfil && perfil.admin;
   const cab = ['Nº','Data','Cliente','Telefone','E-mail','Cidade','Kit','Sistema','kWp','Valor (R$)','Vendedor','Origem'];
-  if (adm) cab.push('Custo kit (R$)','Comissão (R$)','Margem (R$)');
+  if (adm) cab.push('Custo kit (R$)','Comissão (R$)','Nota de repasse (R$)','Imposto do repasse (R$)','Repasse a receber (R$)','Margem (R$)');
   const linhas = [cab];
   lista.forEach(o => {
     const l = [o.id, fmtDataHora(o.criado_em), o.cliente_nome, telBonito(o.telefone), o.email || '', o.cidade || '',
       o.tipo === 'importado' ? 'Importado' : 'Nacional', o.sistema || '', num(o.kwp), num(o.valor_final),
       nomeVendedor(o.vendedor_email), o.lead_id ? 'DataCrazy' : 'Manual'];
     if (adm) { const c = custosOrc[o.id] || {}; const m = margemDe(o);
-      l.push(c.custo_kit != null ? num(c.custo_kit) : '', c.comissao != null ? num(c.comissao) : '', m !== null ? num(m) : ''); }
+      const r = repasseDe(o);
+      l.push(c.custo_kit != null ? num(c.custo_kit) : '', c.comissao != null ? num(c.comissao) : '',
+        r ? num(r.repasse) : '', r ? num(r.imposto) : '', r ? num(r.volta) : '', m !== null ? num(m) : ''); }
     linhas.push(l);
   });
   const csv = '﻿' + linhas.map(l => l.map(cel).join(';')).join('\r\n');
