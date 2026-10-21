@@ -63,7 +63,11 @@ function sugerirKit() {
   const conta = +valorCampo('campo-conta') || 0, meta = +valorCampo('campo-meta') || 0;
   let consumo = +valorCampo('campo-consumo') || 0;
   const base = Math.max(conta, meta);
-  if (meta > conta && consumo && conta) consumo = consumo * meta / conta;
+  // meta maior que a conta de hoje: dimensiona pela meta (com conta e consumo, proporcional; sem a conta, meta − taxa ÷ tarifa)
+  if (meta > conta) {
+    if (consumo && conta) consumo = consumo * meta / conta;
+    else consumo = Math.max(consumo, Math.max(0, meta - taxa) / tarifa);
+  }
   if (!consumo && base) consumo = Math.max(0, base - taxa) / tarifa;
   const box = document.getElementById('campo-sug');
   if (!consumo) { box.innerHTML = '<div class="linha">Informe a conta de luz ou o consumo.</div>'; box.classList.add('visivel'); return; }
@@ -91,7 +95,7 @@ function mostrarSugestao() {
     <div class="linha">${s.falta && s.pos === s.ordem.length - 1 ? '⚠ Nenhum kit da tabela cobre todo o consumo — este é o maior.' : 'Kit sugerido (' + (s.tipo === 'importado' ? 'importado' : 'nacional') + '):'}</div>
     <div class="nome">${escHtml(it.nome)} · ${String(it.kwp).replace('.', ',')} kWp</div>
     <div class="linha">${it.mod} módulos · inversor ${escHtml(it.inv)}</div>
-    <div class="linha">Gera ~${g.toLocaleString('pt-BR')} kWh/mês · cliente precisa ~${Math.round(s.consumo).toLocaleString('pt-BR')} kWh/mês ${sobra >= 0 ? '(sobra ' + Math.round(sobra).toLocaleString('pt-BR') + ')' : '(faltam ' + Math.round(-sobra).toLocaleString('pt-BR') + ')'}</div>
+    <div class="linha">Gera ~${g.toLocaleString('pt-BR')} kWh/mês · cliente precisa ~${Math.round(s.consumo).toLocaleString('pt-BR')} kWh/mês${s.meta > s.conta ? ' (meta de ' + fmt(s.meta) + '/mês)' : ''} ${sobra >= 0 ? '(sobra ' + Math.round(sobra).toLocaleString('pt-BR') + ')' : '(faltam ' + Math.round(-sobra).toLocaleString('pt-BR') + ')'}</div>
     <div class="valor">${fmt(c.valorFinal)}</div>
     <div class="campo-nav">
       <button onclick="trocarSugestao(-1)" ${s.pos === 0 ? 'disabled' : ''}>◀ Menor</button>
