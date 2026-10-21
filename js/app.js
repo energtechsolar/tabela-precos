@@ -1,7 +1,7 @@
 // Energtech — app: offline, modo simples, Supabase, usuário logado
 // (arquivo carregado pelo index.html; a ordem dos <script> importa)
 
-// ── APP / OFFLINE ───────────────────────────────────────────────────────────
+// ── APP / OFFLINE ────────────────────────────────────────────────────────────
 function lerLocal(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
 function gravarLocal(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 function marcarOffline(off) { const el = document.getElementById('offline-aviso'); if (el) el.style.display = off ? 'block' : 'none'; }
@@ -404,6 +404,7 @@ async function salvarOrcamento() {
       tarifa: +(tipo === 'importado' ? valorCampo('imp-tarifa') : valorCampo('input-tarifa')) || 0.89,
       taxa: +valorCampo('imp-taxa-conc') || 50,
       valor_kit: (document.querySelector('input[name="modo-valor"]:checked') || {}).value === 'separado' ? (+document.getElementById('prop-valor-kit').value || null) : null,
+      repasse_pct: +PROPOSTA_CFG.repasse_pct || 0,
       conta_atual: +document.getElementById('prop-conta').value || null,
       conta_meta: +document.getElementById('prop-conta-meta').value || null,
       consumo_kwh: +document.getElementById('prop-consumo').value || null,

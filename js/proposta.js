@@ -1,7 +1,7 @@
 // Energtech — proposta: PDF, reimpressão, WhatsApp, itens, imagens
 // (arquivo carregado pelo index.html; a ordem dos <script> importa)
 
-// ── PROPOSTA EM PDF (modelo 2026) ───────────────────────────────────────────
+// ── PROPOSTA EM PDF (modelo 2026) ───────────────────────────────────────────────────
 // Textos editáveis no painel admin → Configurações → Proposta (PDF)
 const PROPOSTA_PADRAO = {
   modulos_importado:  'JA Solar ou Ronma',
@@ -16,8 +16,9 @@ const PROPOSTA_PADRAO = {
   validade_dias: 15,
   pagamento: 'ENERGTECH ENERGIA SOLAR LTDA\nCNPJ e PIX: 40.297.488/0001-85\nBanco Sicoob (756) · Agência 3069 · Conta 271.041-2',
   codigo_finame: '3293385',
-  servico_desc: 'Serviço de instalação elétrica, mecânica e civil do sistema solar na propriedade do cliente. Inclui projeto e homologação do sistema na concessionária de energia.',
+  servico_desc: 'Execução dos serviços de instalação elétrica, mecânica e civil do sistema fotovoltaico, incluindo elaboração do projeto elétrico, homologação junto à concessionária de energia, emissão da ART (Anotação de Responsabilidade Técnica) e comissionamento do sistema para entrada em operação.',
   fator_kit: 1.30,
+  repasse_pct: 4,
   contatos: 'www.energtechsolar.com.br  ·  energtechsolar@gmail.com  ·  (49) 99182-8095  ·  Quilombo/SC e Aratiba/RS',
   concessionaria: 'Celesc',
   telefone_aprovacao: '49991828095',
@@ -375,6 +376,70 @@ function mostrarRefTabela() {
   const tab = propostaCalc.valorTabela ?? propostaCalc.valorFinal, dif = propostaCalc.valorFinal - tab;
   el.textContent = 'Valor da tabela: ' + fmt(tab) + (Math.abs(dif) < 0.01 ? ' (sem ajuste)' : (dif > 0 ? ' · acima da tabela: ' : ' · abaixo da tabela: ') + fmt(Math.abs(dif)));
   el.style.color = dif < -0.009 ? 'var(--vermelho)' : '';
+  avisoLimiteServico();
+  atualizarDemonstrativo();
+}
+
+// limite de serviços do financiamento: serviço até (fator_kit − 1) × kit. Ex.: 1,30 → até 30% do valor do kit
+function fatorKit() { return +PROPOSTA_CFG.fator_kit > 1 ? +PROPOSTA_CFG.fator_kit : 1.30; }
+function avisoLimiteServico() {
+  const el = document.getElementById('prop-limite-aviso');
+  if (!el) return;
+  if (!propostaCalc || !modoSeparado()) { el.innerHTML = ''; return; }
+  const kit = lerReais(document.getElementById('prop-kit-txt').value), serv = lerReais(document.getElementById('prop-serv-txt').value);
+  const limite = kit * (fatorKit() - 1), excesso = serv - limite;
+  el.innerHTML = excesso > 0.5
+    ? '⚠ A mão de obra passa ' + fmt(excesso) + ' do limite do financiamento. <button class="link-mini" onclick="ajustarLimiteServico()">Ajustar ao limite (mantém o total)</button>'
+    : '';
+}
+function ajustarLimiteServico() {
+  if (!propostaCalc) return;
+  const total = propostaCalc.valorFinal, k = Math.round(total / fatorKit() * 100) / 100;
+  document.getElementById('prop-kit-txt').value = fmtReais(k);
+  document.getElementById('prop-serv-txt').value = fmtReais(total - k);
+  document.getElementById('prop-valor-kit').value = k;
+  mostrarRefTabela();
+}
+
+// ── admin: demonstrativo financeiro da proposta (custo do kit, nota de repasse, margem real) ──
+// Kit na proposta acima do custo → o fornecedor fatura esse valor e devolve a diferença à Energtech
+// por nota de repasse, descontando o imposto (repasse_pct). Esse imposto sai só da margem da empresa.
+function calcularRepasse(valorKit, custo, pct) {
+  if (valorKit == null || custo == null) return null;
+  const repasse = Math.max(0, Math.round((valorKit - custo) * 100) / 100);
+  const imposto = Math.round(repasse * (+pct || 0)) / 100;
+  return { repasse, imposto, volta: Math.round((repasse - imposto) * 100) / 100 };
+}
+function atualizarDemonstrativo() {
+  const el = document.getElementById('prop-demo');
+  if (!el) return;
+  if (typeof adminLogado === 'undefined' || !adminLogado || !propostaCalc || !propostaItem) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = '';
+  const custo = typeof custoDoKit === 'function' ? custoDoKit(propostaItem) : null;
+  const tit = '<div style="font-weight:700;color:var(--amarelo);margin-bottom:6px">🔒 Demonstrativo financeiro (só admin)</div>';
+  if (custo == null) { el.innerHTML = tit + '<div>Custo deste kit não cadastrado — informe no Painel Admin para ver a margem.</div>'; return; }
+  const total = propostaCalc.valorFinal, com = +propostaCalc.comissao || 0, sep = modoSeparado();
+  const pct = +PROPOSTA_CFG.repasse_pct || 0;
+  const kit = sep ? lerReais(document.getElementById('prop-kit-txt').value) : null;
+  const r = sep ? calcularRepasse(kit, custo, pct) : null;
+  const imposto = r ? r.imposto : 0, margem = total - custo - com - imposto;
+  const pctTxt = pct.toLocaleString('pt-BR', { maximumFractionDigits:2 }) + '%';
+  const ln = (rot, v, estilo) => `<div style="display:flex;justify-content:space-between;gap:12px;${estilo || ''}"><span>${rot}</span><span>${v}</span></div>`;
+  let h = tit + ln('Total da proposta', fmt(total));
+  if (sep) {
+    h += ln('· Kit na proposta (nota do fornecedor)', fmt(kit), 'color:var(--muted)')
+       + ln('· Mão de obra (nota da Energtech)', fmt(total - kit), 'color:var(--muted)');
+  }
+  h += ln('(−) Custo do kit no fornecedor', fmt(custo));
+  if (sep) {
+    h += ln('Nota de repasse do fornecedor (kit na proposta − custo)', fmt(r.repasse), 'color:var(--muted)')
+       + ln('(−) Imposto descontado no repasse (' + pctTxt + ')', fmt(imposto))
+       + ln('Volta do fornecedor para a Energtech', fmt(r.volta), 'color:var(--muted)');
+    if (kit < custo - 0.5) h += '<div style="color:var(--vermelho)">⚠ Kit na proposta abaixo do custo do fornecedor.</div>';
+  }
+  h += ln('(−) Comissão do vendedor', fmt(com))
+     + ln('Margem real da Energtech', fmt(margem), 'font-weight:700;border-top:1px solid var(--borda);padding-top:4px;margin-top:4px;color:' + (margem < 0 ? 'var(--vermelho)' : 'var(--verde)'));
+  el.innerHTML = h;
 }
 
 // admin: itens padrão de cada kit
@@ -417,7 +482,8 @@ const CAMPOS_PROPOSTA = [
   ['validade_dias', 'Validade da proposta (dias)', 'number'],
   ['concessionaria', 'Concessionária (aparece nos textos)', 'input'],
   ['codigo_finame', 'Código FINAME padrão (usado quando não há fornecedor escolhido)', 'input'],
-  ['fator_kit', 'Divisor padrão do kit ao separar valores (ex.: 1,30 → kit = total ÷ 1,30)', 'number'],
+  ['fator_kit', 'Divisor do kit ao separar valores — define o limite de serviços do financiamento (1,30 → kit = total ÷ 1,30, serviço até 30% do kit)', 'number'],
+  ['repasse_pct', 'Imposto descontado na nota de repasse do fornecedor (%) — aparece só no demonstrativo do admin', 'number'],
   ['telefone_aprovacao', 'WhatsApp do botão "Aprovar proposta" (com DDD, só números)', 'input'],
   ['telefone_exibir', 'Telefone que aparece na página 5', 'input'],
   ['avista_itens', 'Opção à vista — vantagens (uma por linha)', 'textarea'],
