@@ -22,9 +22,15 @@
   body.tabela-oculta #campo-assist { display:block; }
   .btn-tabela { background:none; border:1px solid var(--borda); color:var(--muted); border-radius:8px; padding:7px 12px; font-size:13px; cursor:pointer; margin-bottom:14px; }
   .btn-tabela:hover { color:var(--texto); border-color:#555; }
+  .botoes-ver { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+  .botoes-ver .btn-tabela { margin-bottom:0; }
+  /* régua de negociação e comissão escondidas por padrão */
+  body.regua-oculta .negociacao-card { display:none !important; }
+  body.comissao-oculta .th-comissao, body.comissao-oculta .td-comissao,
+  body.comissao-oculta .res-comissao, body.comissao-oculta .pill-comissao { display:none !important; }
 </style>
 </head>
-<body class="tabela-oculta">
+<body class="tabela-oculta regua-oculta comissao-oculta">
 
 <!-- HEADER -->
 <div class="header">
@@ -74,7 +80,11 @@
     <div class="campo-sug" id="campo-sug"></div>
   </div>
 
-  <button class="btn-tabela" id="btn-tabela" onclick="alternarTabela()">📋 Mostrar tabela de preços</button>
+  <div class="botoes-ver">
+    <button class="btn-tabela" id="btn-tabela" onclick="alternarTabela()">📋 Mostrar tabela de preços</button>
+    <button class="btn-tabela" id="btn-regua" onclick="alternarRegua()">⚙ Mostrar régua de negociação</button>
+    <button class="btn-tabela" id="btn-comissao" onclick="alternarComissao()">👁 Mostrar comissão</button>
+  </div>
 
   <!-- ABAS -->
   <div id="aviso-crm" style="display:none; background:#1e3a5f; color:#bfdbfe; border:1px solid #60a5fa; border-radius:10px; padding:10px 14px; margin-bottom:12px; font-size:14px"></div>
@@ -103,8 +113,8 @@
       <div class="res-val" id="res-final">—</div>
       <div class="res-lbl">Valor final cliente</div>
     </div>
-    <div class="res-sep"></div>
-    <div class="res-item res-verde">
+    <div class="res-sep res-comissao"></div>
+    <div class="res-item res-verde res-comissao">
       <div class="res-val" id="res-comissao">—</div>
       <div class="res-lbl">Sua comissão total</div>
     </div>
@@ -264,7 +274,7 @@
           <th>Entrada</th>
           <th>Saldo 10×</th>
           <th>Parcela</th>
-          <th>Sua Comissão</th>
+          <th class="th-comissao">Sua Comissão</th>
         </tr>
       </thead>
       <tbody id="tbody-importado"></tbody>
@@ -284,7 +294,7 @@
           <th>Valor Final Cliente</th>
           <th>Parcela Anual</th>
           <th>Parcela Mensal</th>
-          <th>Sua Comissão</th>
+          <th class="th-comissao">Sua Comissão</th>
         </tr>
       </thead>
       <tbody id="tbody-nacional"></tbody>
@@ -308,7 +318,7 @@
           <div class="slider-legenda"><span>R$ 0</span><span>R$ 1.000</span><span>R$ 2.000</span></div>
         </div>
         <div class="split-info">
-          <div class="split-pill">
+          <div class="split-pill pill-comissao">
             <div class="sp-lbl">Sua comissão (+)</div>
             <div class="sp-val sp-vendedor" id="add-vendedor">R$ 0</div>
           </div>
@@ -331,7 +341,7 @@
           <div class="slider-legenda"><span>0%</span><span id="desc-livre-label">↑ gratuito até 3%</span><span id="desc-max-label">máx 7%</span></div>
         </div>
         <div class="split-info">
-          <div class="split-pill">
+          <div class="split-pill pill-comissao">
             <div class="sp-lbl">Deduzido da sua comissão</div>
             <div class="sp-val sp-desconto" id="desc-vendedor">R$ 0</div>
           </div>
@@ -775,6 +785,14 @@ function alternarTabela(mostrar) {
   const oculta = typeof mostrar === 'boolean' ? !mostrar : !document.body.classList.contains('tabela-oculta');
   document.body.classList.toggle('tabela-oculta', oculta);
   document.getElementById('btn-tabela').textContent = oculta ? '📋 Mostrar tabela de preços' : '✕ Esconder tabela de preços';
+}
+function alternarRegua() {
+  const oculta = document.body.classList.toggle('regua-oculta');
+  document.getElementById('btn-regua').textContent = oculta ? '⚙ Mostrar régua de negociação' : '✕ Esconder régua de negociação';
+}
+function alternarComissao() {
+  const oculta = document.body.classList.toggle('comissao-oculta');
+  document.getElementById('btn-comissao').textContent = oculta ? '👁 Mostrar comissão' : '🙈 Esconder comissão';
 }
 // vindo do CRM ("Nova proposta"), a tela pede para escolher o kit na tabela: já abre a tabela
 if (new URLSearchParams(location.search).get('lead')) alternarTabela(true);
