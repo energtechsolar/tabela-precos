@@ -31,6 +31,7 @@ const PROPOSTA_PADRAO = {
   fin_taxa_mes: 0.99,
   fin_prazos: '36, 48, 60, 72',
   fin_obs: 'Programa Reforma Casa Brasil\nSomente imóvel urbano\nSujeito às regras e limites do programa',
+  faq: 'E em dias nublados ou de chuva? | O sistema continua gerando, em menor quantidade. A estimativa desta proposta já considera a média de sol de cada mês do ano.\nPreciso de baterias? | Não. O sistema fica ligado à rede da concessionária: a energia que sobra durante o dia vira crédito e é usada à noite e nos meses de menor geração.\nQuanto tempo dura o sistema? | Os módulos são feitos para gerar energia por mais de 25 anos. As garantias de cada equipamento estão nesta página.\nPrecisa de manutenção? | Pouca: limpeza dos módulos quando acumular sujeira e acompanhamento da geração pelo aplicativo do inversor.',
   rodape_legal: 'Energtech Engenharia Solar · CNPJ 40.297.488/0001-85 · Responsável técnico: Eng. Eletricista Eider Balena – CREA-SC 171497-7',
   imagens: { capa:'', pag2:'', pag3:'', pag4:'' },
   // fornecedores do kit (dados bancários + FINAME) — editáveis em Configurações
@@ -151,7 +152,7 @@ function coletarDadosProposta() {
       : 'S' + hoje.toISOString().slice(2, 10).replace(/-/g, '') + String(hoje.getHours()).padStart(2, '0') + String(hoje.getMinutes()).padStart(2, '0'),
     emissao: hoje,
     vendedor: perfil && perfil.vendedor ? (perfil.nome || perfil.email) : '',
-    fornecedor: fornecedorSel(), contaPag: contaSel(),
+    fornecedor: fornecedorSel(), contaPag: contaSel(), descontoSoAVista: true,
   });
 }
 
@@ -170,21 +171,28 @@ function calcularDadosProposta(e) {
   const economia = conta ? Math.max(0, Math.min(creditos, conta - taxa)) : Math.max(0, creditos - taxa);
   const novaConta = conta ? Math.max(taxa, conta - economia) : null;
   const valor = calc.valorFinal;
+  // desconto só no à vista: entrada + parcelas e financiamentos usam o valor cheio (sem o desconto).
+  // Propostas salvas antes desta regra (sem a marca desconto_so_avista) reimprimem como foram enviadas.
+  const novaRegra = !!e.descontoSoAVista;
+  const valorCheio = novaRegra ? valorCheioDe(item, calc) : valor;
   const paybackMeses = economia > 0 ? Math.ceil(valor / economia) : null;
   let eco25 = 0; for (let t = 0; t < 25; t++) eco25 += economia * 12 * Math.pow(0.995, t);
   const pag = tipo === 'importado'
-    ? { entrada: item.entrada, saldo: Math.max(0, valor - item.entrada), parcela10: Math.max(0, valor - item.entrada) / 10 }
-    : { p96: calcParcelaMensal(valor, 8), p120: calcParcelaMensal(valor, 10), kit: valor / 1.30, servicos: valor - valor / 1.30 };
+    ? { entrada: item.entrada, saldo: Math.max(0, valorCheio - item.entrada), parcela10: Math.max(0, valorCheio - item.entrada) / 10 }
+    : { p96: calcParcelaMensal(valorCheio, 8), p120: calcParcelaMensal(valorCheio, 10), kit: valorCheio / 1.30, servicos: valorCheio - valorCheio / 1.30 };
   const modoValor = e.modoValor || 'global';
   let valorKit = modoValor === 'separado' ? (e.valorKit || valor / (+PROPOSTA_CFG.fator_kit || 1.30)) : null;
   if (valorKit !== null) valorKit = Math.min(valorKit, valor);
   const valorServico = valorKit !== null ? valor - valorKit : null;
-  if (valorKit !== null && tipo !== 'importado') { pag.kit = valorKit; pag.servicos = valorServico; }
+  if (valorKit !== null && tipo !== 'importado') { pag.kit = valorKit; pag.servicos = valorCheio - valorKit; }
   const emissao = e.emissao || new Date();
   const validade = new Date(emissao.getTime() + (+PROPOSTA_CFG.validade_dias || 15) * 86400000);
   return {
     modoValor, valorKit, valorServico, itens: e.itens, servicoDesc: e.servicoDesc,
-    valorDe: +item.inv_r > valor + 0.5 ? +item.inv_r : null,   // preço de tabela riscado ("de ... por ...") quando houve desconto
+    valorCheio, descontoAVista: Math.max(0, Math.round((valorCheio - valor) * 100) / 100),
+    valorServicoCheio: valorKit !== null ? valorCheio - valorKit : null,   // serviço no parcelado/financiado (o kit não muda)
+    // preço riscado ("de ... por ...") quando houve desconto
+    valorDe: novaRegra ? (valorCheio > valor + 0.5 ? valorCheio : null) : (+item.inv_r > valor + 0.5 ? +item.inv_r : null),
     contaHoje, consumoHoje, usaMeta,
     tipo, item, valor, orientacao, estrutura, tarifa, taxa, conta, consumo, geracao, economia, novaConta, paybackMeses, eco25, pag,
     nome: e.nome, cpf: e.cpf, telefone: e.telefone, email: e.email, cidade: e.cidade,
@@ -222,7 +230,7 @@ async function reimprimirProposta(id) {
     endereco: (dd.cliente || {}).endereco || '', cep: (dd.cliente || {}).cep || '', uc: (dd.cliente || {}).uc || '', concessionaria: (dd.cliente || {}).concessionaria || '',
     regiao: dd.regiao && dd.regiao.fator ? dd.regiao : { ...regiaoSel(), fator: fatorRegiao() },
     numero: String(o.id).padStart(5, '0'), emissao: new Date(o.criado_em),
-    vendedor, fornecedor: forn, contaPag,
+    vendedor, fornecedor: forn, contaPag, descontoSoAVista: !!dd.desconto_so_avista,
   });
   const fotos = {};
   await Promise.all(SLOTS_IMAGEM.map(async ([slot, , w, h]) => {
@@ -277,6 +285,7 @@ function mensagemProposta(d) {
   const pagamento = imp
     ? `à vista ${brl(d.valor)} ou entrada de ${brl(d.pag.entrada)} + 10x de ${brl(d.pag.parcela10)}`
     : `à vista ${brl(d.valor)}, ou FINAME em 96x de ${brl(d.pag.p96)} sem juros, ou 120x de ${brl(d.pag.p120)}`;
+  const avista = d.descontoAVista > 0.5 ? ' à vista' : '';
   const linhasMsg = [
     `Olá${primeiro ? ', ' + primeiro : ''}! ☀`,
     d.vendedor ? `Aqui é ${d.vendedor}, da *Energtech Engenharia Solar*. Segue o resumo da sua proposta:` : `Segue o resumo da sua proposta da *Energtech Engenharia Solar*:`,
@@ -287,7 +296,7 @@ function mensagemProposta(d) {
   ];
   if (d.conta && d.usaMeta) linhasMsg.push(`📉 *Conta de luz:* considerando o consumo previsto de ${brl(d.conta)} por mês, passa para cerca de ${brl(d.novaConta)}`);
   else if (d.conta) linhasMsg.push(`📉 *Sua conta de luz:* de ${brl(d.conta)} para cerca de ${brl(d.novaConta)}`);
-  linhasMsg.push(d.valorDe ? `💰 *Investimento:* de ~${brl(d.valorDe)}~ por *${brl(d.valor)}*` : `💰 *Investimento:* ${brl(d.valor)}`);
+  linhasMsg.push(d.valorDe ? `💰 *Investimento:* de ~${brl(d.valorDe)}~ por *${brl(d.valor)}*${avista}` : `💰 *Investimento:* ${brl(d.valor)}`);
   if (d.modoValor === 'separado') linhasMsg.push(`     (kit ${brl(d.valorKit)} + mão de obra ${brl(d.valorServico)})`);
   linhasMsg.push(`💳 *Pagamento:* ${pagamento}`);
   if (d.paybackMeses) linhasMsg.push(`⏱ *Retorno do investimento:* ${anosMeses(d.paybackMeses)}`);
@@ -306,7 +315,7 @@ function preencherItensProposta() {
   // a tabela é orientativa: o vendedor pode ajustar o total, ou o kit e a mão de obra
   if (propostaCalc.valorTabela === undefined) propostaCalc.valorTabela = propostaCalc.valorFinal;
   const total = propostaCalc.valorFinal;
-  const kit = Math.round(total / (+PROPOSTA_CFG.fator_kit || 1.30) * 100) / 100;
+  const kit = Math.min(total, Math.round(Math.max(total, valorCheioProposta()) / fatorKit() * 100) / 100);   // limite do financiamento sobre o valor cheio
   document.getElementById('prop-total-txt').value = fmtReais(total);
   document.getElementById('prop-kit-txt').value = fmtReais(kit);
   document.getElementById('prop-serv-txt').value = fmtReais(total - kit);
@@ -376,7 +385,8 @@ function atualizarModoValor() {
   if (sep) {   // kit + mão de obra sempre fecham o total
     const total = propostaCalc.valorFinal, kitEl = document.getElementById('prop-kit-txt');
     let k = lerReais(kitEl.value);
-    if (!k || k > total) k = Math.round(total / (+PROPOSTA_CFG.fator_kit || 1.30) * 100) / 100;
+    if (!k || k > total) k = Math.round(valorCheioProposta() / fatorKit() * 100) / 100;
+    if (k > total) k = Math.round(total / fatorKit() * 100) / 100;
     kitEl.value = fmtReais(k);
     document.getElementById('prop-serv-txt').value = fmtReais(total - k);
   }
@@ -392,26 +402,32 @@ function mostrarRefTabela() {
   el.textContent = 'Valor da tabela: ' + fmt(tab) + (Math.abs(dif) < 0.01 ? ' (sem ajuste)' : (dif > 0 ? ' · acima da tabela: ' : ' · abaixo da tabela: ') + fmt(Math.abs(dif)));
   const piso = propostaItem && +propostaItem.inv_r ? +propostaItem.inv_r * (1 - (CFG.desconto_max || 0) / 100) : 0;
   if (piso && propostaCalc.valorFinal < piso - 0.5) el.textContent += ' · ⚠ abaixo do desconto máximo permitido (mínimo ' + fmt(piso) + ')';
+  const cheio = valorCheioProposta();
+  if (cheio > propostaCalc.valorFinal + 0.5) el.textContent += ' · desconto só no à vista: parcelado e financiamento ficam em ' + fmt(cheio);
   el.style.color = dif < -0.009 ? 'var(--vermelho)' : '';
   avisoLimiteServico();
   atualizarDemonstrativo();
 }
 
+// valor do parcelado / financiamento da proposta aberta (sem o desconto do à vista)
+function valorCheioProposta() { return propostaCalc && propostaItem ? valorCheioDe(propostaItem, propostaCalc) : 0; }
 // limite de serviços do financiamento: serviço até (fator_kit − 1) × kit. Ex.: 1,30 → até 30% do valor do kit
+// (vale para o valor financiado = valor cheio; o kit é o mesmo no à vista e no financiado)
 function fatorKit() { return +PROPOSTA_CFG.fator_kit > 1 ? +PROPOSTA_CFG.fator_kit : 1.30; }
 function avisoLimiteServico() {
   const el = document.getElementById('prop-limite-aviso');
   if (!el) return;
   if (!propostaCalc || !modoSeparado()) { el.innerHTML = ''; return; }
-  const kit = lerReais(document.getElementById('prop-kit-txt').value), serv = lerReais(document.getElementById('prop-serv-txt').value);
+  const kit = lerReais(document.getElementById('prop-kit-txt').value);
+  const serv = Math.max(lerReais(document.getElementById('prop-serv-txt').value), valorCheioProposta() - kit);
   const limite = kit * (fatorKit() - 1), excesso = serv - limite;
   el.innerHTML = excesso > 0.5
-    ? '⚠ A mão de obra passa ' + fmt(excesso) + ' do limite do financiamento. <button class="link-mini" onclick="ajustarLimiteServico()">Ajustar ao limite (mantém o total)</button>'
+    ? '⚠ A mão de obra financiada passa ' + fmt(excesso) + ' do limite do financiamento. <button class="link-mini" onclick="ajustarLimiteServico()">Ajustar ao limite (mantém o total)</button>'
     : '';
 }
 function ajustarLimiteServico() {
   if (!propostaCalc) return;
-  const total = propostaCalc.valorFinal, k = Math.round(total / fatorKit() * 100) / 100;
+  const total = propostaCalc.valorFinal, k = Math.min(total, Math.round(Math.max(total, valorCheioProposta()) / fatorKit() * 100) / 100);
   document.getElementById('prop-kit-txt').value = fmtReais(k);
   document.getElementById('prop-serv-txt').value = fmtReais(total - k);
   document.getElementById('prop-valor-kit').value = k;
@@ -442,7 +458,9 @@ function atualizarDemonstrativo() {
   const imposto = r ? r.imposto : 0, margem = total - custo - com - imposto;
   const pctTxt = pct.toLocaleString('pt-BR', { maximumFractionDigits:2 }) + '%';
   const ln = (rot, v, estilo) => `<div style="display:flex;justify-content:space-between;gap:12px;${estilo || ''}"><span>${rot}</span><span>${v}</span></div>`;
-  let h = tit + ln('Total da proposta', fmt(total));
+  let h = tit + ln('Total da proposta (à vista)', fmt(total));
+  const cheio = valorCheioProposta();
+  if (cheio > total + 0.5) h += ln('· No parcelado / financiamento (sem desconto)', fmt(cheio), 'color:var(--muted)');
   if (sep) {
     h += ln('· Kit na proposta (nota do fornecedor)', fmt(kit), 'color:var(--muted)')
        + ln('· Mão de obra (nota da Energtech)', fmt(total - kit), 'color:var(--muted)');
@@ -514,6 +532,7 @@ const CAMPOS_PROPOSTA = [
   ['servico_desc', 'Descrição padrão do serviço', 'textarea'],
   ['inclusos', 'Serviços inclusos (um por linha)', 'textarea'],
   ['contatos', 'Contatos (rodapé)', 'input'],
+  ['faq', 'Perguntas frequentes da página 5 (uma por linha: Pergunta | Resposta)', 'textarea'],
   ['rodape_legal', 'Linha legal (página 5)', 'input'],
 ];
 
