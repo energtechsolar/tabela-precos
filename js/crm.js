@@ -1,11 +1,20 @@
 // Energtech — CRM: funil, ficha do cliente, histórico
 // (carregado pelo crm.html depois de js/comum.js)
 
-const ETAPAS = [
+// etapas do funil: padrão abaixo; o admin pode renomear, criar, reordenar e excluir (fica salvo em config "crm").
+// "Ganho" e "Perdido" são fixas (só o nome muda): o sistema depende delas para vendas, documentos e painel.
+const ETAPAS_PADRAO = [
   ['novo', 'Lead novo'], ['atendimento', 'Em atendimento'], ['qualificado', 'Qualificado'], ['proposta', 'Proposta enviada'],
   ['negociacao', 'Negociação'], ['ganho', 'Ganho'], ['perdido', 'Perdido'],
 ];
-const NOME_ETAPA = Object.fromEntries(ETAPAS);
+const ETAPAS_FIXAS = ['ganho', 'perdido'];
+let ETAPAS = ETAPAS_PADRAO.map(e => e.slice());
+function aplicarEtapas(lista) {
+  if (!Array.isArray(lista) || !lista.length) return;
+  const ok = lista.filter(e => e && e.id && e.nome).map(e => [String(e.id), String(e.nome)]);
+  ETAPAS_FIXAS.forEach(id => { if (!ok.some(e => e[0] === id)) ok.push(ETAPAS_PADRAO.find(e => e[0] === id).slice()); });
+  ETAPAS = ok.filter(e => !ETAPAS_FIXAS.includes(e[0])).concat(ETAPAS_FIXAS.map(id => ok.find(e => e[0] === id)));
+}
 const ORIGENS = { datacrazy:'Anúncio / DataCrazy', indicacao:'Indicação', whatsapp:'WhatsApp direto', telefone:'Telefone', loja:'Loja / visita', campo:'Prospecção em campo', outro:'Outro' };
 
 const COLUNAS_LEAD = 'id, nome, telefone, email, cidade, etapa, etapa_em, responsavel_email, proximo_contato, motivo_perda, origem, recebido_em, cpf_cnpj, endereco, cep, uc, concessionaria, forma_pagamento, arquivado, orcamento_ganho_id, documentos';
@@ -66,6 +75,7 @@ async function iniciar() {
   if (!perfil.vendedor) { mostrar('aviso', 'Seu usuário (' + esc(perfil.email) + ') ainda não tem acesso ao CRM. Fale com o administrador.'); return; }
   mostrar('conteudo');
   $('btn-modelo-contrato').style.display = perfil.admin ? '' : 'none';
+  $('btn-etapas').style.display = perfil.admin ? '' : 'none';
   await carregar();
 }
 async function entrar() {
@@ -82,11 +92,13 @@ async function sair() { await sb.auth.signOut(); perfil = null; await iniciar();
 
 async function carregar() {
   $('kanban').innerHTML = '<div class="muted">Carregando…</div>';
-  const [l, o, v] = await Promise.all([
+  const [l, o, v, cfgCrm] = await Promise.all([
     sb.from('leads').select(COLUNAS_LEAD).order('recebido_em', { ascending:false }).limit(2000),
-    sb.from('orcamentos').select('id, lead_id, sistema, kwp, valor_final, tipo, vendedor_email, criado_em').order('criado_em', { ascending:false }).limit(5000),
+    sb.from('orcamentos').select('id, lead_id, sistema, kwp, valor_final, tipo, vendedor_email, criado_em, revisao_de:dados->>revisao_de').order('criado_em', { ascending:false }).limit(5000),
     sb.from('vendedores').select('email, nome, papel'),
+    sb.from('config').select('dados').eq('id', 'crm').maybeSingle(),
   ]);
+  if (cfgCrm && cfgCrm.data && cfgCrm.data.dados) aplicarEtapas(cfgCrm.data.dados.etapas);
   if (l.error) { mostrar('aviso', '⚠ Erro ao carregar os leads: ' + esc(l.error.message) + '<br>Se o CRM acabou de ser instalado, confira se o script 07 foi aplicado no Supabase.'); return; }
   leads = l.data || []; orcs = o.data || []; equipe = (v.data || []).sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
   const sel = $('f-resp'), atual = sel.value;
@@ -100,6 +112,9 @@ async function carregar() {
 }
 
 function ultimaProposta(leadId) { return orcs.find(o => o.lead_id === leadId) || null; }
+// revisões: a proposta original fica no histórico como "substituída" pela revisão mais nova
+const revisoesDe = id => orcs.filter(o => +o.revisao_de === id);
+const substituida = id => orcs.some(o => +o.revisao_de === id);
 // proposta que fechou o negócio (ganhos antigos sem marcação usam a última proposta)
 function propostaDoLead(l) { return (l.orcamento_ganho_id && orcs.find(o => o.id === l.orcamento_ganho_id)) || ultimaProposta(l.id); }
 
@@ -129,7 +144,7 @@ function render() {
   const abertos = ativos.filter(l => !['ganho', 'perdido'].includes(l.etapa));
   const ganhosMes = leads.filter(l => l.etapa === 'ganho' && new Date(l.etapa_em) >= mes);
   const somaGanhos = ganhosMes.reduce((s, l) => s + (+(propostaDoLead(l) || {}).valor_final || 0), 0);
-  const propMes = orcs.filter(o => new Date(o.criado_em) >= mes).length;
+  const propMes = orcs.filter(o => new Date(o.criado_em) >= mes && !substituida(o.id)).length;
   const follow = ativos.filter(l => ['hoje', 'atraso'].includes(situacaoFollow(l))).length;
   const perdidosMes = leads.filter(l => l.etapa === 'perdido' && new Date(l.etapa_em) >= mes).length;
   $('resumo').innerHTML = [
@@ -147,8 +162,10 @@ function render() {
   $('chip-arquivados').textContent = verArquivados ? '← Voltar ao funil' : '🗄 Arquivados (' + nArq + ')';
   $('chip-arquivados').classList.toggle('ativo', verArquivados);
 
-  $('kanban').innerHTML = ETAPAS.map(([id, nome]) => {
-    const itens = lista.filter(l => l.etapa === id).sort((a, b) => {
+  const conhecidas = new Set(ETAPAS.map(e => e[0]));
+  $('kanban').innerHTML = ETAPAS.map(([id, nome], iCol) => {
+    // lead numa etapa que não existe mais aparece na primeira coluna (nunca some)
+    const itens = lista.filter(l => l.etapa === id || (iCol === 0 && !conhecidas.has(l.etapa))).sort((a, b) => {
       const fa = a.proximo_contato ? new Date(a.proximo_contato).getTime() : Infinity, fb = b.proximo_contato ? new Date(b.proximo_contato).getTime() : Infinity;
       return fa - fb || new Date(b.etapa_em) - new Date(a.etapa_em);
     });
@@ -248,7 +265,8 @@ async function abrirFicha(id, recarregar) {
     <div class="grade">${camposCliente('fx', l)}</div>
     <div class="acoes"><button class="btn" onclick="salvarFicha(${id})">💾 Salvar</button><span class="status-msg" id="fx-msg"></span></div>
     <h3>Propostas (${props.length})</h3>
-    ${props.length ? props.map(p => `<div class="prop prop-click" onclick="verProposta(${p.id})"><span>Nº ${String(p.id).padStart(5, '0')} · ${esc(p.sistema || '')} · ${String(p.kwp).replace('.', ',')} kWp<br><span class="muted">${fmtDH(p.criado_em)} · ${esc(nomeDe(p.vendedor_email))}</span></span><b style="color:var(--amarelo)">${fmtR(p.valor_final)} ▾</b></div><div class="prop-det" id="pdet-${p.id}"></div>`).join('')
+    ${props.length ? props.map(p => { const sub = revisoesDe(p.id)[0];
+      return `<div class="prop prop-click" onclick="verProposta(${p.id})" style="${sub ? 'opacity:.6' : ''}"><span>Nº ${String(p.id).padStart(5, '0')} · ${esc(p.sistema || '')} · ${String(p.kwp).replace('.', ',')} kWp${p.revisao_de ? ' <span class="tag resp">↻ revisão da Nº ' + String(p.revisao_de).padStart(5, '0') + '</span>' : ''}${sub ? ' <span class="tag">substituída pela Nº ' + String(sub.id).padStart(5, '0') + '</span>' : ''}<br><span class="muted">${fmtDH(p.criado_em)} · ${esc(nomeDe(p.vendedor_email))}</span></span><span style="text-align:right"><b style="color:var(--amarelo)">${fmtR(p.valor_final)} ▾</b><br><a class="btn btn-sec" style="padding:3px 9px;font-size:12px;margin-top:4px" href="./?revisar=${p.id}" onclick="event.stopPropagation()">✏ Revisar</a></span></div><div class="prop-det" id="pdet-${p.id}"></div>`; }).join('')
       : '<div class="muted">Nenhuma proposta ainda. Use "Nova proposta".</div>'}
     <h3>Contratos</h3>
     <div id="fx-contratos"><div class="muted">Carregando…</div></div>
@@ -480,6 +498,56 @@ function avisarEngenharia(id) {
   window.open('https://wa.me/?text=' + encodeURIComponent(linhas.join('\n')), '_blank', 'noopener');
 }
 
+// ── etapas do funil (admin) ──
+let etapasEdit = [];
+function abrirEtapas() { etapasEdit = ETAPAS.map(([id, nome]) => ({ id, nome })); $('etapas-msg').textContent = ''; renderEtapas(); $('ov-etapas').classList.add('visivel'); }
+function fecharEtapas() { $('ov-etapas').classList.remove('visivel'); }
+function renderEtapas() {
+  const qtd = id => leads.filter(l => l.etapa === id).length;
+  const moveis = etapasEdit.filter(e => !ETAPAS_FIXAS.includes(e.id));
+  const bt = 'class="btn btn-sec" style="padding:6px 9px"';
+  $('etapas-lista').innerHTML = etapasEdit.map((e, i) => {
+    const fixa = ETAPAS_FIXAS.includes(e.id), im = moveis.indexOf(e);
+    return `<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+      <input class="input" value="${esc(e.nome)}" oninput="etapasEdit[${i}].nome=this.value" style="flex:1">
+      <span class="muted" style="min-width:62px;text-align:right">${qtd(e.id)} lead(s)</span>
+      ${fixa ? '<span class="muted" style="width:104px;text-align:center" title="Etapa usada pelo sistema: só o nome pode mudar">fixa</span>'
+        : `<button ${bt} ${im === 0 ? 'disabled' : ''} onclick="moverEtapa(${i},-1)">▲</button><button ${bt} ${im === moveis.length - 1 ? 'disabled' : ''} onclick="moverEtapa(${i},1)">▼</button><button class="btn btn-sec" style="padding:6px 9px;color:var(--vermelho)" ${moveis.length < 2 ? 'disabled' : ''} onclick="removerEtapa(${i})">🗑</button>`}
+    </div>`;
+  }).join('');
+}
+function moverEtapa(i, d) {
+  const j = i + d;
+  if (j < 0 || j >= etapasEdit.length || ETAPAS_FIXAS.includes(etapasEdit[j].id)) return;
+  [etapasEdit[i], etapasEdit[j]] = [etapasEdit[j], etapasEdit[i]]; renderEtapas();
+}
+function novaEtapa() {
+  const pos = etapasEdit.findIndex(e => ETAPAS_FIXAS.includes(e.id));
+  etapasEdit.splice(pos < 0 ? etapasEdit.length : pos, 0, { id: 'e' + Date.now().toString(36), nome: 'Nova etapa' });
+  renderEtapas();
+  const ins = $('etapas-lista').querySelectorAll('input'); const alvo = ins[pos < 0 ? ins.length - 1 : pos]; if (alvo) { alvo.focus(); alvo.select(); }
+}
+function removerEtapa(i) { etapasEdit.splice(i, 1); renderEtapas(); }
+async function salvarEtapas() {
+  const lista = etapasEdit.map(e => ({ id: e.id, nome: String(e.nome || '').trim() }));
+  const msg = $('etapas-msg'); msg.classList.add('erro');
+  if (lista.some(e => !e.nome)) { msg.textContent = 'Dê um nome a todas as etapas.'; return; }
+  const ids = new Set(lista.map(e => e.id));
+  const removidas = ETAPAS.map(e => e[0]).filter(id => !ids.has(id));
+  const afetados = leads.filter(l => removidas.includes(l.etapa));
+  const destino = lista[0];
+  if (afetados.length && !confirm(afetados.length + ' lead(s) estão nas etapas excluídas e vão para "' + destino.nome + '". Continuar?')) return;
+  const { error } = await sb.from('config').upsert({ id: 'crm', dados: { etapas: lista } }, { onConflict: 'id' });
+  if (error) { msg.textContent = '⚠ Não foi possível salvar: ' + error.message; return; }
+  if (afetados.length) {
+    const agora = new Date().toISOString();
+    const r = await sb.from('leads').update({ etapa: destino.id, etapa_em: agora, atualizado_em: agora }).in('etapa', removidas);
+    if (r.error) { msg.textContent = '⚠ Etapas salvas, mas não foi possível mover os leads: ' + r.error.message; return; }
+    afetados.forEach(l => { l.etapa = destino.id; l.etapa_em = agora; });
+  }
+  aplicarEtapas(lista); fecharEtapas(); render();
+}
+
 // ── arquivar / excluir ──
 async function arquivarLead(id, arquivar) {
   const l = leads.find(x => x.id === id); if (!l) return;
@@ -506,4 +574,4 @@ async function excluirLead(id) {
   fecharFicha(); render();
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { if ($('ov-ganho').classList.contains('visivel')) fecharGanho(); else if ($('ov-perda').classList.contains('visivel')) fecharPerda(); else if ($('ov-novo').classList.contains('visivel')) fecharNovoLead(); else if ($('ov-contrato').classList.contains('visivel')) fecharContrato(); else fecharFicha(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { if ($('ov-etapas').classList.contains('visivel')) fecharEtapas(); else if ($('ov-ganho').classList.contains('visivel')) fecharGanho(); else if ($('ov-perda').classList.contains('visivel')) fecharPerda(); else if ($('ov-novo').classList.contains('visivel')) fecharNovoLead(); else if ($('ov-contrato').classList.contains('visivel')) fecharContrato(); else fecharFicha(); } });

@@ -110,7 +110,7 @@
   .status-msg { font-size:12px; margin-top:8px; min-height:16px; color:var(--verde); }
   .status-msg.erro { color:var(--vermelho); }
   .modal { background:var(--card); border:1px solid var(--borda); border-radius:14px; padding:18px; width:min(420px, 92vw); margin:auto; }
-  #ov-perda, #ov-ganho { justify-content:center; align-items:center; z-index:60; }
+  #ov-perda, #ov-ganho, #ov-etapas { justify-content:center; align-items:center; z-index:60; }
   @media (max-width:640px) { .grade { grid-template-columns:1fr; } .header-title { text-align:left; } }
 </style>
 </head>
@@ -149,6 +149,7 @@
       <button class="btn-sec btn" onclick="carregar(true)" title="Atualizar">🔄</button>
       <button class="btn" onclick="novoLead()">+ Novo lead</button>
       <button class="btn btn-sec" id="btn-modelo-contrato" style="display:none" onclick="abrirModeloContrato()">⚙ Modelo do contrato</button>
+      <button class="btn btn-sec" id="btn-etapas" style="display:none" onclick="abrirEtapas()">☰ Etapas do funil</button>
     </div>
     <div class="kanban" id="kanban"></div>
     <p class="muted" style="margin-top:6px">Arraste os cards entre as colunas (no celular, abra o card e troque a etapa). Ganhos e perdidos mostram os últimos 30 dias.</p>
@@ -190,6 +191,18 @@
   </div>
 </div>
 
+<!-- ETAPAS DO FUNIL (admin) -->
+<div class="overlay" id="ov-etapas" onclick="if(event.target===this)fecharEtapas()">
+  <div class="modal" style="width:min(560px, 94vw);max-height:90vh;overflow-y:auto">
+    <h3 style="font-family:'Barlow Condensed',sans-serif;color:var(--amarelo);font-size:20px;margin-bottom:4px">☰ Etapas do funil</h3>
+    <p class="muted" style="margin-bottom:12px">Renomeie, crie, mude a ordem ou exclua. Os leads de uma etapa excluída vão para a primeira etapa. "Ganho" e "Perdido" são fixas: só o nome pode mudar.</p>
+    <div id="etapas-lista"></div>
+    <button class="btn btn-sec" onclick="novaEtapa()">+ Nova etapa</button>
+    <div class="status-msg" id="etapas-msg"></div>
+    <div class="acoes"><button class="btn" onclick="salvarEtapas()">💾 Salvar etapas</button><button class="btn btn-sec" onclick="fecharEtapas()">Cancelar</button></div>
+  </div>
+</div>
+
 <!-- MOTIVO DA PERDA -->
 <div class="overlay" id="ov-perda" onclick="if(event.target===this)fecharPerda()">
   <div class="modal">
@@ -205,7 +218,7 @@
 </div>
 
 <script src="js/comum.js?v=20261019a"></script>
-<script src="js/crm.js?v=20261022a"></script>
+<script src="js/crm.js?v=20261022b"></script>
 <script src="js/contrato.js?v=20261019a"></script>
 <script>
 iniciar();
