@@ -264,6 +264,11 @@ function montarPropostaPDF(d, fotos) {
   const hInv = sep ? 44 : 40;
   caixa(rx, yr, bw2, hInv, PR);
   cor(AM); fonte(7, 'bold'); texto('INVESTIMENTO TOTAL', rx + 5, yr + 7.5);
+  if (d.valorDe) {   // preço de tabela riscado: "de R$ X"
+    const tDe = brl(d.valorDe), xr = rx + bw2 - 5;
+    cor(CL); fonte(8); texto('de ' + tDe, xr, yr + 7.5, { align:'right' });
+    const wDe = doc.getTextWidth(tDe); draw(CL); doc.setLineWidth(0.35); doc.line(xr - wDe, yr + 6.4, xr, yr + 6.4);
+  }
   cor(BR); caber(brl(d.valor), bw2 - 10, 21, 13, 'bold'); texto(brl(d.valor), rx + 5, yr + 19);
   cor(CL); fonte(7.2);
   if (sep) { texto('Kit gerador: ' + brl(d.valorKit), rx + 5, yr + 27); texto('Serviços de instalação: ' + brl(d.valorServico), rx + 5, yr + 31.5); texto(brl(d.valor / (d.item.kwp * 1000)) + ' por Wp instalado', rx + 5, yr + 36); }
