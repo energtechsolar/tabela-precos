@@ -110,7 +110,7 @@
   .status-msg { font-size:12px; margin-top:8px; min-height:16px; color:var(--verde); }
   .status-msg.erro { color:var(--vermelho); }
   .modal { background:var(--card); border:1px solid var(--borda); border-radius:14px; padding:18px; width:min(420px, 92vw); margin:auto; }
-  #ov-perda { justify-content:center; align-items:center; z-index:60; }
+  #ov-perda, #ov-ganho { justify-content:center; align-items:center; z-index:60; }
   @media (max-width:640px) { .grade { grid-template-columns:1fr; } .header-title { text-align:left; } }
 </style>
 </head>
@@ -145,6 +145,7 @@
       <select class="select" id="f-resp" onchange="render()"></select>
       <button class="chip" id="chip-follow" onclick="filtroFollow=!filtroFollow; render()">⏰ Follow-up</button>
       <button class="chip" id="chip-antigos" onclick="mostrarAntigos=!mostrarAntigos; render()">Ganhos/perdidos antigos</button>
+      <button class="chip" id="chip-arquivados" onclick="verArquivados=!verArquivados; render()">🗄 Arquivados</button>
       <button class="btn-sec btn" onclick="carregar(true)" title="Atualizar">🔄</button>
       <button class="btn" onclick="novoLead()">+ Novo lead</button>
       <button class="btn btn-sec" id="btn-modelo-contrato" style="display:none" onclick="abrirModeloContrato()">⚙ Modelo do contrato</button>
@@ -177,6 +178,18 @@
 </div>
 <datalist id="lista-conc"><option value="Celesc"><option value="Copel"><option value="RGE"><option value="DCELT"><option value="Ceraçá"></datalist>
 
+<!-- NEGÓCIO GANHO -->
+<div class="overlay" id="ov-ganho" onclick="if(event.target===this)fecharGanho()">
+  <div class="modal" style="width:min(520px, 94vw)">
+    <h3 style="font-family:'Barlow Condensed',sans-serif;color:var(--verde);font-size:20px;margin-bottom:4px">🏆 Negócio ganho</h3>
+    <div class="muted" id="ganho-nome" style="margin-bottom:12px"></div>
+    <div class="campo"><label>Proposta que fechou</label><select class="select" id="ganho-prop"></select></div>
+    <div class="campo" style="margin-top:10px"><label>Forma de pagamento</label><input class="input" id="ganho-pag" list="ganho-lista-pag" placeholder="Ex.: Entrada + parcelas, FINAME, à vista"><datalist id="ganho-lista-pag"></datalist></div>
+    <p class="muted" style="margin-top:10px">Depois de confirmar, a ficha mostra o checklist de documentos e o botão para avisar a engenharia.</p>
+    <div class="acoes"><button class="btn btn-verde" onclick="confirmarGanho()">Confirmar ganho</button><button class="btn btn-sec" onclick="fecharGanho()">Cancelar</button></div>
+  </div>
+</div>
+
 <!-- MOTIVO DA PERDA -->
 <div class="overlay" id="ov-perda" onclick="if(event.target===this)fecharPerda()">
   <div class="modal">
@@ -192,7 +205,7 @@
 </div>
 
 <script src="js/comum.js?v=20261019a"></script>
-<script src="js/crm.js?v=20261020b"></script>
+<script src="js/crm.js?v=20261022a"></script>
 <script src="js/contrato.js?v=20261019a"></script>
 <script>
 iniciar();

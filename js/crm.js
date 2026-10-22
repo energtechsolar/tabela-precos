@@ -8,8 +8,14 @@ const ETAPAS = [
 const NOME_ETAPA = Object.fromEntries(ETAPAS);
 const ORIGENS = { datacrazy:'Anúncio / DataCrazy', indicacao:'Indicação', whatsapp:'WhatsApp direto', telefone:'Telefone', loja:'Loja / visita', campo:'Prospecção em campo', outro:'Outro' };
 
-const COLUNAS_LEAD = 'id, nome, telefone, email, cidade, etapa, etapa_em, responsavel_email, proximo_contato, motivo_perda, origem, recebido_em, cpf_cnpj, endereco, cep, uc, concessionaria';
-let perfil = null, leads = [], orcs = [], equipe = [], filtroFollow = false, mostrarAntigos = false, arrastando = null, fichaId = null, perdaId = null;
+const COLUNAS_LEAD = 'id, nome, telefone, email, cidade, etapa, etapa_em, responsavel_email, proximo_contato, motivo_perda, origem, recebido_em, cpf_cnpj, endereco, cep, uc, concessionaria, forma_pagamento, arquivado, orcamento_ganho_id, documentos';
+let perfil = null, leads = [], orcs = [], equipe = [], filtroFollow = false, mostrarAntigos = false, verArquivados = false, arrastando = null, fichaId = null, perdaId = null, ganhoId = null;
+// documentos do negócio ganho (pasta privada "documentos"; nenhum é obrigatório, a ficha mostra o que falta)
+const DOCS_GANHO = [
+  ['cnh', 'CNH / RG do titular', 'arquivo'], ['fatura', 'Fatura de energia', 'arquivo'], ['localizacao', 'Localização da instalação', 'local'],
+  ['disjuntor', 'Foto do disjuntor', 'arquivo', true], ['padrao', 'Foto do padrão de entrada', 'arquivo', true], ['transformador', 'Foto ou localização do transformador', 'arquivo', true],
+];
+const FORMAS_PAG = ['À vista', 'Entrada + parcelas', 'FINAME (BNDES)', 'Financiamento Caixa', 'Financiamento bancário', 'Cartão de crédito'];
 
 const $ = id => document.getElementById(id);
 const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -89,14 +95,19 @@ async function carregar() {
   sel.value = atual || '';
   render();
   if (fichaId) abrirFicha(fichaId, true);
+  const doLink = +new URLSearchParams(location.search).get('lead');
+  if (doLink && !fichaId && leads.some(l => l.id === doLink)) { const l = leads.find(x => x.id === doLink); if (l.arquivado) { verArquivados = true; render(); } abrirFicha(doLink); }
 }
 
 function ultimaProposta(leadId) { return orcs.find(o => o.lead_id === leadId) || null; }
+// proposta que fechou o negócio (ganhos antigos sem marcação usam a última proposta)
+function propostaDoLead(l) { return (l.orcamento_ganho_id && orcs.find(o => o.id === l.orcamento_ganho_id)) || ultimaProposta(l.id); }
 
 function filtrados() {
   const q = $('f-busca').value.trim().toLowerCase(), qd = q.replace(/\D/g, '');
   const resp = $('f-resp').value;
   return leads.filter(l => {
+    if (!!l.arquivado !== verArquivados) return false;
     if (q) {
       const txt = ((l.nome || '') + ' ' + (l.cidade || '') + ' ' + (l.email || '')).toLowerCase();
       if (!txt.includes(q) && !(qd.length >= 4 && String(l.telefone || '').includes(qd))) return false;
@@ -114,15 +125,16 @@ function render() {
   const lista = filtrados();
   // resumo
   const mes = new Date(); mes.setDate(1); mes.setHours(0,0,0,0);
-  const abertos = leads.filter(l => !['ganho', 'perdido'].includes(l.etapa));
+  const ativos = leads.filter(l => !l.arquivado);
+  const abertos = ativos.filter(l => !['ganho', 'perdido'].includes(l.etapa));
   const ganhosMes = leads.filter(l => l.etapa === 'ganho' && new Date(l.etapa_em) >= mes);
-  const somaGanhos = ganhosMes.reduce((s, l) => s + (+(ultimaProposta(l.id) || {}).valor_final || 0), 0);
+  const somaGanhos = ganhosMes.reduce((s, l) => s + (+(propostaDoLead(l) || {}).valor_final || 0), 0);
   const propMes = orcs.filter(o => new Date(o.criado_em) >= mes).length;
-  const follow = leads.filter(l => ['hoje', 'atraso'].includes(situacaoFollow(l))).length;
+  const follow = ativos.filter(l => ['hoje', 'atraso'].includes(situacaoFollow(l))).length;
   const perdidosMes = leads.filter(l => l.etapa === 'perdido' && new Date(l.etapa_em) >= mes).length;
   $('resumo').innerHTML = [
     [abertos.length, 'negócios em aberto'],
-    [leads.filter(l => l.etapa === 'novo').length, 'leads novos aguardando'],
+    [ativos.filter(l => l.etapa === 'novo').length, 'leads novos aguardando'],
     [propMes, 'propostas no mês'],
     [ganhosMes.length + ' · ' + fmtR0(somaGanhos), 'ganhos no mês'],
     [perdidosMes, 'perdidos no mês'],
@@ -131,13 +143,16 @@ function render() {
   $('chip-follow').classList.toggle('ativo', filtroFollow);
   $('chip-follow').classList.toggle('alerta', !filtroFollow && follow > 0);
   $('chip-antigos').classList.toggle('ativo', mostrarAntigos);
+  const nArq = leads.filter(l => l.arquivado).length;
+  $('chip-arquivados').textContent = verArquivados ? '← Voltar ao funil' : '🗄 Arquivados (' + nArq + ')';
+  $('chip-arquivados').classList.toggle('ativo', verArquivados);
 
   $('kanban').innerHTML = ETAPAS.map(([id, nome]) => {
     const itens = lista.filter(l => l.etapa === id).sort((a, b) => {
       const fa = a.proximo_contato ? new Date(a.proximo_contato).getTime() : Infinity, fb = b.proximo_contato ? new Date(b.proximo_contato).getTime() : Infinity;
       return fa - fb || new Date(b.etapa_em) - new Date(a.etapa_em);
     });
-    const soma = itens.reduce((s, l) => s + (+(ultimaProposta(l.id) || {}).valor_final || 0), 0);
+    const soma = itens.reduce((s, l) => s + (+(propostaDoLead(l) || {}).valor_final || 0), 0);
     return `<div class="coluna col-${id}" data-etapa="${id}" ondragover="sobreColuna(event,this)" ondragleave="this.classList.remove('sobre')" ondrop="soltar(event,this)">
       <div class="col-topo"><div class="col-nome">${nome}<span class="qtd">${itens.length}</span></div><div class="col-soma">${soma ? fmtR0(soma) + ' em propostas' : '&nbsp;'}</div></div>
       <div class="col-lista">${itens.map(cardLead).join('') || '<div class="vazio">—</div>'}</div></div>`;
@@ -145,13 +160,15 @@ function render() {
 }
 
 function cardLead(l) {
-  const p = ultimaProposta(l.id), f = situacaoFollow(l), d = dias(l.etapa_em);
+  const p = propostaDoLead(l), f = situacaoFollow(l), d = dias(l.etapa_em);
   const tags = [];
   if (f === 'atraso') tags.push(`<span class="tag atraso">⏰ atrasado ${new Date(l.proximo_contato).toLocaleDateString('pt-BR')}</span>`);
   if (f === 'hoje') tags.push(`<span class="tag hoje">⏰ hoje ${new Date(l.proximo_contato).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })}</span>`);
   if (f === 'futuro') tags.push(`<span class="tag">⏰ ${new Date(l.proximo_contato).toLocaleDateString('pt-BR')}</span>`);
   if (l.responsavel_email) tags.push(`<span class="tag resp">${esc(nomeDe(l.responsavel_email).split(' ')[0])}</span>`);
   if (l.etapa === 'perdido' && l.motivo_perda) tags.push(`<span class="tag">${esc(l.motivo_perda)}</span>`);
+  if (l.etapa === 'ganho') { const dc = docsStatus(l); tags.push(`<span class="tag ${dc.falta ? 'hoje' : 'resp'}">📎 ${dc.ok}/${dc.total} docs</span>`); }
+  if (l.arquivado) tags.push('<span class="tag">🗄 arquivado</span>');
   return `<div class="lead" draggable="true" data-id="${l.id}" ondragstart="iniciarArrasto(event,${l.id})" ondragend="this.classList.remove('arrastando')" onclick="abrirFicha(${l.id})">
     <div class="lead-nome">${esc(l.nome || 'Sem nome')}</div>
     <div class="lead-linha"><span>${esc(telBonito(l.telefone))}</span><span>${esc(l.cidade || '')}</span></div>
@@ -169,10 +186,12 @@ async function mudarEtapa(id, etapa, extra) {
   const l = leads.find(x => x.id === id);
   if (!l || (l.etapa === etapa && !extra)) return;
   if (etapa === 'perdido' && !(extra && extra.motivo_perda)) { abrirPerda(id); return; }
-  if (etapa === 'ganho' && !confirm('Marcar "' + (l.nome || 'cliente') + '" como GANHO? 🎉')) { render(); if (fichaId === id) abrirFicha(id, true); return; }
+  if (etapa === 'ganho' && !(extra && extra.ganhoOk)) { abrirGanho(id); return; }
+  if (extra) delete extra.ganhoOk;
   const mud = { etapa, atualizado_em: new Date().toISOString(), ...(extra || {}) };
   if (!l.responsavel_email) mud.responsavel_email = perfil.email;
   if (etapa === 'ganho' || etapa === 'perdido') mud.proximo_contato = null;
+  if (l.etapa === 'ganho' && etapa !== 'ganho') mud.orcamento_ganho_id = null;   // saiu de ganho: desfaz a proposta fechada
   const ant = { ...l };
   Object.assign(l, mud, { etapa_em: new Date().toISOString() });
   render();
@@ -213,7 +232,10 @@ async function abrirFicha(id, recarregar) {
       ${l.etapa !== 'ganho' ? `<button class="btn btn-verde" onclick="mudarEtapa(${id},'ganho')">🏆 Ganho</button>` : ''}
       ${l.etapa !== 'perdido' ? `<button class="btn btn-verm" onclick="mudarEtapa(${id},'perdido')">✕ Perdido</button>` : ''}
       <button class="btn btn-sec" onclick="$('contrato-titulo').textContent='📝 Contrato'; abrirContrato(${id})">📝 Contrato</button>
+      <button class="btn btn-sec" onclick="arquivarLead(${id}, ${!l.arquivado})">${l.arquivado ? '↩ Desarquivar' : '🗄 Arquivar'}</button>
+      ${perfil && perfil.admin ? `<button class="btn btn-sec" style="color:var(--vermelho)" onclick="excluirLead(${id})">🗑 Excluir</button>` : ''}
     </div>
+    ${l.etapa === 'ganho' ? blocoGanho(l) : ''}
     <h3>Negócio</h3>
     <div class="grade">
       <div><label>Etapa</label><select class="select" id="fx-etapa" onchange="mudarEtapa(${id}, this.value)">${opEtapa}</select></div>
@@ -323,4 +345,165 @@ async function salvarNovoLead() {
   leads.unshift(data); render(); abrirFicha(data.id);
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { if ($('ov-perda').classList.contains('visivel')) fecharPerda(); else if ($('ov-novo').classList.contains('visivel')) fecharNovoLead(); else if ($('ov-contrato').classList.contains('visivel')) fecharContrato(); else fecharFicha(); } });
+// ── negócio ganho ──
+function abrirGanho(id) {
+  const l = leads.find(x => x.id === id); if (!l) return;
+  ganhoId = id;
+  const props = orcs.filter(o => o.lead_id === id);
+  $('ganho-nome').textContent = l.nome || 'Cliente';
+  $('ganho-prop').innerHTML = props.length
+    ? props.map((p, i) => `<option value="${p.id}" ${i === 0 ? 'selected' : ''}>Nº ${String(p.id).padStart(5, '0')} · ${esc(p.sistema || '')} · ${String(p.kwp).replace('.', ',')} kWp · ${fmtR(p.valor_final)} · ${new Date(p.criado_em).toLocaleDateString('pt-BR')}</option>`).join('')
+    : '<option value="">— Nenhuma proposta salva para este cliente —</option>';
+  $('ganho-pag').value = l.forma_pagamento || '';
+  $('ganho-lista-pag').innerHTML = FORMAS_PAG.map(t => `<option value="${esc(t)}">`).join('');
+  $('ov-ganho').classList.add('visivel');
+}
+function fecharGanho() { ganhoId = null; $('ov-ganho').classList.remove('visivel'); render(); if (fichaId) abrirFicha(fichaId, true); }
+async function confirmarGanho() {
+  const id = ganhoId; if (!id) return;
+  const prop = +$('ganho-prop').value || null, pag = $('ganho-pag').value.trim() || null;
+  $('ov-ganho').classList.remove('visivel'); ganhoId = null;
+  const l = leads.find(x => x.id === id);
+  if (l && l.etapa === 'ganho') {   // só trocando a proposta ou a forma de pagamento (mantém a data do ganho)
+    const mud = { orcamento_ganho_id: prop, forma_pagamento: pag, atualizado_em: new Date().toISOString() };
+    const { error } = await sb.from('leads').update(mud).eq('id', id);
+    if (error) { alert('Não foi possível salvar: ' + error.message); return; }
+    Object.assign(l, mud); render(); abrirFicha(id, true); return;
+  }
+  await mudarEtapa(id, 'ganho', { ganhoOk: true, orcamento_ganho_id: prop, forma_pagamento: pag });
+  const p = orcs.find(o => o.id === prop);
+  await sb.from('lead_eventos').insert({ lead_id: id, texto: '🏆 Negócio ganho' + (p ? ' · proposta Nº ' + String(p.id).padStart(5, '0') + ' · ' + fmtR(p.valor_final) : '') + (pag ? ' · ' + pag : '') });
+  abrirFicha(id, true);
+}
+function docsStatus(l) {
+  const docs = Array.isArray(l.documentos) ? l.documentos : [];
+  const tem = k => docs.some(d => d.tipo === k);
+  const base = DOCS_GANHO.filter(d => !d[3]);
+  const ok = base.filter(d => tem(d[0])).length + (l.email ? 1 : 0);
+  return { ok, total: base.length + 1, falta: ok < base.length + 1, tem, docs };
+}
+function blocoGanho(l) {
+  const p = propostaDoLead(l), st = docsStatus(l);
+  const linhaDoc = ([k, rot, tipo, extra]) => {
+    const itens = st.docs.filter(d => d.tipo === k);
+    const lista = itens.map(d => `<div class="muted" style="margin-left:22px">${d.valor ? `<a href="https://www.google.com/maps?q=${encodeURIComponent(d.valor)}" target="_blank" rel="noopener">📍 ${esc(d.valor)}</a>` : `<a href="#" onclick="verDoc('${esc(d.path)}');return false">📄 ${esc(d.nome || 'arquivo')}</a>`} · ${fmtDH(d.em)} · ${esc(nomeDe(d.autor))}${perfil && perfil.admin ? ` · <a href="#" style="color:var(--vermelho)" onclick="apagarDoc(${l.id}, '${esc(d.id)}');return false">apagar</a>` : ''}</div>`).join('');
+    const botao = tipo === 'local'
+      ? `<button class="btn btn-sec" style="padding:4px 10px;font-size:13px" onclick="salvarLocalizacao(${l.id})">📍 Marcar</button>`
+      : `<label class="btn btn-sec" style="padding:4px 10px;font-size:13px;cursor:pointer">📷 Enviar<input type="file" accept="image/*,application/pdf" style="display:none" onchange="enviarDoc(${l.id}, '${k}', this)"></label>`;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--borda)"><span>${itens.length ? '✅' : (extra ? '▫️' : '⬜')} ${rot}${extra ? ' <span class="muted">(se a concessionária exigir)</span>' : ''}</span>${botao}</div>${lista}`;
+  };
+  return `<h3>🏆 Negócio ganho</h3>
+    <div class="grade">
+      <div class="largo muted">Proposta fechada: <b style="color:var(--amarelo)">${p ? 'Nº ' + String(p.id).padStart(5, '0') + ' · ' + esc(p.sistema || '') + ' · ' + fmtR(p.valor_final) : '—'}</b>${l.forma_pagamento ? ' · ' + esc(l.forma_pagamento) : ''} · <a href="#" onclick="abrirGanho(${l.id});return false">alterar</a></div>
+    </div>
+    <div style="margin-top:8px"><b>Documentos</b> <span class="muted">(${st.ok} de ${st.total})</span></div>
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--borda)"><span>${l.email ? '✅' : '⬜'} E-mail do cliente</span><span class="muted">${esc(l.email || 'preencha em Dados do cliente')}</span></div>
+    ${DOCS_GANHO.map(linhaDoc).join('')}
+    <div class="status-msg" id="doc-msg"></div>
+    <div class="acoes"><button class="btn btn-verde" onclick="avisarEngenharia(${l.id})">📣 Avisar engenharia (WhatsApp)</button></div>`;
+}
+// fotos ficam menores antes de subir (máx. 2000 px); PDF vai como está
+function reduzirFoto(arq) {
+  return new Promise(ok => {
+    if (!/^image\/(jpeg|png|webp)$/.test(arq.type)) return ok(arq);
+    const img = new Image();
+    img.onload = () => {
+      const e = Math.min(1, 2000 / Math.max(img.width, img.height));
+      const cv = document.createElement('canvas'); cv.width = Math.round(img.width * e); cv.height = Math.round(img.height * e);
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      cv.toBlob(b => ok(b || arq), 'image/jpeg', 0.85); URL.revokeObjectURL(img.src);
+    };
+    img.onerror = () => ok(arq);
+    img.src = URL.createObjectURL(arq);
+  });
+}
+async function gravarDocs(id, docs) {
+  const { error } = await sb.from('leads').update({ documentos: docs, atualizado_em: new Date().toISOString() }).eq('id', id);
+  if (error) throw error;
+  const l = leads.find(x => x.id === id); if (l) l.documentos = docs;
+  render();
+}
+async function enviarDoc(id, tipo, input) {
+  const arq = input.files && input.files[0]; input.value = '';
+  if (!arq) return;
+  const msg = $('doc-msg'); msg.classList.remove('erro'); msg.textContent = '⏳ Enviando…';
+  try {
+    const blob = await reduzirFoto(arq);
+    const ext = blob.type === 'application/pdf' ? 'pdf' : (blob.type === 'image/jpeg' ? 'jpg' : (arq.name.split('.').pop() || 'bin').toLowerCase());
+    const path = 'lead-' + id + '/' + tipo + '-' + Date.now() + '.' + ext;
+    const { error } = await sb.storage.from('documentos').upload(path, blob, { contentType: blob.type || arq.type, upsert: false });
+    if (error) throw error;
+    const l = leads.find(x => x.id === id);
+    const docs = [...(l.documentos || []), { id: String(Date.now()), tipo, nome: arq.name, path, em: new Date().toISOString(), autor: perfil.email }];
+    await gravarDocs(id, docs);
+    abrirFicha(id, true);
+  } catch (e) { msg.textContent = '⚠ Não foi possível enviar: ' + (e.message || e); msg.classList.add('erro'); }
+}
+async function verDoc(path) {
+  const { data, error } = await sb.storage.from('documentos').createSignedUrl(path, 300);
+  if (error || !data) { alert('Não foi possível abrir o documento: ' + (error ? error.message : '')); return; }
+  window.open(data.signedUrl, '_blank', 'noopener');
+}
+async function apagarDoc(id, docId) {
+  const l = leads.find(x => x.id === id); if (!l || !confirm('Apagar este documento?')) return;
+  const d = (l.documentos || []).find(x => x.id === docId);
+  if (d && d.path) await sb.storage.from('documentos').remove([d.path]);
+  try { await gravarDocs(id, (l.documentos || []).filter(x => x.id !== docId)); abrirFicha(id, true); } catch (e) { alert('Erro: ' + e.message); }
+}
+function salvarLocalizacao(id) {
+  const gravar = async valor => {
+    if (!valor) return;
+    const l = leads.find(x => x.id === id);
+    try { await gravarDocs(id, [...(l.documentos || []), { id: String(Date.now()), tipo: 'localizacao', valor: valor.trim(), em: new Date().toISOString(), autor: perfil.email }]); abrirFicha(id, true); }
+    catch (e) { alert('Erro: ' + e.message); }
+  };
+  const manual = () => gravar(prompt('Cole o link do Google Maps ou as coordenadas (ex.: -26.7261, -52.7206):'));
+  if (!navigator.geolocation || !confirm('Usar a localização atual deste aparelho?\n(Escolha "Cancelar" para colar um link ou coordenadas)')) return manual();
+  navigator.geolocation.getCurrentPosition(p => gravar(p.coords.latitude.toFixed(6) + ', ' + p.coords.longitude.toFixed(6)), () => manual(), { enableHighAccuracy: true, timeout: 15000 });
+}
+function avisarEngenharia(id) {
+  const l = leads.find(x => x.id === id); if (!l) return;
+  const p = propostaDoLead(l), st = docsStatus(l);
+  const loc = st.docs.find(d => d.tipo === 'localizacao');
+  const falta = DOCS_GANHO.filter(d => !d[3] && !st.tem(d[0])).map(d => d[1]).concat(l.email ? [] : ['E-mail']);
+  const linhas = [
+    '🏆 *Negócio ganho — Energtech*',
+    '👤 ' + (l.nome || 'Cliente') + (l.cidade ? ' · ' + l.cidade : ''),
+    p ? '🔋 ' + (p.sistema || '') + ' · ' + String(p.kwp).replace('.', ',') + ' kWp · ' + fmtR(p.valor_final) + ' (proposta Nº ' + String(p.id).padStart(5, '0') + ')' : '',
+    l.forma_pagamento ? '💳 ' + l.forma_pagamento : '',
+    l.uc ? '⚡ UC ' + l.uc + (l.concessionaria ? ' · ' + l.concessionaria : '') : (l.concessionaria ? '⚡ ' + l.concessionaria : ''),
+    l.endereco ? '🏠 ' + l.endereco : '',
+    loc ? '📍 https://www.google.com/maps?q=' + encodeURIComponent(loc.valor) : '',
+    '📎 Documentos: ' + st.ok + ' de ' + st.total + (falta.length ? ' (faltam: ' + falta.join(', ') + ')' : ' ✅'),
+    '🔗 Ficha: ' + location.origin + location.pathname + '?lead=' + id,
+  ].filter(Boolean);
+  window.open('https://wa.me/?text=' + encodeURIComponent(linhas.join('\n')), '_blank', 'noopener');
+}
+
+// ── arquivar / excluir ──
+async function arquivarLead(id, arquivar) {
+  const l = leads.find(x => x.id === id); if (!l) return;
+  const { error } = await sb.from('leads').update({ arquivado: arquivar, atualizado_em: new Date().toISOString() }).eq('id', id);
+  if (error) { alert('Não foi possível ' + (arquivar ? 'arquivar' : 'desarquivar') + ': ' + error.message); return; }
+  l.arquivado = arquivar;
+  await sb.from('lead_eventos').insert({ lead_id: id, texto: arquivar ? '🗄 Lead arquivado' : '↩ Lead desarquivado' });
+  if (arquivar) fecharFicha(); else abrirFicha(id, true);
+  render();
+}
+async function excluirLead(id) {
+  const l = leads.find(x => x.id === id); if (!l || !perfil || !perfil.admin) return;
+  const props = orcs.filter(o => o.lead_id === id);
+  if (!confirm('EXCLUIR DE VEZ "' + (l.nome || 'Sem nome') + '"?\n\nApaga o lead, o histórico, os documentos' + (props.length ? ' e ' + props.length + ' proposta(s) salva(s)' : '') + '. Não dá para desfazer.\n\nPara só tirar da tela, use "Arquivar".')) return;
+  const docs = (l.documentos || []).filter(d => d.path).map(d => d.path);
+  if (docs.length) await sb.storage.from('documentos').remove(docs);
+  if (props.length) {
+    const r = await sb.from('orcamentos').delete().in('id', props.map(p => p.id));
+    if (r.error) { alert('Não foi possível excluir as propostas: ' + r.error.message); return; }
+  }
+  const { error } = await sb.from('leads').delete().eq('id', id);
+  if (error) { alert('Não foi possível excluir: ' + error.message); return; }
+  leads = leads.filter(x => x.id !== id); orcs = orcs.filter(o => o.lead_id !== id);
+  fecharFicha(); render();
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { if ($('ov-ganho').classList.contains('visivel')) fecharGanho(); else if ($('ov-perda').classList.contains('visivel')) fecharPerda(); else if ($('ov-novo').classList.contains('visivel')) fecharNovoLead(); else if ($('ov-contrato').classList.contains('visivel')) fecharContrato(); else fecharFicha(); } });
