@@ -778,6 +778,18 @@ function alternarTabela(mostrar) {
 }
 // vindo do CRM ("Nova proposta"), a tela pede para escolher o kit na tabela: já abre a tabela
 if (new URLSearchParams(location.search).get('lead')) alternarTabela(true);
+// régua de negociação: além da tabela, atualiza a sugestão de kit e a proposta aberta (total, kit e mão de obra, comissão)
+function reguaMudou() {
+  if (typeof _sugestao !== 'undefined' && _sugestao) mostrarSugestao();
+  if (!propostaItem || !propostaCalc || !linhaFoco) return;
+  const c = calcLinha(propostaItem, +document.getElementById('slider-adicional').value, +document.getElementById('slider-desconto').value);
+  c.valorTabela = c.valorFinal;
+  propostaCalc = c;
+  document.getElementById('psi-valor').textContent = fmt(c.valorFinal);
+  document.getElementById('prop-kit-txt').value = '';   // refaz a divisão kit / mão de obra sobre o novo total
+  atualizarModoValor();
+}
+['slider-adicional', 'slider-desconto'].forEach(id => document.getElementById(id).addEventListener('input', reguaMudou));
 // ── INIT ────────────────────────────────────────────────────────────────────
 renderSeletorRegiao();
 atualizar();            // mostra a tabela de reserva na hora
