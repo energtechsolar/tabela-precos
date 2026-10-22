@@ -62,9 +62,20 @@ function montarPropostaPDF(d, fotos) {
     if (yTopo > y - 4) return;
     doc.addImage(img, 'JPEG', X0, y, CW, h);
   };
+  // fim da página: foto do rodapé (se o admin cadastrou) ou uma arte que ocupa o espaço livre
+  const FIM = 274;
+  const preencher = (img, yTopo, arte, hMin) => {
+    if (img) { fotoRodape(img, yTopo); return; }
+    const livre = FIM - yTopo;
+    if (arte && livre >= hMin) arte(yTopo, livre);
+  };
+  const tituloArte = (ic, t, y) => { icone(ic, X0 + 2, y - 1.1, 3.4); cor(PR); fonte(9, 'bold'); texto(t, X0 + 6, y); };
+  const seta = (x, y, c) => { fill(c || AM); doc.lines([[2.4, 2], [-2.4, 2]], x, y - 2, [1,1], 'F', true); };
 
   const imp = d.tipo === 'importado';
   const sep = d.modoValor === 'separado';
+  const cheio = d.valorCheio || d.valor;                 // parcelado e financiamento: sem o desconto do à vista
+  const temDesc = (d.descontoAVista || 0) > 0.5;
   const local = d.cidade || (d.regiao.nome.split(' (')[0] + ' / ' + d.regiao.uf);
   const orientTxt = { norte:'Norte', leste:'Leste', oeste:'Oeste', sul:'Sul' }[d.orientacao] || d.orientacao;
   const estrTxt = { fibrocimento:'Fibrocimento', ceramico:'Cerâmico', metalico:'Metálico', laje:'Laje', solo:'Solo' }[d.estrutura] || d.estrutura;
@@ -177,7 +188,38 @@ function montarPropostaPDF(d, fotos) {
   texto('Estimativas para o primeiro ano de operação, com base na irradiação solar média da região.', X0, 211);
   texto('A geração real varia com o clima, sombreamento e manutenção, e a economia depende do seu consumo e das tarifas da concessionária.', X0, 214.5);
   if (d.usaMeta) texto('Economia calculada sobre o consumo previsto informado pelo cliente: ' + brl0(d.conta) + ' por mês' + (d.contaHoje ? ' (hoje ' + brl0(d.contaHoje) + ').' : '.'), X0, 218);
-  fotoRodape(fotos.pag2, 220);
+  preencher(fotos.pag2, d.usaMeta ? 221 : 217.5, (y0, livre) => {
+    if (!(d.economia > 0)) return;
+    // economia acumulada ano a ano (perda de 0,5% de geração por ano) x investimento à vista
+    const acum = []; let s = 0; for (let t = 0; t < 25; t++) { s += d.economia * 12 * Math.pow(0.995, t); acum.push(s); }
+    const y1 = y0 + 6, hBox = Math.min(livre - 8, 64);
+    tituloArte('moeda', 'Seu investimento de volta: economia acumulada em 25 anos', y1);
+    let xr = X1;   // "Em 10 anos: R$ X   Em 25 anos: R$ Y", da direita para a esquerda
+    [[acum[24], 'Em 25 anos: ', VD], [acum[9], 'Em 10 anos: ', PR]].forEach(([v, r, c]) => {
+      cor(c); fonte(7.6, 'bold'); texto(brl0(v), xr, y1, { align:'right' }); xr -= doc.getTextWidth(brl0(v));
+      cor(CZ); fonte(6.8); texto(r, xr, y1, { align:'right' }); xr -= doc.getTextWidth(r) + 6;
+    });
+    const by = y1 + 3.5; caixa(X0, by, CW, hBox, BR, BD);
+    const gx = X0 + 18, gw = CW - 24, gy = by + 7, gh = hBox - 15, topo = Math.max(acum[24], d.valor) * 1.08;
+    const bw3 = gw / 25;
+    draw([236,236,236]); doc.setLineWidth(0.2); cor([150,150,150]); fonte(5.8);
+    for (let i = 0; i <= 4; i++) { const v = topo * i / 4, yy = gy + gh - gh * i / 4; doc.line(gx, yy, gx + gw, yy); texto(brl0(v).replace('R$', '').trim(), gx - 2, yy + 1, { align:'right' }); }
+    acum.forEach((v, i) => {
+      const hb = gh * v / topo; fill(v >= d.valor ? AM : [210,210,210]); doc.rect(gx + i * bw3 + bw3 * 0.15, gy + gh - hb, bw3 * 0.7, hb, 'F');
+      if (i === 0 || (i + 1) % 5 === 0) { cor(CZ); fonte(6); texto((i + 1) + 'º', gx + i * bw3 + bw3 / 2, gy + gh + 4, { align:'center' }); }
+    });
+    cor(CZ); fonte(6); texto('ano', gx + gw, gy + gh + 7.5, { align:'right' }); texto('R$', gx - 2, gy - 3, { align:'right' });
+    const yi = gy + gh - gh * d.valor / topo;
+    draw([90,90,90]); doc.setLineWidth(0.4); doc.setLineDashPattern([1.2, 1], 0); doc.line(gx, yi, gx + gw, yi); doc.setLineDashPattern([], 0);
+    fonte(6.5, 'bold'); const li = 'Investimento à vista: ' + brl0(d.valor), wl = doc.getTextWidth(li) + 3;
+    fill(BR); draw([90,90,90]); doc.setLineWidth(0.25); doc.roundedRect(gx + 1, yi - 4.6, wl, 4.2, 1, 1, 'FD'); cor([70,70,70]); texto(li, gx + 2.5, yi - 1.6);
+    if (d.paybackMeses) {
+      fonte(6.5, 'bold'); const lp = 'A partir daqui, a economia é lucro', wp = doc.getTextWidth(lp) + 4;
+      const ia = acum.findIndex(v => v >= d.valor); const xa = gx + Math.max(0, ia) * bw3;
+      const xl = Math.min(xa, gx + gw - wp);
+      fill(AM); doc.roundedRect(xl, gy - 1.5, wp, 4.4, 1, 1, 'F'); cor(PR); texto(lp, xl + 2, gy + 1.7);
+    }
+  }, 40);
 
   // ═══════════════ PÁGINA 3 — EQUIPAMENTOS E SERVIÇOS ═══════════════
   doc.addPage(); cabecalho();
@@ -261,7 +303,8 @@ function montarPropostaPDF(d, fotos) {
   if (d.servicoDesc && !sep) { y += 1; cor(CZ); fonte(6.8); const l = linhas(d.servicoDesc, lw); doc.text(l, X0, y); y += l.length * 2.9; }
 
   let yr = yS - 4;
-  const hInv = sep ? 44 : 40;
+  const dv = temDesc ? 5 : 0;
+  const hInv = (sep ? 44 : 40) + dv;
   caixa(rx, yr, bw2, hInv, PR);
   cor(AM); fonte(7, 'bold'); texto('INVESTIMENTO TOTAL', rx + 5, yr + 7.5);
   if (d.valorDe) {   // preço de tabela riscado: "de R$ X"
@@ -270,9 +313,10 @@ function montarPropostaPDF(d, fotos) {
     const wDe = doc.getTextWidth(tDe); draw(CL); doc.setLineWidth(0.35); doc.line(xr - wDe, yr + 6.4, xr, yr + 6.4);
   }
   cor(BR); caber(brl(d.valor), bw2 - 10, 21, 13, 'bold'); texto(brl(d.valor), rx + 5, yr + 19);
+  if (temDesc) { cor(AM); fonte(7.2, 'bold'); texto(linhas('à vista  ·  parcelado e financiado: ' + brl(cheio), bw2 - 10)[0], rx + 5, yr + 25.5); }
   cor(CL); fonte(7.2);
-  if (sep) { texto('Kit gerador: ' + brl(d.valorKit), rx + 5, yr + 27); texto('Serviços de instalação: ' + brl(d.valorServico), rx + 5, yr + 31.5); texto(brl(d.valor / (d.item.kwp * 1000)) + ' por Wp instalado', rx + 5, yr + 36); }
-  else texto(brl(d.valor / (d.item.kwp * 1000)) + ' por Wp instalado', rx + 5, yr + 27);
+  if (sep) { texto('Kit gerador: ' + brl(d.valorKit), rx + 5, yr + 27 + dv); texto('Serviços de instalação: ' + brl(d.valorServico) + (temDesc ? ' (à vista)' : ''), rx + 5, yr + 31.5 + dv); texto(brl(d.valor / (d.item.kwp * 1000)) + ' por Wp instalado', rx + 5, yr + 36 + dv); }
+  else texto(brl(d.valor / (d.item.kwp * 1000)) + ' por Wp instalado', rx + 5, yr + 27 + dv);
   yr += hInv + 3;
   const pw2 = (bw2 - 3) / 2;
   [['Prazo de entrega', PROPOSTA_CFG.prazo_entrega || '—', ''], ['Retorno do investimento', anosMeses(d.paybackMeses), 'tempo estimado']].forEach(([r, v, s], i) => {
@@ -283,7 +327,25 @@ function montarPropostaPDF(d, fotos) {
     if (s) { cor(CZ); fonte(6.4); texto(s, x + 3.5, yr + 11.5 + l.length * 3.8); }
   });
   yr += 20;
-  fotoRodape(fotos.pag3, Math.max(y, yr));
+  preencher(fotos.pag3, Math.max(y, yr), (y0, livre) => {
+    // como funciona: do sol ao crédito na conta de luz
+    const y1 = y0 + Math.max(5, Math.min(10, livre - 44)), hB = Math.min(livre - (y1 - y0) - 8, 40);
+    tituloArte('sol', 'COMO FUNCIONA O SEU SISTEMA', y1);
+    const passos = [['painel', 'Módulos solares', 'Captam a luz do sol e produzem energia durante o dia.'],
+                    ['raio', 'Inversor', 'Converte a energia dos módulos para uso na sua casa ou empresa.'],
+                    ['casa', 'Consumo na hora', 'O que você usa durante o dia sai direto do seu telhado.'],
+                    ['moeda', 'Créditos de energia', 'A sobra vai para a rede da ' + conc + ' e vira crédito na conta por até 60 meses.']];
+    const gap = 7, cw4 = (CW - 3 * gap) / 4, by = y1 + 4;
+    passos.forEach(([ic, t, s], i) => {
+      const x = X0 + i * (cw4 + gap);
+      caixa(x, by, cw4, hB, i === 3 ? PR : CZC, i === 3 ? null : BD);
+      const r = hB < 42 ? 4.5 : 7, cy = by + r + (hB < 42 ? 3 : 5), yt = cy + r + 5.5;   // versão compacta quando sobra pouco espaço
+      fill(i === 3 ? PR2 : BR); doc.circle(x + cw4 / 2, cy, r, 'F'); icone(ic, x + cw4 / 2, cy, r * 0.93);
+      cor(i === 3 ? AM : PR); fonte(8.3, 'bold'); texto(t, x + cw4 / 2, yt, { align:'center' });
+      cor(i === 3 ? CL : CZ); fonte(6.9); doc.text(linhas(s, cw4 - 7).slice(0, Math.max(1, Math.floor((by + hB - yt - 5) / 2.9) + 1)), x + cw4 / 2, yt + 4.5, { align:'center' });
+      if (i < 3) seta(x + cw4 + gap / 2 - 1.2, cy);
+    });
+  }, 36);
 
   // ═══════════════ PÁGINA 4 — INVESTIMENTO E FORMAS DE PAGAMENTO ═══════════════
   doc.addPage(); cabecalho();
@@ -291,15 +353,22 @@ function montarPropostaPDF(d, fotos) {
   const itensCfg = k => String(PROPOSTA_CFG[k] || '').split('\n').map(t => t.trim()).filter(Boolean);
   const opcoes = [];
   opcoes.push({ titulo:'À VISTA', desenha:(x, y, w) => {
-    cor(PR); caber(brl(d.valor), w - 8, 15, 10, 'bold'); texto(brl(d.valor), x + 4, y + 9);
-    fill(AM); doc.rect(x + 4, y + 13, w - 8, 5, 'F'); cor(PR); fonte(6.6, 'bold'); texto('Melhor custo-benefício', x + w / 2, y + 16.4, { align:'center' });
-    return listaCheck(itensCfg('avista_itens'), x + 4, y + 25, w - 8, 7.2, PR, 1.3) - y;
+    let yv = y + 9;
+    if (temDesc) {   // "de R$ cheio" riscado em cima do valor à vista
+      cor(CZ); fonte(7.5); texto('de ' + brl(cheio), x + 4, y + 6.5);
+      const x0 = x + 4 + doc.getTextWidth('de '); draw(CZ); doc.setLineWidth(0.3); doc.line(x0, y + 5.4, x0 + doc.getTextWidth(brl(cheio)), y + 5.4);
+      yv = y + 13.5;
+    }
+    cor(PR); caber(brl(d.valor), w - 8, 15, 10, 'bold'); texto(brl(d.valor), x + 4, yv);
+    fill(AM); doc.rect(x + 4, yv + 4, w - 8, 5, 'F'); cor(PR); fonte(6.6, 'bold');
+    texto(temDesc ? 'Você economiza ' + brl(d.descontoAVista) : 'Melhor custo-benefício', x + w / 2, yv + 7.4, { align:'center' });
+    return listaCheck(itensCfg('avista_itens'), x + 4, yv + 16, w - 8, 7.2, PR, 1.3) - y;
   }});
   if (imp) opcoes.push({ titulo:'ENTRADA + PARCELAS', desenha:(x, y, w) => {
     cor(PR); fonte(11, 'bold'); texto('Entrada: ' + brl(d.pag.entrada), x + 4, y + 8);
     cor(CZ); fonte(6.5); texto('no ato do pedido', x + 4, y + 12);
     cor(PR); fonte(11, 'bold'); doc.text(linhas('10x ' + brl(d.pag.parcela10), w - 8), x + 4, y + 19.5);
-    cor(CZ); fonte(6.5); texto('parcelas mensais', x + 4, y + 23.5);
+    cor(CZ); fonte(6.5); texto('parcelas mensais' + (temDesc ? '  ·  total ' + brl(cheio) : ''), x + 4, y + 23.5);
     return listaCheck(itensCfg('parcelado_itens'), x + 4, y + 30, w - 8, 7.2, PR, 1.3) - y;
   }});
   else opcoes.push({ titulo:'FINAME (BNDES)', desenha:(x, y, w) => {
@@ -308,6 +377,7 @@ function montarPropostaPDF(d, fotos) {
     cor(PR); fonte(11, 'bold'); texto('120x ' + brl(d.pag.p120), x + 4, y + 19.5);
     cor(CZ); fonte(6.5); texto('em 10 anos', x + 4, y + 23.5);
     let yy = listaCheck(itensCfg('finame_itens'), x + 4, y + 30, w - 8, 7.2, PR, 1.3);
+    if (temDesc) { cor(CZ); fonte(6.5); doc.text(linhas('Valor financiado: ' + brl(cheio), w - 8), x + 4, yy + 0.5); yy += 4; }
     if (sep) { cor(CZ); fonte(6.5); doc.text(linhas('Kit financiável: ' + brl(d.valorKit), w - 8), x + 4, yy + 0.5); yy += 4; }
     return yy - y;
   }});
@@ -318,12 +388,13 @@ function montarPropostaPDF(d, fotos) {
   if (mostrarFin) opcoes.push({ titulo:'FINANCIAMENTO', sub: PROPOSTA_CFG.fin_banco, desenha:(x, y, w) => {
     cor(PR); fonte(8.5, 'bold'); texto('Parcelas estimadas', x + 4, y + 7);
     let yy = y + 10;
+    if (temDesc) { cor(CZ); fonte(6.5); texto('Valor financiado: ' + brl(cheio), x + 4, y + 11); yy = y + 13.5; }
     caixa(x + 4, yy, w - 8, 5, CZC, BD); cor(PR); fonte(6.5, 'bold');
     texto('Prazo', x + 4 + (w - 8) * 0.25, yy + 3.4, { align:'center' }); texto('Parcela estimada', x + 4 + (w - 8) * 0.72, yy + 3.4, { align:'center' });
     yy += 5;
     prazos.forEach(n => {
       caixa(x + 4, yy, w - 8, 5, BR, BD); cor(PR); fonte(7);
-      texto(n + ' meses', x + 4 + (w - 8) * 0.25, yy + 3.4, { align:'center' }); fonte(7, 'bold'); texto(brl(pmt(d.valor, n)), x + 4 + (w - 8) * 0.72, yy + 3.4, { align:'center' });
+      texto(n + ' meses', x + 4 + (w - 8) * 0.25, yy + 3.4, { align:'center' }); fonte(7, 'bold'); texto(brl(pmt(cheio, n)), x + 4 + (w - 8) * 0.72, yy + 3.4, { align:'center' });
       yy += 5;
     });
     return listaCheck(itensCfg('fin_obs'), x + 4, yy + 5, w - 8, 6.8, PR, 1.2) - y;
@@ -344,7 +415,7 @@ function montarPropostaPDF(d, fotos) {
     o.desenha(x, yOp + hHead, ow);
   });
   y = yOp + hHead + hBody + 8;
-  const menorParcela = Math.min(...[imp ? d.pag.parcela10 : d.pag.p120].concat(mostrarFin ? prazos.map(n => pmt(d.valor, n)) : []).filter(v => v > 0));
+  const menorParcela = Math.min(...[imp ? d.pag.parcela10 : d.pag.p120].concat(mostrarFin ? prazos.map(n => pmt(cheio, n)) : []).filter(v => v > 0));
   const msgEco = (d.economia > 0 && menorParcela <= d.economia) ? 'Sua economia estimada é de ' + brl0(d.economia) + ' por mês, e a parcela pode começar em ' + brl0(menorParcela) + '.' : '';
   fonte(7.4); const corpo = linhas('Em muitos casos, o valor da parcela pode ser igual ou menor do que a sua conta de luz atual. Ou seja: você troca a conta de energia por um investimento que fica seu.' + (msgEco ? ' ' + msgEco : ''), CW - 16);
   const hEco = 13 + corpo.length * 3.4;
@@ -353,7 +424,9 @@ function montarPropostaPDF(d, fotos) {
   fonte(7.4); doc.text(corpo, X0 + 8, y + 12.5);
   y += hEco + 7;
   const obs = [];
-  if (sep) obs.push('Composição do valor: kit gerador ' + brl(d.valorKit) + ' + serviços de instalação ' + brl(d.valorServico) + '.');
+  if (sep) obs.push('Composição do valor' + (temDesc ? ' à vista' : '') + ': kit gerador ' + brl(d.valorKit) + ' + serviços de instalação ' + brl(d.valorServico) + '.'
+    + (temDesc ? ' No parcelado e no financiamento: kit gerador ' + brl(d.valorKit) + ' + serviços de instalação ' + brl(d.valorServicoCheio) + ' = ' + brl(cheio) + '.' : ''));
+  if (temDesc) obs.push('O desconto de ' + brl(d.descontoAVista) + ' vale para o pagamento à vista. Entrada + parcelas e financiamentos são calculados sobre ' + brl(cheio) + '.');
   if (!imp && !(d.fornecedor && d.fornecedor.finame) && PROPOSTA_CFG.codigo_finame) obs.push('Código FINAME do kit: ' + PROPOSTA_CFG.codigo_finame + '.');
   obs.push('Condições de financiamento sujeitas à análise de crédito.');
   // dados do cliente (para cadastro do financiamento) — linhas vazias não aparecem
@@ -390,7 +463,8 @@ function montarPropostaPDF(d, fotos) {
     if (sep) extra.push('Valor do kit: ' + brl(d.valorKit));
     blocos.push({ tit:'FORNECEDOR DO KIT', nome:d.fornecedor.nome, destaque:extra, txt:d.fornecedor.dados });
   }
-  blocos.push({ tit: d.fornecedor ? 'INTEGRADOR (ENERGTECH)' : 'ENERGTECH', nome:'', destaque: d.fornecedor && sep ? ['Serviços de instalação: ' + brl(d.valorServico)] : [], txt:d.contaPag.dados });
+  blocos.push({ tit: d.fornecedor ? 'INTEGRADOR (ENERGTECH)' : 'ENERGTECH', nome:'', txt:d.contaPag.dados,
+    destaque: d.fornecedor && sep ? ['Serviços de instalação: ' + brl(d.valorServico) + (temDesc ? ' à vista · ' + brl(d.valorServicoCheio) + ' no financiamento' : '')] : [] });
   const bwP = blocos.length > 1 ? (CW - 4) / 2 : CW;
   const med = blocos.map(b => {
     fonte(7.8, 'bold'); const n = b.nome ? linhas(b.nome, bwP - 10) : [];
@@ -410,7 +484,26 @@ function montarPropostaPDF(d, fotos) {
   });
   y += hP + 5;
   cor(CZ); fonte(6.6); obs.forEach(t => { const l = linhas(t, CW); doc.text(l, X0, y); y += l.length * 3 + 0.6; });
-  fotoRodape(fotos.pag4, y);
+  preencher(fotos.pag4, y - 2, (y0, livre) => {
+    if (!(d.conta > 0) || !(menorParcela > 0)) return;
+    // comparativo em reais: conta de hoje x durante as parcelas x depois de quitado
+    const y1 = y0 + Math.min(9, livre - 40);
+    tituloArte('grafico', 'QUANTO VOCÊ PAGA POR MÊS', y1);
+    const nova = d.novaConta || d.taxa || 0, durante = menorParcela + nova;
+    const barras = [[d.usaMeta ? 'Conta prevista sem solar' : 'Conta de luz hoje', d.conta, [198,40,40], ''],
+                    ['Com solar, durante as parcelas', durante, AM, 'parcela a partir de ' + brl0(menorParcela) + ' + conta mínima ' + brl0(nova)],
+                    ['Com solar, depois de quitado', nova, VD, 'só a conta mínima da ' + conc]];
+    const hRow = Math.min(15, (livre - (y1 - y0) - 8) / 3), by = y1 + 4;
+    caixa(X0, by, CW, hRow * 3 + 4, CZC, BD);
+    const lx = X0 + 5, bx = X0 + 62, bwMax = CW - 62 - 30, maxV = Math.max(...barras.map(b => b[1]));
+    barras.forEach(([r, v, c, s], i) => {
+      const yy = by + 2 + i * hRow, hb = Math.min(7, hRow - 5);
+      cor(PR); fonte(7.6, 'bold'); texto(r, lx, yy + hRow / 2 - (s ? 0.6 : -1));
+      if (s) { cor(CZ); fonte(6.2); texto(linhas(s, 55)[0], lx, yy + hRow / 2 + 2.9); }
+      fill(c); doc.rect(bx, yy + (hRow - hb) / 2, Math.max(1.5, bwMax * v / maxV), hb, 'F');
+      cor(PR); fonte(8.5, 'bold'); texto(brl0(v), bx + Math.max(1.5, bwMax * v / maxV) + 2.5, yy + hRow / 2 + 1.3);
+    });
+  }, 42);
 
   // ═══════════════ PÁGINA 5 — GARANTIAS, PROCESSO E PRÓXIMOS PASSOS ═══════════════
   doc.addPage(); cabecalho();
@@ -464,6 +557,21 @@ function montarPropostaPDF(d, fotos) {
   cor(CZ); fonte(7); texto('Em caso de dúvidas, estou à disposição!', px + bw2 / 2, y + 38, { align:'center' });
   cor(PR); fonte(7.6, 'bold'); texto(linhas([d.vendedor || 'Energtech', PROPOSTA_CFG.telefone_exibir].filter(Boolean).join('  ·  '), bw2 - 6)[0], px + bw2 / 2, y + 43, { align:'center' });
   y += hb + 6;
+  const faq = String(PROPOSTA_CFG.faq ?? PROPOSTA_PADRAO.faq ?? '').split('\n').map(t => t.split('|').map(x => x.trim())).filter(x => x[0] && x[1]).slice(0, 6)
+    .map(([q, a]) => [q, a.replace(/a concessionária/g, 'a ' + conc)]);
+  const livreF = FIM - 8 - y;
+  if (faq.length && livreF >= 34) {
+    tituloArte('escudo', 'PERGUNTAS FREQUENTES', y + 2);
+    const cols = 2, rows = Math.ceil(faq.length / cols), fw2 = (CW - 5) / 2;
+    const hF = Math.min(25, (livreF - 8 - (rows - 1) * 3) / rows);
+    faq.forEach(([q, a], i) => {
+      const x = X0 + (i % cols) * (fw2 + 5), yy = y + 6 + Math.floor(i / cols) * (hF + 3);
+      caixa(x, yy, fw2, hF, CZC, BD); fill(AM); doc.rect(x, yy, 1.2, hF, 'F');
+      cor(PR); fonte(8, 'bold'); const lq = linhas(q, fw2 - 10).slice(0, 2); doc.text(lq, x + 5, yy + 6);
+      cor(CZ); fonte(7); doc.text(linhas(a, fw2 - 10).slice(0, Math.max(1, Math.floor((hF - 7 - lq.length * 3.4) / 3))), x + 5, yy + 6.5 + lq.length * 3.6);
+    });
+    y += 6 + rows * hF + (rows - 1) * 3 + 6;
+  }
   cor(CZ); fonte(6.2); texto(PROPOSTA_CFG.rodape_legal || '', W / 2, y, { align:'center' });
 
   const total = doc.getNumberOfPages();
