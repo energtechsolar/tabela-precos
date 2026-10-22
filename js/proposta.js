@@ -184,6 +184,7 @@ function calcularDadosProposta(e) {
   const validade = new Date(emissao.getTime() + (+PROPOSTA_CFG.validade_dias || 15) * 86400000);
   return {
     modoValor, valorKit, valorServico, itens: e.itens, servicoDesc: e.servicoDesc,
+    valorDe: +item.inv_r > valor + 0.5 ? +item.inv_r : null,   // preço de tabela riscado ("de ... por ...") quando houve desconto
     contaHoje, consumoHoje, usaMeta,
     tipo, item, valor, orientacao, estrutura, tarifa, taxa, conta, consumo, geracao, economia, novaConta, paybackMeses, eco25, pag,
     nome: e.nome, cpf: e.cpf, telefone: e.telefone, email: e.email, cidade: e.cidade,
@@ -286,7 +287,7 @@ function mensagemProposta(d) {
   ];
   if (d.conta && d.usaMeta) linhasMsg.push(`📉 *Conta de luz:* considerando o consumo previsto de ${brl(d.conta)} por mês, passa para cerca de ${brl(d.novaConta)}`);
   else if (d.conta) linhasMsg.push(`📉 *Sua conta de luz:* de ${brl(d.conta)} para cerca de ${brl(d.novaConta)}`);
-  linhasMsg.push(`💰 *Investimento:* ${brl(d.valor)}`);
+  linhasMsg.push(d.valorDe ? `💰 *Investimento:* de ~${brl(d.valorDe)}~ por *${brl(d.valor)}*` : `💰 *Investimento:* ${brl(d.valor)}`);
   if (d.modoValor === 'separado') linhasMsg.push(`     (kit ${brl(d.valorKit)} + mão de obra ${brl(d.valorServico)})`);
   linhasMsg.push(`💳 *Pagamento:* ${pagamento}`);
   if (d.paybackMeses) linhasMsg.push(`⏱ *Retorno do investimento:* ${anosMeses(d.paybackMeses)}`);
@@ -333,8 +334,22 @@ function modoSeparado() { return (document.querySelector('input[name="modo-valor
 // grava o total escolhido na proposta (é o valor que vai para o PDF, o WhatsApp e o orçamento salvo)
 function definirTotalProposta(v) {
   if (!propostaCalc) return;
-  propostaCalc.valorFinal = Math.round((+v || 0) * 100) / 100;
+  const novo = Math.round((+v || 0) * 100) / 100, mudou = Math.abs(novo - propostaCalc.valorFinal) > 0.009;
+  propostaCalc.valorFinal = novo;
   document.getElementById('psi-valor').textContent = fmt(propostaCalc.valorFinal);
+  if (mudou) recalcularComissao();
+}
+// a comissão acompanha o valor final da proposta, com as mesmas regras da régua:
+// acima da tabela = adicional dividido vendedor/empresa; abaixo = desconto (faixa gratuita + divisão do excedente)
+function recalcularComissao() {
+  if (!propostaCalc || !propostaItem || !(+propostaItem.inv_r > 0)) return;
+  const base = +propostaItem.inv_r, total = propostaCalc.valorFinal;
+  const c = calcLinha(propostaItem, Math.max(0, total - base), total < base ? (base - total) / base * 100 : 0);
+  ['comissao', 'comBase', 'addVendedor', 'addEmpresa', 'descVendedor', 'descEmpresa'].forEach(k => propostaCalc[k] = c[k]);
+  const rf = document.getElementById('res-final'), rc = document.getElementById('res-comissao');
+  if (rf) rf.textContent = fmt(total);
+  if (rc) rc.textContent = fmt(c.comissao);
+  if (typeof atualizarCustoResumo === 'function') atualizarCustoResumo(propostaItem, propostaCalc);
 }
 function valorEditado(qual) {
   if (!propostaCalc) return;
@@ -375,6 +390,8 @@ function mostrarRefTabela() {
   if (!el || !propostaCalc) return;
   const tab = propostaCalc.valorTabela ?? propostaCalc.valorFinal, dif = propostaCalc.valorFinal - tab;
   el.textContent = 'Valor da tabela: ' + fmt(tab) + (Math.abs(dif) < 0.01 ? ' (sem ajuste)' : (dif > 0 ? ' · acima da tabela: ' : ' · abaixo da tabela: ') + fmt(Math.abs(dif)));
+  const piso = propostaItem && +propostaItem.inv_r ? +propostaItem.inv_r * (1 - (CFG.desconto_max || 0) / 100) : 0;
+  if (piso && propostaCalc.valorFinal < piso - 0.5) el.textContent += ' · ⚠ abaixo do desconto máximo permitido (mínimo ' + fmt(piso) + ')';
   el.style.color = dif < -0.009 ? 'var(--vermelho)' : '';
   avisoLimiteServico();
   atualizarDemonstrativo();
