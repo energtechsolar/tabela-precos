@@ -150,8 +150,9 @@
         <div>
           <label for="f-situacao">Situação</label>
           <select class="select" id="f-situacao" onchange="render()">
-            <option value="">Todos os orçamentos</option>
+            <option value="">Propostas atuais</option>
             <option value="ganho">Só negócios ganhos</option>
+            <option value="todas">Todas, inclusive revisões substituídas</option>
           </select>
         </div>
         <div>
@@ -215,7 +216,7 @@ const SUPABASE_URL = 'https://cmrndntnaaooapbdmgip.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_wKf3jP-0lmaK07vMpxdRlA_UXqMJdBO';
 const sb = (window.supabase && window.supabase.createClient) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
-let perfil = null, orcamentos = [], leads = [], nomes = {}, custosOrc = {}, ganhos = new Set();
+let perfil = null, orcamentos = [], leads = [], nomes = {}, custosOrc = {}, ganhos = new Set(), substituidas = new Set();
 
 const $ = id => document.getElementById(id);
 const fmtR = v => (+v || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
@@ -317,11 +318,13 @@ async function carregar() {
   $('tb-orcamentos').innerHTML = '<tr><td colspan="14" class="vazio">Carregando…</td></tr>';
   try {
     const [o, l, v] = await Promise.all([
-      buscarTudo('orcamentos', 'id, lead_id, cliente_nome, telefone, email, cidade, tipo, sistema, kwp, valor_final, vendedor_email, criado_em, modo_valor:dados->>modo_valor, valor_kit:dados->>valor_kit, repasse_pct:dados->>repasse_pct', 'criado_em'),
+      buscarTudo('orcamentos', 'id, lead_id, cliente_nome, telefone, email, cidade, tipo, sistema, kwp, valor_final, vendedor_email, criado_em, modo_valor:dados->>modo_valor, valor_kit:dados->>valor_kit, repasse_pct:dados->>repasse_pct, revisao_de:dados->>revisao_de', 'criado_em'),
       buscarTudo('leads', 'id, nome, telefone, email, status, recebido_em, etapa, orcamento_ganho_id', 'recebido_em'),
       sb.from('vendedores').select('email, nome')
     ]);
     orcamentos = o; leads = l;
+    // proposta revisada: a original fica no histórico como substituída e sai dos totais
+    substituidas = new Set(orcamentos.map(x => +x.revisao_de).filter(Boolean));
     // orçamento ganho = a proposta marcada no CRM ao dar "Ganho" (ganhos antigos sem marcação: a última proposta do cliente)
     ganhos = new Set(leads.filter(x => x.etapa === 'ganho').map(x => x.orcamento_ganho_id || (orcamentos.find(oo => oo.lead_id === x.id) || {}).id).filter(Boolean));
     custosOrc = {};
@@ -375,7 +378,9 @@ function filtrados() {
     if (ate && t >= ate) return false;
     if (vend && o.vendedor_email !== vend) return false;
     if (tipo && o.tipo !== tipo) return false;
-    if ($('f-situacao').value === 'ganho' && !ganhos.has(o.id)) return false;
+    const sit = $('f-situacao').value;
+    if (sit === 'ganho' && !ganhos.has(o.id)) return false;
+    if (sit !== 'todas' && substituidas.has(o.id) && !ganhos.has(o.id)) return false;
     if (busca) {
       const okNome = (o.cliente_nome || '').toLowerCase().includes(busca);
       const okTel = buscaNum.length >= 4 && String(o.telefone || '').includes(buscaNum);
@@ -412,7 +417,7 @@ function render() {
   // orçamentos
   $('tb-orcamentos').innerHTML = lista.length ? lista.map(o => `
     <tr>
-      <td class="muted">${o.id}${ganhos.has(o.id) ? ' <span class="tag dc" title="Negócio ganho">🏆</span>' : ''}</td>
+      <td class="muted">${o.id}${ganhos.has(o.id) ? ' <span class="tag dc" title="Negócio ganho">🏆</span>' : ''}${o.revisao_de ? ' <span class="tag" title="Revisão da proposta Nº ' + o.revisao_de + '">↻</span>' : ''}${substituidas.has(o.id) ? ' <span class="tag" title="Substituída por uma revisão">substituída</span>' : ''}</td>
       <td>${fmtDataHora(o.criado_em)}</td>
       <td>${esc(o.cliente_nome)}</td>
       <td>${telLink(o.telefone)}</td>
