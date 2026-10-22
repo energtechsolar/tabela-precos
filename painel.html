@@ -148,6 +148,13 @@
           </select>
         </div>
         <div>
+          <label for="f-situacao">Situação</label>
+          <select class="select" id="f-situacao" onchange="render()">
+            <option value="">Todos os orçamentos</option>
+            <option value="ganho">Só negócios ganhos</option>
+          </select>
+        </div>
+        <div>
           <label for="f-busca">Buscar cliente</label>
           <input class="input" id="f-busca" placeholder="Nome ou telefone" oninput="render()">
         </div>
@@ -164,8 +171,9 @@
       <div class="kpi"><div class="kpi-val" id="k-total">—</div><div class="kpi-lbl">Valor total orçado</div></div>
       <div class="kpi"><div class="kpi-val" id="k-ticket">—</div><div class="kpi-lbl">Ticket médio</div></div>
       <div class="kpi"><div class="kpi-val" id="k-kwp">—</div><div class="kpi-lbl">Potência total orçada</div></div>
-      <div class="kpi so-admin"><div class="kpi-val" id="k-margem">—</div><div class="kpi-lbl">🔒 Margem total (após kit, comissão e imposto do repasse)</div></div>
-      <div class="kpi so-admin"><div class="kpi-val" id="k-repasse">—</div><div class="kpi-lbl">🔒 Repasses a receber dos fornecedores (já sem o imposto)</div></div>
+      <div class="kpi"><div class="kpi-val" id="k-ganhos">—</div><div class="kpi-lbl">🏆 Negócios ganhos (vendas fechadas)</div></div>
+      <div class="kpi so-admin"><div class="kpi-val" id="k-margem">—</div><div class="kpi-lbl">🔒 Margem dos negócios ganhos (após kit, comissão e imposto do repasse)</div></div>
+      <div class="kpi so-admin"><div class="kpi-val" id="k-repasse">—</div><div class="kpi-lbl">🔒 Repasses a receber dos fornecedores — só ganhos, já sem o imposto</div></div>
       <div class="kpi" id="k-pend-box"><div class="kpi-val" id="k-pend">—</div><div class="kpi-lbl">Leads qualificados sem orçamento</div></div>
     </div>
 
@@ -173,7 +181,7 @@
       <h2>Por vendedor</h2>
       <div class="tabela-wrap">
         <table>
-          <thead><tr><th>Vendedor</th><th class="num">Orçamentos</th><th class="num">Valor total</th><th class="num">Ticket médio</th><th class="num">Margem 🔒</th><th class="num">Potência</th><th>Último orçamento</th></tr></thead>
+          <thead><tr><th>Vendedor</th><th class="num">Orçamentos</th><th class="num">Valor total</th><th class="num">Ticket médio</th><th class="num">Ganhos</th><th class="num">Margem dos ganhos 🔒</th><th class="num">Potência</th><th>Último orçamento</th></tr></thead>
           <tbody id="tb-vendedores"></tbody>
         </table>
       </div>
@@ -207,7 +215,7 @@ const SUPABASE_URL = 'https://cmrndntnaaooapbdmgip.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_wKf3jP-0lmaK07vMpxdRlA_UXqMJdBO';
 const sb = (window.supabase && window.supabase.createClient) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
-let perfil = null, orcamentos = [], leads = [], nomes = {}, custosOrc = {};
+let perfil = null, orcamentos = [], leads = [], nomes = {}, custosOrc = {}, ganhos = new Set();
 
 const $ = id => document.getElementById(id);
 const fmtR = v => (+v || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
@@ -310,10 +318,12 @@ async function carregar() {
   try {
     const [o, l, v] = await Promise.all([
       buscarTudo('orcamentos', 'id, lead_id, cliente_nome, telefone, email, cidade, tipo, sistema, kwp, valor_final, vendedor_email, criado_em, modo_valor:dados->>modo_valor, valor_kit:dados->>valor_kit, repasse_pct:dados->>repasse_pct', 'criado_em'),
-      buscarTudo('leads', 'id, nome, telefone, email, status, recebido_em', 'recebido_em'),
+      buscarTudo('leads', 'id, nome, telefone, email, status, recebido_em, etapa, orcamento_ganho_id', 'recebido_em'),
       sb.from('vendedores').select('email, nome')
     ]);
     orcamentos = o; leads = l;
+    // orçamento ganho = a proposta marcada no CRM ao dar "Ganho" (ganhos antigos sem marcação: a última proposta do cliente)
+    ganhos = new Set(leads.filter(x => x.etapa === 'ganho').map(x => x.orcamento_ganho_id || (orcamentos.find(oo => oo.lead_id === x.id) || {}).id).filter(Boolean));
     custosOrc = {};
     if (perfil && perfil.admin) {
       const c = await buscarTudo('orcamento_custos', 'orcamento_id, custo_kit, comissao', 'orcamento_id');
@@ -365,6 +375,7 @@ function filtrados() {
     if (ate && t >= ate) return false;
     if (vend && o.vendedor_email !== vend) return false;
     if (tipo && o.tipo !== tipo) return false;
+    if ($('f-situacao').value === 'ganho' && !ganhos.has(o.id)) return false;
     if (busca) {
       const okNome = (o.cliente_nome || '').toLowerCase().includes(busca);
       const okTel = buscaNum.length >= 4 && String(o.telefone || '').includes(buscaNum);
@@ -385,13 +396,15 @@ function render() {
   $('k-ticket').textContent = lista.length ? fmtR0(total / lista.length) : '—';
   $('k-kwp').textContent = fmtN(kwp, 1) + ' kWp';
   $('k-pend').textContent = pend.length.toLocaleString('pt-BR');
+  const listaG = lista.filter(o => ganhos.has(o.id));
+  $('k-ganhos').textContent = listaG.length + ' · ' + fmtR0(listaG.reduce((s, o) => s + (+o.valor_final || 0), 0));
   if (perfil && perfil.admin) {
-    const comCusto = lista.map(margemDe).filter(m => m !== null);
+    const comCusto = listaG.map(margemDe).filter(m => m !== null);
     $('k-margem').textContent = comCusto.length ? fmtR0(comCusto.reduce((a, b) => a + b, 0)) : '—';
-    $('k-margem').title = comCusto.length < lista.length ? (lista.length - comCusto.length) + ' orçamento(s) sem custo cadastrado ficaram fora da soma' : '';
-    const voltas = lista.map(repasseDe).filter(r => r && r.repasse > 0);
+    $('k-margem').title = comCusto.length < listaG.length ? (listaG.length - comCusto.length) + ' negócio(s) ganho(s) sem custo cadastrado ficaram fora da soma' : '';
+    const voltas = listaG.map(repasseDe).filter(r => r && r.repasse > 0);
     $('k-repasse').textContent = voltas.length ? fmtR0(voltas.reduce((a, r) => a + r.volta, 0)) : '—';
-    $('k-repasse').title = voltas.length ? voltas.length + ' orçamento(s) com kit e mão de obra separados · os orçamentos são propostas, não vendas fechadas' : '';
+    $('k-repasse').title = voltas.length ? voltas.length + ' negócio(s) ganho(s) com kit e mão de obra separados' : '';
   }
   $('k-pend-box').classList.toggle('alerta', pend.length > 0);
   $('qtd-lista').textContent = lista.length + ' orçamento(s)';
@@ -399,7 +412,7 @@ function render() {
   // orçamentos
   $('tb-orcamentos').innerHTML = lista.length ? lista.map(o => `
     <tr>
-      <td class="muted">${o.id}</td>
+      <td class="muted">${o.id}${ganhos.has(o.id) ? ' <span class="tag dc" title="Negócio ganho">🏆</span>' : ''}</td>
       <td>${fmtDataHora(o.criado_em)}</td>
       <td>${esc(o.cliente_nome)}</td>
       <td>${telLink(o.telefone)}</td>
@@ -419,9 +432,9 @@ function render() {
   if (perfil && perfil.admin) {
     const grupos = {};
     lista.forEach(o => {
-      const g = grupos[o.vendedor_email] || (grupos[o.vendedor_email] = { qtd:0, total:0, kwp:0, ultimo:null, margem:0, comMargem:0 });
+      const g = grupos[o.vendedor_email] || (grupos[o.vendedor_email] = { qtd:0, total:0, kwp:0, ultimo:null, margem:0, comMargem:0, ganhos:0, totalG:0 });
       g.qtd++; g.total += +o.valor_final || 0; g.kwp += +o.kwp || 0;
-      const m = margemDe(o); if (m !== null) { g.margem += m; g.comMargem++; }
+      if (ganhos.has(o.id)) { g.ganhos++; g.totalG += +o.valor_final || 0; const m = margemDe(o); if (m !== null) { g.margem += m; g.comMargem++; } }
       if (!g.ultimo || o.criado_em > g.ultimo) g.ultimo = o.criado_em;
     });
     const linhas = Object.entries(grupos).sort((a, b) => b[1].total - a[1].total);
@@ -431,10 +444,11 @@ function render() {
         <td class="num">${g.qtd}</td>
         <td class="num">${fmtR0(g.total)}</td>
         <td class="num">${fmtR0(g.total / g.qtd)}</td>
+        <td class="num">${g.ganhos ? g.ganhos + ' · ' + fmtR0(g.totalG) : '<span class="muted">—</span>'}</td>
         <td class="num">${g.comMargem ? fmtMargem(g.margem) : '<span class="muted">—</span>'}</td>
         <td class="num">${fmtN(g.kwp, 1)} kWp</td>
         <td>${fmtDataHora(g.ultimo)}</td>
-      </tr>`).join('') : '<tr><td colspan="7" class="vazio">Nenhum orçamento neste filtro.</td></tr>';
+      </tr>`).join('') : '<tr><td colspan="8" class="vazio">Nenhum orçamento neste filtro.</td></tr>';
   }
 
   // leads sem orçamento (mais antigos primeiro)
@@ -485,13 +499,13 @@ function exportarCSV() {
   const num = v => (+v || 0).toFixed(2).replace('.', ',');
   const cel = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
   const adm = perfil && perfil.admin;
-  const cab = ['Nº','Data','Cliente','Telefone','E-mail','Cidade','Kit','Sistema','kWp','Valor (R$)','Vendedor','Origem'];
+  const cab = ['Nº','Data','Cliente','Telefone','E-mail','Cidade','Kit','Sistema','kWp','Valor (R$)','Vendedor','Origem','Ganho'];
   if (adm) cab.push('Custo kit (R$)','Comissão (R$)','Nota de repasse (R$)','Imposto do repasse (R$)','Repasse a receber (R$)','Margem (R$)');
   const linhas = [cab];
   lista.forEach(o => {
     const l = [o.id, fmtDataHora(o.criado_em), o.cliente_nome, telBonito(o.telefone), o.email || '', o.cidade || '',
       o.tipo === 'importado' ? 'Importado' : 'Nacional', o.sistema || '', num(o.kwp), num(o.valor_final),
-      nomeVendedor(o.vendedor_email), o.lead_id ? 'DataCrazy' : 'Manual'];
+      nomeVendedor(o.vendedor_email), o.lead_id ? 'DataCrazy' : 'Manual', ganhos.has(o.id) ? 'sim' : ''];
     if (adm) { const c = custosOrc[o.id] || {}; const m = margemDe(o);
       const r = repasseDe(o);
       l.push(c.custo_kit != null ? num(c.custo_kit) : '', c.comissao != null ? num(c.comissao) : '',
