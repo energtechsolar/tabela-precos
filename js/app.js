@@ -160,6 +160,7 @@ function fmtDataHora(iso) {
 function aplicarDados(linhas) {
   let maisRecente = null;
   linhas.forEach(l => {
+    if (l.id === 'crm') return;   // configuração do CRM (etapas do funil) não faz parte da tabela de preços
     if (l.id === 'importado' && Array.isArray(l.dados)) IMPORTADO = clonar(l.dados);
     if (l.id === 'nacional'  && Array.isArray(l.dados)) NACIONAL  = clonar(l.dados);
     if (l.id === 'cfg' && l.dados) {
@@ -241,6 +242,8 @@ async function carregarPerfil() {
   renderUsuario();
   const pedidoPdf = +new URLSearchParams(location.search).get('pdf');
   if (pedidoPdf && perfil && perfil.vendedor && !window._pdfFeito) { window._pdfFeito = true; await _precosCarregados; reimprimirProposta(pedidoPdf); }
+  const pedidoRev = +new URLSearchParams(location.search).get('revisar');
+  if (pedidoRev && perfil && perfil.vendedor && !window._revFeito) { window._revFeito = true; await _precosCarregados; await carregarRevisao(pedidoRev); }
   if (perfil && perfil.vendedor) carregarLeads(); else limparLeads();
   atualizarBlocoLead();
   enviarFila();
@@ -409,6 +412,7 @@ async function salvarOrcamento() {
       taxa: +valorCampo('imp-taxa-conc') || 50,
       valor_kit: (document.querySelector('input[name="modo-valor"]:checked') || {}).value === 'separado' ? (+document.getElementById('prop-valor-kit').value || null) : null,
       repasse_pct: +PROPOSTA_CFG.repasse_pct || 0,
+      revisao_de: revisaoDe || null,
       conta_atual: +document.getElementById('prop-conta').value || null,
       conta_meta: +document.getElementById('prop-conta-meta').value || null,
       consumo_kwh: +document.getElementById('prop-consumo').value || null,
@@ -442,3 +446,49 @@ async function salvarOrcamento() {
   statusProposta(`✅ Orçamento nº ${data.id} salvo — ${fmt(registro.valor_final)}`, 'ok');
 }
 
+// ── REVISAR UMA PROPOSTA (CRM → index.html?revisar=Nº) ──────────────────────
+// Abre a proposta salva com tudo preenchido. Ao salvar vira uma proposta NOVA ("revisão da Nº X");
+// a original continua igual no histórico (é o PDF que o cliente recebeu).
+let revisaoDe = null;
+async function carregarRevisao(id) {
+  const aviso = document.getElementById('aviso-crm');
+  const msg = (t, erro) => { if (aviso) { aviso.textContent = t; aviso.style.display = 'block'; aviso.style.borderColor = erro ? '#f87171' : '#60a5fa'; } };
+  const num = String(id).padStart(5, '0');
+  msg('⏳ Abrindo a proposta Nº ' + num + ' para revisão…');
+  const { data: o, error } = await sb.from('orcamentos').select('*').eq('id', id).maybeSingle();
+  if (error || !o) { msg('⚠ Proposta Nº ' + num + ' não encontrada ou sem permissão para ver.', true); return; }
+  const dd = o.dados || {}, snap = dd.kit || {}, c = dd.cliente || {};
+  const tipo = o.tipo === 'nacional' ? 'nacional' : 'importado';
+  const lista = tipo === 'importado' ? IMPORTADO : NACIONAL;
+  let idx = lista.findIndex(k => snap.uid && k.uid === snap.uid);
+  if (idx < 0) idx = lista.findIndex(k => k.nome === snap.nome && +k.kwp === +snap.kwp);
+  if (idx < 0) { msg('⚠ O kit da proposta Nº ' + num + ' (' + (snap.nome || '?') + ') não está mais na tabela. Faça uma proposta nova.', true); return; }
+  // região, tarifa e régua como estavam na proposta
+  if (dd.regiao && dd.regiao.id && REGIOES.some(r => r.id === dd.regiao.id)) mudarRegiao(dd.regiao.id);
+  const pre = (el, v) => { const e = document.getElementById(el); if (e && v != null && v !== '') e.value = v; };
+  pre(tipo === 'importado' ? 'imp-tarifa' : 'input-tarifa', dd.tarifa); pre('imp-taxa-conc', dd.taxa);
+  document.getElementById('slider-adicional').value = +dd.adicional || 0;
+  document.getElementById('slider-desconto').value = +dd.desconto_pct || 0;
+  trocarAbaPorNome(tipo);
+  selecionarLinha(tipo, idx, lista[idx]);
+  // cliente
+  leadSelecionado = o.lead_id || null;
+  const sl = document.getElementById('prop-lead'); if (sl && leadSelecionado) sl.value = leadSelecionado;
+  pre('prop-nome', o.cliente_nome !== 'Cliente' ? o.cliente_nome : ''); pre('prop-email', o.email); pre('prop-telefone', telBonito(o.telefone || ''));
+  pre('prop-cidade', o.cidade); pre('prop-cpf', dd.cpf_cnpj || c.cpf); pre('prop-endereco', c.endereco); pre('prop-cep', c.cep); pre('prop-uc', c.uc); pre('prop-concessionaria', c.concessionaria);
+  if (dd.conta_atual) sincronizarConta(String(dd.conta_atual), null);
+  pre('prop-conta-meta', dd.conta_meta); pre('prop-consumo', dd.consumo_kwh);
+  pre('prop-orientacao', dd.orientacao); pre('prop-estrutura', dd.estrutura);
+  // itens, textos, fornecedor e conta
+  if (Array.isArray(dd.itens) && dd.itens.length) pre('prop-itens', dd.itens.join('\n'));
+  pre('prop-servico', dd.servico_desc); pre('prop-fornecedor', dd.fornecedor_id); pre('prop-conta-pag', dd.conta_id);
+  // valores: total da proposta salva e divisão kit / mão de obra
+  document.querySelectorAll('input[name="modo-valor"]').forEach(r => r.checked = r.value === (dd.modo_valor || 'global'));
+  if (Math.abs(+o.valor_final - propostaCalc.valorFinal) > 0.009) definirTotalProposta(+o.valor_final);
+  document.getElementById('prop-kit-txt').value = dd.valor_kit ? fmtReais(dd.valor_kit) : '';
+  atualizarModoValor();
+  calcularProducao(); avisoCpf();
+  revisaoDe = id;
+  msg('✏ Revisão da proposta Nº ' + num + ' (' + (o.cliente_nome || 'Cliente') + '). Ajuste o que precisar e clique em "Criar Orçamento": ela será salva como uma proposta nova e a Nº ' + num + ' continua no histórico.');
+  setTimeout(() => document.getElementById('proposta-card').scrollIntoView({ behavior:'smooth', block:'start' }), 300);
+}
