@@ -118,6 +118,18 @@ function usarSugestao() {
   calcularProducao();
 }
 
+// "Quer gerar para" e consumo aparecem na Proposta rápida e nos dados da proposta: os dois campos andam juntos.
+// Se a sugestão de kit já está aberta, ela é refeita com o novo valor.
+const PARES_CAMPOS = [['campo-meta', 'prop-conta-meta'], ['campo-consumo', 'prop-consumo']];
+let _timerSugestao = null;
+PARES_CAMPOS.forEach(par => par.forEach(id => {
+  const el = document.getElementById(id); if (!el) return;
+  el.addEventListener('input', () => {
+    par.forEach(outro => { const o = document.getElementById(outro); if (o && o !== el && o.value !== el.value) o.value = el.value; });
+    if (_sugestao) { clearTimeout(_timerSugestao); _timerSugestao = setTimeout(sugerirKit, 400); }
+  });
+}));
+
 // conta de luz: um valor só para a análise de investimento e para a proposta
 function sincronizarConta(v, origem) {
   ['imp-conta-atual', 'prop-conta', 'campo-conta'].forEach(id => { if (id !== origem) { const el = document.getElementById(id); if (el && el.value !== v) el.value = v; } });
