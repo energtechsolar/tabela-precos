@@ -15,9 +15,19 @@ function aplicarEtapas(lista) {
   ETAPAS_FIXAS.forEach(id => { if (!ok.some(e => e[0] === id)) ok.push(ETAPAS_PADRAO.find(e => e[0] === id).slice()); });
   ETAPAS = ok.filter(e => !ETAPAS_FIXAS.includes(e[0])).concat(ETAPAS_FIXAS.map(id => ok.find(e => e[0] === id)));
 }
-const ORIGENS = { datacrazy:'Anúncio / DataCrazy', indicacao:'Indicação', whatsapp:'WhatsApp direto', telefone:'Telefone', loja:'Loja / visita', campo:'Prospecção em campo', outro:'Outro' };
+const ORIGENS = { meta:'Anúncio Meta (direto)', datacrazy:'Anúncio / DataCrazy', indicacao:'Indicação', whatsapp:'WhatsApp direto', telefone:'Telefone', loja:'Loja / visita', campo:'Prospecção em campo', outro:'Outro' };
 
-const COLUNAS_LEAD = 'id, nome, telefone, email, cidade, etapa, etapa_em, responsavel_email, proximo_contato, motivo_perda, origem, recebido_em, cpf_cnpj, endereco, cep, uc, concessionaria, forma_pagamento, arquivado, orcamento_ganho_id, documentos';
+// respostas do formulário do anúncio (leads que chegaram direto do Meta), menos nome/telefone/e-mail que já estão na ficha
+function blocoFormulario(l) {
+  const f = l.form_meta || l.form_meta2;
+  if (!f || typeof f !== 'object') return '';
+  const jaNaFicha = ['full_name', 'first_name', 'last_name', 'phone_number', 'email'];
+  const itens = Object.entries(f).filter(([k, v]) => v && !jaNaFicha.includes(k));
+  if (!itens.length) return '';
+  return `<h3>Respostas do formulário do anúncio</h3><div class="grade">${itens.map(([k, v]) =>
+    `<div class="largo"><label>${esc(String(k).replace(/_/g, ' ').replace(/\?$/, ''))}</label><div>${esc(v)}</div></div>`).join('')}</div>`;
+}
+const COLUNAS_LEAD = 'id, nome, telefone, email, cidade, etapa, etapa_em, responsavel_email, proximo_contato, motivo_perda, origem, recebido_em, cpf_cnpj, endereco, cep, uc, concessionaria, forma_pagamento, arquivado, orcamento_ganho_id, documentos, form_meta:dados_brutos->campos, form_meta2:dados_brutos->meta->campos';
 let perfil = null, leads = [], orcs = [], equipe = [], filtroFollow = false, mostrarAntigos = false, verArquivados = false, arrastando = null, fichaId = null, perdaId = null, ganhoId = null;
 // documentos do negócio ganho (pasta privada "documentos"; nenhum é obrigatório, a ficha mostra o que falta)
 const DOCS_GANHO = [
@@ -253,6 +263,7 @@ async function abrirFicha(id, recarregar) {
       ${perfil && perfil.admin ? `<button class="btn btn-sec" style="color:var(--vermelho)" onclick="excluirLead(${id})">🗑 Excluir</button>` : ''}
     </div>
     ${l.etapa === 'ganho' ? blocoGanho(l) : ''}
+    ${blocoFormulario(l)}
     <h3>Negócio</h3>
     <div class="grade">
       <div><label>Etapa</label><select class="select" id="fx-etapa" onchange="mudarEtapa(${id}, this.value)">${opEtapa}</select></div>
