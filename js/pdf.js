@@ -420,7 +420,7 @@ function montarPropostaPDF(d, fotos) {
   fonte(7.4); const corpo = linhas('Em muitos casos, o valor da parcela pode ser igual ou menor do que a sua conta de luz atual. Ou seja: você troca a conta de energia por um investimento que fica seu.' + (msgEco ? ' ' + msgEco : ''), CW - 16);
   const hEco = 13 + corpo.length * 3.4;
   caixa(X0, y, CW, hEco, AM);
-  cor(PR); fonte(10, 'bold'); texto('Parcela menor que a economia', X0 + 8, y + 7.5);
+  cor(PR); fonte(10, 'bold'); texto('Parcela menor que a fatura', X0 + 8, y + 7.5);
   fonte(7.4); doc.text(corpo, X0 + 8, y + 12.5);
   y += hEco + 7;
   const obs = [];
