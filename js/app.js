@@ -413,6 +413,7 @@ async function salvarOrcamento() {
       valor_kit: (document.querySelector('input[name="modo-valor"]:checked') || {}).value === 'separado' ? (+document.getElementById('prop-valor-kit').value || null) : null,
       repasse_pct: +PROPOSTA_CFG.repasse_pct || 0,
       revisao_de: revisaoDe || null,
+      desconto_so_avista: true,   // desconto da régua só no à vista; parcelado e financiamento pelo valor cheio
       conta_atual: +document.getElementById('prop-conta').value || null,
       conta_meta: +document.getElementById('prop-conta-meta').value || null,
       consumo_kwh: +document.getElementById('prop-consumo').value || null,
