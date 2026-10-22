@@ -53,6 +53,11 @@ function calcLinha(item, adicional, descPct) {
   const comissao = comBase + addVendedor - descVendedor;
   return { base, valorFinal, comissao, comBase, addVendedor, addEmpresa, descVendedor, descEmpresa };
 }
+// desconto só no à vista: entrada + parcelas e financiamentos usam o valor cheio (tabela + adicional, sem o desconto)
+function valorCheioDe(item, c) {
+  const v = +c.valorFinal || 0, cheio = (+item.inv_r || 0) + (+c.addVendedor || 0) + (+c.addEmpresa || 0);
+  return Math.max(v, Math.round(cheio * 100) / 100 || 0);
+}
 
 // ── RENDER TABELA ───────────────────────────────────────────────────────────
 function renderTabela(dados, tbodyId, tipo) {
@@ -88,14 +93,14 @@ function renderTabela(dados, tbodyId, tipo) {
 
     let colsExtra = '';
     if (tipo === 'importado') {
-      const saldo10 = c.valorFinal - item.entrada;
+      const saldo10 = valorCheioDe(item, c) - item.entrada;
       const parcela = saldo10 / 10;
       colsExtra = `
         <td class="td-muted">${fmt(item.entrada)}</td>
         <td class="td-azul">${fmt(Math.max(0,saldo10))}</td>
         <td class="td-muted">${fmtShort(Math.max(0,parcela))}</td>`;
     } else {
-      const pm = calcParcelaMensal(c.valorFinal, finAnos);
+      const pm = calcParcelaMensal(valorCheioDe(item, c), finAnos);
       const pa = pm * 12;
       colsExtra = `
         <td class="td-muted">${fmt(pa)}</td>
@@ -131,7 +136,7 @@ function atualizarDashImp() {
   const tarifa     = +document.getElementById('imp-tarifa').value || 0.89;
 
   // Saldo após entrada
-  const saldo = Math.max(0, c.valorFinal - item.entrada);
+  const saldo = Math.max(0, valorCheioDe(item, c) - item.entrada);
   const parcela10 = saldo / 10;
 
   // Fase 1
@@ -189,7 +194,7 @@ function atualizarDash() {
   const c = calcLinha(item, adicional, descPct);
   const tarifa = +document.getElementById('input-tarifa').value || 0.89;
 
-  const parcela = calcParcelaMensal(c.valorFinal, finAnos);
+  const parcela = calcParcelaMensal(valorCheioDe(item, c), finAnos);
   const contaMensal = geracaoKit(item) * tarifa;
   const economia = contaMensal - parcela;
 
