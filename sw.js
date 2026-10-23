@@ -2,9 +2,9 @@
 // Páginas: tenta a internet primeiro e guarda uma cópia; sem internet usa a cópia.
 // Bibliotecas, fontes e fotos: usa a cópia guardada e atualiza em segundo plano.
 // Dados do banco (Supabase) nunca passam por aqui, exceto as fotos públicas da proposta.
-const VERSAO = 'energtech-20261022h';
+const VERSAO = 'energtech-20261023a';
 const CASCA = ['./', 'index.html', 'crm.html', 'manifest.webmanifest',
-  'css/precificador.css?v=20261019a', 'js/comum.js?v=20261019a', 'js/precificador.js?v=20261020b', 'js/logo.js?v=20261019a', 'js/pdf.js?v=20261020b', 'js/proposta.js?v=20261020c', 'js/admin.js?v=20261019a', 'js/app.js?v=20261022a', 'js/crm.js?v=20261022b', 'js/contrato.js?v=20261019a', 'icone-192.png', 'icone-512.png', 'apple-touch-icon.png', 'proposta-capa.jpg',
+  'css/precificador.css?v=20261019a', 'js/comum.js?v=20261019a', 'js/precificador.js?v=20261020b', 'js/logo.js?v=20261019a', 'js/pdf.js?v=20261020b', 'js/proposta.js?v=20261020c', 'js/admin.js?v=20261019a', 'js/app.js?v=20261022a', 'js/crm.js?v=20261023a', 'js/contrato.js?v=20261019a', 'icone-192.png', 'icone-512.png', 'apple-touch-icon.png', 'proposta-capa.jpg',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'];
 
@@ -39,5 +39,16 @@ self.addEventListener('fetch', ev => {
   ev.respondWith(caches.match(req).then(c => {
     const rede = fetch(req).then(r => guardar(req, r)).catch(() => c);
     return c || rede;
+  }));
+});
+
+// clique na notificação de lead novo: abre (ou foca) o CRM já na ficha do lead
+self.addEventListener('notificationclick', ev => {
+  ev.notification.close();
+  const alvo = new URL((ev.notification.data && ev.notification.data.url) || 'crm.html', self.registration.scope).href;
+  ev.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(lista => {
+    const aberta = lista.find(c => c.url.includes('crm.html'));
+    if (aberta) return aberta.focus().then(c => (c && c.navigate ? c.navigate(alvo) : null)).catch(() => self.clients.openWindow(alvo));
+    return self.clients.openWindow(alvo);
   }));
 });

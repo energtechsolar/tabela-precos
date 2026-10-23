@@ -41,7 +41,7 @@ const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const fmtR0 = v => (+v || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL', maximumFractionDigits:0 });
 const fmtR = v => (+v || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
 const fmtDH = iso => iso ? new Date(iso).toLocaleDateString('pt-BR') + ' ' + new Date(iso).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) : '';
-const dias = iso => Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+const dias = iso => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));
 const nomeDe = email => (equipe.find(e => e.email === email) || {}).nome || (email ? email.split('@')[0] : '');
 function telBonito(t) {
   let d = String(t || '').replace(/\D/g, '');
@@ -87,6 +87,7 @@ async function iniciar() {
   $('btn-modelo-contrato').style.display = perfil.admin ? '' : 'none';
   $('btn-etapas').style.display = perfil.admin ? '' : 'none';
   await carregar();
+  iniciarAvisos();
 }
 async function entrar() {
   const email = $('login-email').value.trim(), senha = $('login-senha').value;
@@ -98,7 +99,7 @@ async function entrar() {
   if (error) { $('login-erro').textContent = 'E-mail ou senha incorretos.'; $('login-senha').value = ''; return; }
   await iniciar();
 }
-async function sair() { await sb.auth.signOut(); perfil = null; await iniciar(); }
+async function sair() { pararAvisos(); await sb.auth.signOut(); perfil = null; await iniciar(); }
 
 async function carregar() {
   $('kanban').innerHTML = '<div class="muted">Carregando…</div>';
@@ -196,7 +197,8 @@ function cardLead(l) {
   if (l.etapa === 'perdido' && l.motivo_perda) tags.push(`<span class="tag">${esc(l.motivo_perda)}</span>`);
   if (l.etapa === 'ganho') { const dc = docsStatus(l); tags.push(`<span class="tag ${dc.falta ? 'hoje' : 'resp'}">📎 ${dc.ok}/${dc.total} docs</span>`); }
   if (l.arquivado) tags.push('<span class="tag">🗄 arquivado</span>');
-  return `<div class="lead" draggable="true" data-id="${l.id}" ondragstart="iniciarArrasto(event,${l.id})" ondragend="this.classList.remove('arrastando')" onclick="abrirFicha(${l.id})">
+  if (recem.has(l.id)) tags.unshift('<span class="tag chegou">🔔 chegou agora</span>');
+  return `<div class="lead${recem.has(l.id) ? ' recem' : ''}" draggable="true" data-id="${l.id}" ondragstart="iniciarArrasto(event,${l.id})" ondragend="this.classList.remove('arrastando')" onclick="abrirFicha(${l.id})">
     <div class="lead-nome">${esc(l.nome || 'Sem nome')}</div>
     <div class="lead-linha"><span>${esc(telBonito(l.telefone))}</span><span>${esc(l.cidade || '')}</span></div>
     ${p ? `<div class="lead-linha"><span>${esc(p.sistema || '')} · ${String(p.kwp).replace('.', ',')} kWp</span><span class="lead-valor">${fmtR0(p.valor_final)}</span></div>` : ''}
@@ -243,6 +245,7 @@ async function abrirFicha(id, recarregar) {
   const l = leads.find(x => x.id === id);
   if (!l) return;
   fichaId = id;
+  if (recem.delete(id)) { atualizarTitulo(); render(); }
   const props = orcs.filter(o => o.lead_id === id);
   const opResp = '<option value="">— Sem responsável —</option>' + equipe.filter(e => e.papel !== 'engenheiro').map(e => `<option value="${esc(e.email)}" ${e.email === l.responsavel_email ? 'selected' : ''}>${esc(e.nome || e.email)}</option>`).join('');
   const opEtapa = ETAPAS.map(([k, n]) => `<option value="${k}" ${k === l.etapa ? 'selected' : ''}>${n}</option>`).join('');
@@ -586,3 +589,92 @@ async function excluirLead(id) {
 }
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { if ($('ov-etapas').classList.contains('visivel')) fecharEtapas(); else if ($('ov-ganho').classList.contains('visivel')) fecharGanho(); else if ($('ov-perda').classList.contains('visivel')) fecharPerda(); else if ($('ov-novo').classList.contains('visivel')) fecharNovoLead(); else if ($('ov-contrato').classList.contains('visivel')) fecharContrato(); else fecharFicha(); } });
+// ── aviso de lead novo (admin e vendas internas) ──
+// Confere a cada 1 minuto se entrou lead novo (Meta direto, DataCrazy ou cadastrado por outra pessoa).
+// Avisa com som, destaque no card, contador no título da aba e notificação do sistema (se autorizada).
+// Funciona enquanto o CRM estiver aberto (mesmo em segundo plano ou minimizado).
+const recem = new Set(), TITULO_PAG = document.title;
+let _timerAvisos = null, _checandoLeads = false, _audio = null, _desdeAvisos = '';
+const recebeAvisos = () => !!perfil && (perfil.admin || perfil.papel === 'interno');
+const temNotificacao = () => 'Notification' in window;
+
+function atualizarTitulo() { document.title = recem.size ? '(' + recem.size + ') 🔔 ' + TITULO_PAG : TITULO_PAG; }
+function maiorRecebido() { return leads.reduce((m, l) => (l.recebido_em && l.recebido_em > m ? l.recebido_em : m), ''); }
+function mostrarChipAvisos() {
+  const c = $('chip-avisos'); if (!c) return;
+  c.style.display = recebeAvisos() && temNotificacao() && Notification.permission === 'default' ? '' : 'none';
+}
+function prepararSom() {
+  try {
+    _audio = _audio || new (window.AudioContext || window.webkitAudioContext)();
+    if (_audio.state === 'suspended') _audio.resume();
+  } catch (_) { /* sem áudio */ }
+}
+function tocarAviso() {
+  try {
+    prepararSom(); if (!_audio) return;
+    const t = _audio.currentTime;
+    [880, 1175].forEach((f, i) => {
+      const o = _audio.createOscillator(), g = _audio.createGain(), t0 = t + i * 0.18;
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.25, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
+      o.connect(g); g.connect(_audio.destination); o.start(t0); o.stop(t0 + 0.17);
+    });
+  } catch (_) { /* sem áudio */ }
+}
+function toastLead(l) {
+  const box = $('toast-lead'); if (!box) return;
+  const d = document.createElement('div');
+  d.innerHTML = `<b>🔔 Lead novo</b> · ${esc(ORIGENS[l.origem] || l.origem || '')}<br>${esc(l.nome || 'Sem nome')}${l.cidade ? ' · ' + esc(l.cidade) : ''}${l.telefone ? ' · ' + esc(telBonito(l.telefone)) : ''}`;
+  d.onclick = () => { d.remove(); abrirFicha(l.id); };
+  box.appendChild(d);
+  setTimeout(() => d.remove(), 30000);
+}
+async function notificarSistema(l) {
+  if (!temNotificacao() || Notification.permission !== 'granted') return;
+  const titulo = '🔔 Lead novo: ' + (l.nome || 'sem nome');
+  const opc = {
+    body: [telBonito(l.telefone), l.cidade, ORIGENS[l.origem] || l.origem].filter(Boolean).join(' · '),
+    icon: 'icone-192.png', badge: 'icone-192.png', tag: 'lead-' + l.id, data: { url: 'crm.html?lead=' + l.id },
+  };
+  try {
+    const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
+    if (reg) { await reg.showNotification(titulo, opc); return; }
+  } catch (_) { /* tenta o modo simples */ }
+  try { const n = new Notification(titulo, opc); n.onclick = () => { window.focus(); abrirFicha(l.id); n.close(); }; } catch (_) { /* navegador sem suporte */ }
+}
+async function checarLeadsNovos() {
+  if (_checandoLeads || !recebeAvisos() || !sb) return;
+  _checandoLeads = true;
+  try {
+    const desde = [maiorRecebido(), _desdeAvisos].sort().pop();
+    const { data, error } = await sb.from('leads').select(COLUNAS_LEAD).gt('recebido_em', desde).order('recebido_em', { ascending: true }).limit(50);
+    if (error || !data || !data.length) return;
+    const novos = data.filter(l => !leads.some(x => x.id === l.id));
+    if (!novos.length) return;
+    leads = novos.slice().reverse().concat(leads);
+    const avisar = novos.filter(l => !l.arquivado);
+    avisar.forEach(l => { recem.add(l.id); toastLead(l); notificarSistema(l); });
+    if (avisar.length) tocarAviso();
+    atualizarTitulo(); render();
+  } catch (e) { console.warn('Avisos:', e); } finally { _checandoLeads = false; }
+}
+function iniciarAvisos() {
+  pararAvisos();
+  mostrarChipAvisos();
+  if (!recebeAvisos()) return;
+  _desdeAvisos = new Date(Date.now() - 60000).toISOString();
+  _timerAvisos = setInterval(checarLeadsNovos, 60000);
+}
+function pararAvisos() { if (_timerAvisos) clearInterval(_timerAvisos); _timerAvisos = null; recem.clear(); atualizarTitulo(); }
+async function ativarAvisos() {
+  prepararSom();
+  if (!temNotificacao()) return;
+  const r = await Notification.requestPermission();
+  mostrarChipAvisos();
+  if (r === 'granted') notificarSistema({ id: 0, nome: 'teste — os avisos estão ativos', origem: '', cidade: 'Energtech' });
+  else if (r === 'denied') alert('As notificações foram bloqueadas neste navegador. O CRM continua avisando com som e destaque enquanto estiver aberto. Para liberar depois, clique no cadeado ao lado do endereço do site.');
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checarLeadsNovos(); });
+document.addEventListener('pointerdown', prepararSom, { once: true });
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => null);
