@@ -28,9 +28,51 @@
   body.regua-oculta .negociacao-card { display:none !important; }
   body.comissao-oculta .th-comissao, body.comissao-oculta .td-comissao,
   body.comissao-oculta .res-comissao, body.comissao-oculta .pill-comissao { display:none !important; }
+  /* tela de login (aparece antes de entrar) */
+  .tela-login { position:fixed; inset:0; z-index:300; display:none; align-items:center; justify-content:center; padding:16px; background:#0f0f0f center/cover no-repeat; overflow-y:auto; }
+  body.sem-sessao { overflow:hidden; }
+  body.sem-sessao .tela-login { display:flex; }
+  .tela-login::before { content:''; position:fixed; inset:0; background:linear-gradient(180deg, rgba(0,0,0,.30) 0%, rgba(0,0,0,.65) 55%, rgba(0,0,0,.88) 100%); }
+  .tl-card { position:relative; width:min(380px, 100%); background:rgba(17,17,17,.86); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); border:1px solid #2e2e2e; border-top:4px solid #FFC107; border-radius:16px; padding:28px 22px 22px; text-align:center; box-shadow:0 20px 50px rgba(0,0,0,.55); }
+  .tl-logo { width:58px; height:58px; margin:0 auto 10px; background:#111; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid #FFC107; }
+  .tl-marca { font-family:'Barlow Condensed',sans-serif; font-size:30px; font-weight:900; color:#fff; line-height:1; }
+  .tl-sub { font-size:11px; font-weight:600; color:#FFC107; letter-spacing:.28em; text-transform:uppercase; margin-top:3px; }
+  .tl-titulo { font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:700; color:#e0e0e0; text-transform:uppercase; letter-spacing:.06em; margin:20px 0 4px; }
+  .tl-texto { font-size:13px; color:#9a9a9a; margin-bottom:16px; }
+  .tl-input { width:100%; background:#1d1d1d; border:1px solid #333; color:#e0e0e0; font-family:'Barlow',sans-serif; font-size:16px; padding:12px 13px; border-radius:10px; outline:none; margin-bottom:10px; }
+  .tl-input:focus { border-color:#FFC107; }
+  .tl-btn { width:100%; background:#FFC107; color:#111; font-family:'Barlow Condensed',sans-serif; font-size:18px; font-weight:900; letter-spacing:.06em; text-transform:uppercase; padding:12px; border:none; border-radius:10px; cursor:pointer; margin-top:4px; }
+  .tl-btn:hover { background:#e6ac00; }
+  .tl-btn:disabled { opacity:.6; cursor:wait; }
+  .tl-erro { color:#f87171; font-size:13px; min-height:18px; margin-top:10px; }
+  .tl-rodape { font-size:12px; color:#777; margin-top:6px; }
 </style>
 </head>
 <body class="tabela-oculta regua-oculta comissao-oculta">
+
+<!-- TELA DE LOGIN (aparece enquanto ninguém entrou) -->
+<div class="tela-login" id="tela-login">
+  <form class="tl-card" onsubmit="entrarTela(event)" autocomplete="on">
+    <div class="tl-logo"><svg width="34" height="34" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="13" fill="#FFC107"/><path d="M16 3L8 15h7l-3 10 10-13h-7l1-9z" fill="#111"/></svg></div>
+    <div class="tl-marca">Energtech</div>
+    <div class="tl-sub">Engenharia Solar</div>
+    <h1 class="tl-titulo">CRM Energtech</h1>
+    <p class="tl-texto">Acesso da equipe: propostas, clientes e funil de vendas.</p>
+    <input type="email" class="tl-input" id="tl-email" placeholder="E-mail" autocomplete="username" required>
+    <input type="password" class="tl-input" id="tl-senha" placeholder="Senha" autocomplete="current-password" required>
+    <button type="submit" class="tl-btn" id="tl-btn">Entrar</button>
+    <div class="tl-erro" id="tl-erro"></div>
+    <div class="tl-rodape">Esqueceu a senha? Fale com o administrador.</div>
+  </form>
+</div>
+<script>
+// mostra a tela de login já no carregamento quando não há sessão salva (o app.js confirma depois)
+try {
+  if (!localStorage.getItem('sb-cmrndntnaaooapbdmgip-auth-token')) document.body.classList.add('sem-sessao');
+  var capaLogin = JSON.parse(localStorage.getItem('etg_capa_login') || 'null') || 'https://cmrndntnaaooapbdmgip.supabase.co/storage/v1/object/public/proposta/capa-1792184826598.jpg';
+  if (/^https:\/\/[^'"()\s]+$/.test(capaLogin)) document.getElementById('tela-login').style.backgroundImage = "url('" + capaLogin + "')";
+} catch (e) {}
+</script>
 
 <!-- HEADER -->
 <div class="header">
@@ -779,7 +821,7 @@
 <script src="js/pdf.js?v=20261020b"></script>
 <script src="js/proposta.js?v=20261020c"></script>
 <script src="js/admin.js?v=20261019a"></script>
-<script src="js/app.js?v=20261022a"></script>
+<script src="js/app.js?v=20261024a"></script>
 <script>
 function alternarTabela(mostrar) {
   const oculta = typeof mostrar === 'boolean' ? !mostrar : !document.body.classList.contains('tabela-oculta');
@@ -808,7 +850,7 @@ function reguaMudou() {
   atualizarModoValor();
 }
 ['slider-adicional', 'slider-desconto'].forEach(id => document.getElementById(id).addEventListener('input', reguaMudou));
-// ── INIT ────────────────────────────────────────────────────────────────────
+// ── INIT ────────────────────────────────────────────────────────────────────────
 renderSeletorRegiao();
 atualizar();            // mostra a tabela de reserva na hora
 const _precosCarregados = carregarDoSupabase();   // e troca pelos valores oficiais assim que chegarem
