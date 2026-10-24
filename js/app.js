@@ -181,6 +181,7 @@ function aplicarDados(linhas) {
         .forEach(k => { if (typeof c[k] === 'number') CFG[k] = c[k]; });
       if (Array.isArray(c.regioes) && c.regioes.length) REGIOES = clonar(c.regioes);
       if (c.proposta && typeof c.proposta === 'object') PROPOSTA_CFG = { ...JSON.parse(JSON.stringify(PROPOSTA_PADRAO)), ...c.proposta }; preencherSelectsPagamento();
+      { const capa = (PROPOSTA_CFG.imagens || {}).capa; if (capa && /^https:\/\//.test(capa)) gravarLocal('etg_capa_login', capa); }   // fundo da tela de login
       if (typeof c.adicional_max === 'number')
         document.getElementById('slider-adicional').max = c.adicional_max;
     }
@@ -252,6 +253,7 @@ async function carregarPerfil() {
   if (adminLogado) await carregarCustos(); else { custos = {}; custosSalvos = {}; }
   aplicarModo();
   renderUsuario();
+  atualizarTelaLogin();
   const pedidoPdf = +new URLSearchParams(location.search).get('pdf');
   if (pedidoPdf && perfil && perfil.vendedor && !window._pdfFeito) { window._pdfFeito = true; await _precosCarregados; reimprimirProposta(pedidoPdf); }
   const pedidoRev = +new URLSearchParams(location.search).get('revisar');
@@ -259,6 +261,33 @@ async function carregarPerfil() {
   if (perfil && perfil.vendedor) carregarLeads(); else limparLeads();
   atualizarBlocoLead();
   enviarFila();
+}
+
+// tela de login: cobre a página enquanto ninguém entrou (sem internet e sem sessão, deixa usar a tabela salva)
+function atualizarTelaLogin() {
+  const bloquear = !!sb && !perfil;
+  document.body.classList.toggle('sem-sessao', bloquear);
+  if (bloquear) setTimeout(() => { const e = document.getElementById('tl-email'); if (e && !e.value) e.focus(); }, 50);
+}
+async function entrarTela(ev) {
+  if (ev) ev.preventDefault();
+  const email = document.getElementById('tl-email').value.trim(), senha = document.getElementById('tl-senha').value;
+  const erro = document.getElementById('tl-erro'), btn = document.getElementById('tl-btn');
+  erro.textContent = '';
+  if (!sb) { erro.textContent = 'Sem conexão com o servidor. Verifique a internet.'; return; }
+  if (!email || !senha) { erro.textContent = 'Preencha e-mail e senha.'; return; }
+  btn.disabled = true; btn.textContent = 'Entrando…';
+  const { error } = await sb.auth.signInWithPassword({ email, password: senha });
+  if (error) {
+    btn.disabled = false; btn.textContent = 'Entrar';
+    erro.textContent = /fetch|network/i.test(error.message || '') ? 'Sem conexão. Verifique a internet e tente de novo.' : 'E-mail ou senha incorretos.';
+    document.getElementById('tl-senha').value = ''; document.getElementById('tl-senha').focus();
+    return;
+  }
+  document.getElementById('tl-senha').value = '';
+  await carregarPerfil();
+  await carregarDoSupabase();
+  btn.disabled = false; btn.textContent = 'Entrar';
 }
 
 function renderUsuario() {
