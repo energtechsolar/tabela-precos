@@ -2,9 +2,9 @@
 // Páginas: tenta a internet primeiro e guarda uma cópia; sem internet usa a cópia.
 // Bibliotecas, fontes e fotos: usa a cópia guardada e atualiza em segundo plano.
 // Dados do banco (Supabase) nunca passam por aqui, exceto as fotos públicas da proposta.
-const VERSAO = 'energtech-20261026a';
+const VERSAO = 'energtech-20261026b';
 const CASCA = ['./', 'index.html', 'crm.html', 'manifest.webmanifest',
-  'css/precificador.css?v=20261019a', 'js/comum.js?v=20261019a', 'js/precificador.js?v=20261020b', 'js/logo.js?v=20261019a', 'js/pdf.js?v=20261020b', 'js/proposta.js?v=20261020c', 'js/admin.js?v=20261026a', 'js/app.js?v=20261024a', 'js/crm.js?v=20261023a', 'js/contrato.js?v=20261019a', 'icone-192.png', 'icone-512.png', 'apple-touch-icon.png', 'proposta-capa.jpg',
+  'css/precificador.css?v=20261019a', 'js/comum.js?v=20261019a', 'js/precificador.js?v=20261020b', 'js/logo.js?v=20261019a', 'js/pdf.js?v=20261020b', 'js/proposta.js?v=20261020c', 'js/admin.js?v=20261026a', 'js/app.js?v=20261024a', 'js/crm.js?v=20261026b', 'js/contrato.js?v=20261019a', 'icone-192.png', 'icone-512.png', 'apple-touch-icon.png', 'proposta-capa.jpg',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'];
 
