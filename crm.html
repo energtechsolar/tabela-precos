@@ -85,6 +85,10 @@
   .tag.resp { color:var(--azul); border-color:#1e3a5f; }
   .tag.alerta { color:#111; background:#facc15; border-color:#facc15; font-weight:700; }
   .lead.com-alerta { border-left:3px solid #facc15; }
+  .tag.vermelho { color:#fff; background:#dc2626; border-color:#dc2626; font-weight:700; }
+  .lead.com-vermelho { border-left:3px solid #dc2626; }
+  .col-p-conectado .col-nome { color:var(--verde); }
+  .col-p-cancelado .col-nome { color:var(--vermelho); }
   .chip.amarelo { border-color:#a16207; color:#facc15; }
   .vazio { text-align:center; color:#555; font-size:12px; padding:14px 0; }
   /* aviso de lead novo */
@@ -120,7 +124,7 @@
   .status-msg { font-size:12px; margin-top:8px; min-height:16px; color:var(--verde); }
   .status-msg.erro { color:var(--vermelho); }
   .modal { background:var(--card); border:1px solid var(--borda); border-radius:14px; padding:18px; width:min(420px, 92vw); margin:auto; }
-  #ov-perda, #ov-ganho, #ov-etapas { justify-content:center; align-items:center; z-index:60; }
+  #ov-perda, #ov-ganho, #ov-etapas, #ov-feriados { justify-content:center; align-items:center; z-index:60; }
   @media (max-width:640px) { .grade { grid-template-columns:1fr; } .header-title { text-align:left; } }
 </style>
 </head>
@@ -149,11 +153,13 @@
   <div class="card" id="aviso" style="display:none"><p id="aviso-txt" class="muted"></p></div>
 
   <div id="conteudo">
+   <div id="funil-area">
     <div class="resumo" id="resumo"></div>
     <div class="barra">
       <input class="input busca" id="f-busca" placeholder="🔎 Buscar nome, telefone ou cidade" oninput="render()">
       <select class="select" id="f-resp" onchange="render()"></select>
       <button class="btn btn-sec" onclick="abrirAgenda()">📋 Agenda do dia</button>
+      <button class="btn btn-sec" id="btn-projetos" style="display:none" onclick="alternarModo(true)">🛠 Projetos</button>
       <button class="chip" id="chip-alerta" onclick="filtroAlerta=!filtroAlerta; render()">⚠ Pendências</button>
       <button class="chip" id="chip-follow" onclick="filtroFollow=!filtroFollow; render()">⏰ Follow-up</button>
       <button class="chip" id="chip-antigos" onclick="mostrarAntigos=!mostrarAntigos; render()">Ganhos/perdidos antigos</button>
@@ -166,6 +172,22 @@
     </div>
     <div class="kanban" id="kanban"></div>
     <p class="muted" style="margin-top:6px">Arraste os cards entre as colunas (no celular, abra o card e troque a etapa). Ganhos e perdidos mostram os últimos 30 dias.</p>
+   </div>
+   <div id="projetos-area" style="display:none">
+    <div class="resumo" id="proj-resumo"></div>
+    <div class="barra">
+      <input class="input busca" id="p-busca" placeholder="🔎 Buscar cliente, cidade ou nº do protocolo" oninput="renderProjetos()">
+      <button class="btn btn-sec" onclick="abrirAgenda()">📋 Agenda do dia</button>
+      <button class="chip" id="chip-prazos" onclick="filtroPrazos=!filtroPrazos; renderProjetos()">⚠ Prazos</button>
+      <button class="chip" id="chip-cancelados" onclick="verCancelados=!verCancelados; renderProjetos()">Cancelados</button>
+      <button class="btn btn-sec" id="btn-feriados" style="display:none" onclick="abrirFeriados()">📅 Feriados</button>
+      <button class="btn btn-sec" onclick="carregarProjetos()" title="Atualizar">🔄</button>
+      <button class="btn btn-sec" onclick="alternarModo(false)">← Funil de vendas</button>
+    </div>
+    <div class="kanban" id="kanban-proj"></div>
+    <p class="muted" style="margin-top:6px">O projeto aparece sozinho quando o negócio é marcado como Ganho. Arraste entre as colunas ou abra o card para preencher protocolo e datas. Prazos em dias úteis: ⚠ faltando poucos dias, 🔴 vencido.</p>
+    <p class="muted" id="proj-sem-feriados" style="display:none;color:var(--vermelho)">⚠ Faltam os feriados do próximo ano: cadastre em "📅 Feriados" para os prazos ficarem certos.</p>
+   </div>
   </div>
 </div>
 
@@ -225,6 +247,14 @@
   </div>
 </div>
 
+<!-- FERIADOS (engenharia) -->
+<div class="overlay" id="ov-feriados" onclick="if(event.target===this)fecharFeriados()">
+  <div class="modal" style="width:min(600px, 94vw);max-height:90vh;overflow-y:auto">
+    <div class="ficha-topo"><h3 style="font-family:'Barlow Condensed',sans-serif;color:var(--amarelo);font-size:20px">📅 Feriados</h3><button class="fechar" onclick="fecharFeriados()">×</button></div>
+    <div id="feriados-corpo" style="margin-top:8px"></div>
+  </div>
+</div>
+
 <!-- MOTIVO DA PERDA -->
 <div class="overlay" id="ov-perda" onclick="if(event.target===this)fecharPerda()">
   <div class="modal">
@@ -241,7 +271,8 @@
 
 <script src="js/comum.js?v=20261019a"></script>
 <div class="toast-lead" id="toast-lead"></div>
-<script src="js/crm.js?v=20261027b"></script>
+<script src="js/crm.js?v=20261028a"></script>
+<script src="js/projetos.js?v=20261028a"></script>
 <script src="js/contrato.js?v=20261019a"></script>
 <script>
 iniciar();
