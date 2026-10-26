@@ -28,7 +28,7 @@ function blocoFormulario(l) {
     `<div class="largo"><label>${esc(String(k).replace(/_/g, ' ').replace(/\?$/, ''))}</label><div>${esc(v)}</div></div>`).join('')}</div>`;
 }
 const COLUNAS_LEAD = 'id, nome, telefone, email, cidade, etapa, etapa_em, responsavel_email, proximo_contato, motivo_perda, origem, recebido_em, cpf_cnpj, endereco, cep, uc, concessionaria, forma_pagamento, arquivado, orcamento_ganho_id, documentos, form_meta:dados_brutos->campos, form_meta2:dados_brutos->meta->campos';
-let perfil = null, leads = [], orcs = [], equipe = [], filtroFollow = false, mostrarAntigos = false, verArquivados = false, arrastando = null, fichaId = null, perdaId = null, ganhoId = null;
+let perfil = null, leads = [], orcs = [], equipe = [], filtroFollow = false, filtroAlerta = false, CRM_CFG = {}, mostrarAntigos = false, verArquivados = false, arrastando = null, fichaId = null, perdaId = null, ganhoId = null;
 // documentos do negócio ganho (pasta privada "documentos"; nenhum é obrigatório, a ficha mostra o que falta)
 const DOCS_GANHO = [
   ['cnh', 'CNH / RG do titular', 'arquivo'], ['fatura', 'Fatura de energia', 'arquivo'], ['localizacao', 'Localização da instalação', 'local'],
@@ -109,7 +109,8 @@ async function carregar() {
     sb.from('vendedores').select('email, nome, papel'),
     sb.from('config').select('dados').eq('id', 'crm').maybeSingle(),
   ]);
-  if (cfgCrm && cfgCrm.data && cfgCrm.data.dados) aplicarEtapas(cfgCrm.data.dados.etapas);
+  CRM_CFG = (cfgCrm && cfgCrm.data && cfgCrm.data.dados) || {};
+  aplicarEtapas(CRM_CFG.etapas); aplicarAlertas(CRM_CFG.alertas);
   if (l.error) { mostrar('aviso', '⚠ Erro ao carregar os leads: ' + esc(l.error.message) + '<br>Se o CRM acabou de ser instalado, confira se o script 07 foi aplicado no Supabase.'); return; }
   leads = l.data || []; orcs = o.data || []; equipe = (v.data || []).sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
   const sel = $('f-resp'), atual = sel.value;
@@ -129,6 +130,13 @@ const substituida = id => orcs.some(o => +o.revisao_de === id);
 // proposta que fechou o negócio (ganhos antigos sem marcação usam a última proposta)
 function propostaDoLead(l) { return (l.orcamento_ganho_id && orcs.find(o => o.id === l.orcamento_ganho_id)) || ultimaProposta(l.id); }
 
+function passaResp(l) {
+  const resp = $('f-resp').value;
+  if (resp === '__eu' && l.responsavel_email !== perfil.email) return false;
+  if (resp === '__sem' && l.responsavel_email) return false;
+  if (resp && !resp.startsWith('__') && l.responsavel_email !== resp) return false;
+  return true;
+}
 function filtrados() {
   const q = $('f-busca').value.trim().toLowerCase(), qd = q.replace(/\D/g, '');
   const resp = $('f-resp').value;
@@ -142,6 +150,7 @@ function filtrados() {
     if (resp === '__sem' && l.responsavel_email) return false;
     if (resp && !resp.startsWith('__') && l.responsavel_email !== resp) return false;
     if (filtroFollow && !['hoje', 'atraso'].includes(situacaoFollow(l))) return false;
+    if (filtroAlerta && !alertaDe(l)) return false;
     if (!mostrarAntigos && (l.etapa === 'ganho' || l.etapa === 'perdido') && dias(l.etapa_em) > 30) return false;
     return true;
   });
@@ -168,6 +177,10 @@ function render() {
   $('chip-follow').textContent = '⏰ Follow-up para hoje (' + follow + ')';
   $('chip-follow').classList.toggle('ativo', filtroFollow);
   $('chip-follow').classList.toggle('alerta', !filtroFollow && follow > 0);
+  const nAlerta = ativos.filter(l => alertaDe(l) && passaResp(l)).length;
+  $('chip-alerta').textContent = filtroAlerta ? '⚠ Pendências (' + nAlerta + ') ✕' : '⚠ Pendências (' + nAlerta + ')';
+  $('chip-alerta').classList.toggle('ativo', filtroAlerta);
+  $('chip-alerta').classList.toggle('amarelo', !filtroAlerta && nAlerta > 0);
   $('chip-antigos').classList.toggle('ativo', mostrarAntigos);
   const nArq = leads.filter(l => l.arquivado).length;
   $('chip-arquivados').textContent = verArquivados ? '← Voltar ao funil' : '🗄 Arquivados (' + nArq + ')';
@@ -197,8 +210,10 @@ function cardLead(l) {
   if (l.etapa === 'perdido' && l.motivo_perda) tags.push(`<span class="tag">${esc(l.motivo_perda)}</span>`);
   if (l.etapa === 'ganho') { const dc = docsStatus(l); tags.push(`<span class="tag ${dc.falta ? 'hoje' : 'resp'}">📎 ${dc.ok}/${dc.total} docs</span>`); }
   if (l.arquivado) tags.push('<span class="tag">🗄 arquivado</span>');
+  const al = alertaDe(l);
+  if (al) tags.unshift(`<span class="tag alerta" title="${esc(al.dica)}">⚠ ${esc(al.curto)}</span>`);
   if (recem.has(l.id)) tags.unshift('<span class="tag chegou">🔔 chegou agora</span>');
-  return `<div class="lead${recem.has(l.id) ? ' recem' : ''}" draggable="true" data-id="${l.id}" ondragstart="iniciarArrasto(event,${l.id})" ondragend="this.classList.remove('arrastando')" onclick="abrirFicha(${l.id})">
+  return `<div class="lead${recem.has(l.id) ? ' recem' : ''}${al ? ' com-alerta' : ''}" draggable="true" data-id="${l.id}" ondragstart="iniciarArrasto(event,${l.id})" ondragend="this.classList.remove('arrastando')" onclick="abrirFicha(${l.id})">
     <div class="lead-nome">${esc(l.nome || 'Sem nome')}</div>
     <div class="lead-linha"><span>${esc(telBonito(l.telefone))}</span><span>${esc(l.cidade || '')}</span></div>
     ${p ? `<div class="lead-linha"><span>${esc(p.sistema || '')} · ${String(p.kwp).replace('.', ',')} kWp</span><span class="lead-valor">${fmtR0(p.valor_final)}</span></div>` : ''}
@@ -577,7 +592,8 @@ async function salvarEtapas() {
   const afetados = leads.filter(l => removidas.includes(l.etapa));
   const destino = lista[0];
   if (afetados.length && !confirm(afetados.length + ' lead(s) estão nas etapas excluídas e vão para "' + destino.nome + '". Continuar?')) return;
-  const { error } = await sb.from('config').upsert({ id: 'crm', dados: { etapas: lista } }, { onConflict: 'id' });
+  const { error } = await sb.from('config').upsert({ id: 'crm', dados: { ...CRM_CFG, etapas: lista } }, { onConflict: 'id' });
+  if (!error) CRM_CFG = { ...CRM_CFG, etapas: lista };
   if (error) { msg.textContent = '⚠ Não foi possível salvar: ' + error.message; return; }
   if (afetados.length) {
     const agora = new Date().toISOString();
@@ -614,7 +630,7 @@ async function excluirLead(id) {
   fecharFicha(); render();
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { if ($('ov-etapas').classList.contains('visivel')) fecharEtapas(); else if ($('ov-ganho').classList.contains('visivel')) fecharGanho(); else if ($('ov-perda').classList.contains('visivel')) fecharPerda(); else if ($('ov-novo').classList.contains('visivel')) fecharNovoLead(); else if ($('ov-contrato').classList.contains('visivel')) fecharContrato(); else fecharFicha(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { if ($('ov-etapas').classList.contains('visivel')) fecharEtapas(); else if ($('ov-ganho').classList.contains('visivel')) fecharGanho(); else if ($('ov-perda').classList.contains('visivel')) fecharPerda(); else if ($('ov-novo').classList.contains('visivel')) fecharNovoLead(); else if ($('ov-contrato').classList.contains('visivel')) fecharContrato(); else if ($('ov-agenda').classList.contains('visivel')) fecharAgenda(); else fecharFicha(); } });
 // ── aviso de lead novo (admin e vendas internas) ──
 // Confere a cada 1 minuto se entrou lead novo (Meta direto, DataCrazy ou cadastrado por outra pessoa).
 // Avisa com som, destaque no card, contador no título da aba e notificação do sistema (se autorizada).
@@ -704,3 +720,62 @@ async function ativarAvisos() {
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checarLeadsNovos(); });
 document.addEventListener('pointerdown', prepararSom, { once: true });
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => null);
+
+// ── alertas (triângulo amarelo) e agenda do dia ──
+// Regras ligáveis pelo admin (ficam em config "crm" → alertas):
+//   sem_atendimento: lead parado em "Lead novo" há X dias;  parado: negócio aberto sem mudar de etapa há X dias e sem próximo contato marcado.
+const ALERTAS_PADRAO = { sem_atendimento: { ativo: true, dias: 1 }, parado: { ativo: true, dias: 7 } };
+let ALERTAS = JSON.parse(JSON.stringify(ALERTAS_PADRAO));
+function aplicarAlertas(a) {
+  ALERTAS = JSON.parse(JSON.stringify(ALERTAS_PADRAO));
+  if (a && typeof a === 'object') Object.keys(ALERTAS).forEach(k => { if (a[k]) ALERTAS[k] = { ativo: a[k].ativo !== false, dias: Math.max(1, +a[k].dias || ALERTAS[k].dias) }; });
+}
+const diasDesde = iso => iso ? (Date.now() - new Date(iso).getTime()) / 86400000 : 0;
+function alertaDe(l) {
+  if (!l || l.arquivado || l.etapa === 'ganho' || l.etapa === 'perdido') return null;
+  const desde = l.etapa_em || l.recebido_em, d = Math.floor(diasDesde(desde));
+  if (l.etapa === 'novo') {
+    const r = ALERTAS.sem_atendimento;
+    return r.ativo && diasDesde(desde) >= r.dias ? { tipo: 'sem_atendimento', curto: 'sem atendimento ' + d + 'd', dica: 'Lead novo há ' + d + ' dia(s) sem atendimento. Mova para "Em atendimento" quando entrar em contato.' } : null;
+  }
+  const r = ALERTAS.parado;
+  const temContatoFuturo = l.proximo_contato && new Date(l.proximo_contato) >= new Date(new Date().setHours(0, 0, 0, 0));
+  return r.ativo && !temContatoFuturo && diasDesde(desde) >= r.dias ? { tipo: 'parado', curto: 'parado ' + d + 'd', dica: 'Sem mudar de etapa há ' + d + ' dia(s) e sem próximo contato marcado. Avance a etapa ou agende o próximo contato.' } : null;
+}
+
+function abrirAgenda() { renderAgenda(); $('ov-agenda').classList.add('visivel'); }
+function fecharAgenda() { $('ov-agenda').classList.remove('visivel'); }
+function renderAgenda() {
+  const base = leads.filter(l => !l.arquivado && passaResp(l));
+  const grupos = [
+    ['⏰ Follow-ups atrasados', base.filter(l => situacaoFollow(l) === 'atraso'), l => 'era para ' + new Date(l.proximo_contato).toLocaleDateString('pt-BR')],
+    ['📅 Follow-ups de hoje', base.filter(l => situacaoFollow(l) === 'hoje'), l => 'às ' + new Date(l.proximo_contato).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })],
+    ['⚠ Leads novos sem atendimento', base.filter(l => (alertaDe(l) || {}).tipo === 'sem_atendimento'), l => alertaDe(l).curto],
+    ['⚠ Negócios parados', base.filter(l => (alertaDe(l) || {}).tipo === 'parado'), l => alertaDe(l).curto],
+  ];
+  const nomeEtapa = id => (ETAPAS.find(e => e[0] === id) || [id, id])[1];
+  const resp = $('f-resp');
+  $('agenda-filtro').textContent = 'Mostrando: ' + (resp.options[resp.selectedIndex] || {}).text;
+  $('agenda-corpo').innerHTML = grupos.map(([tit, lista, extra]) => `
+    <h3>${tit} <span class="muted">(${lista.length})</span></h3>
+    ${lista.length ? lista.map(l => `<div class="prop prop-click" onclick="fecharAgenda(); abrirFicha(${l.id})"><span><b>${esc(l.nome || 'Sem nome')}</b><br><span class="muted">${esc([telBonito(l.telefone), l.cidade, nomeEtapa(l.etapa), l.responsavel_email ? nomeDe(l.responsavel_email).split(' ')[0] : ''].filter(Boolean).join(' · '))}</span></span><span class="muted" style="text-align:right;white-space:nowrap">${esc(extra(l))}</span></div>`).join('')
+      : '<div class="muted" style="margin-bottom:6px">Nada aqui. ✅</div>'}`).join('')
+    + (perfil && perfil.admin ? `
+    <h3>⚙ Regras do triângulo amarelo</h3>
+    <div class="grade">
+      <div><label><input type="checkbox" id="al-sa-ativo" ${ALERTAS.sem_atendimento.ativo ? 'checked' : ''}> Lead novo sem atendimento</label><div style="display:flex;gap:6px;align-items:center"><input class="input" type="number" min="1" id="al-sa-dias" value="${ALERTAS.sem_atendimento.dias}" style="width:80px"> <span class="muted">dia(s)</span></div></div>
+      <div><label><input type="checkbox" id="al-pa-ativo" ${ALERTAS.parado.ativo ? 'checked' : ''}> Negócio parado</label><div style="display:flex;gap:6px;align-items:center"><input class="input" type="number" min="1" id="al-pa-dias" value="${ALERTAS.parado.dias}" style="width:80px"> <span class="muted">dia(s) sem mudar de etapa</span></div></div>
+    </div>
+    <div class="acoes"><button class="btn btn-sec" onclick="salvarAlertas()">💾 Salvar regras</button><span class="status-msg" id="al-msg"></span></div>` : '');
+}
+async function salvarAlertas() {
+  const novo = {
+    sem_atendimento: { ativo: $('al-sa-ativo').checked, dias: Math.max(1, +$('al-sa-dias').value || 1) },
+    parado: { ativo: $('al-pa-ativo').checked, dias: Math.max(1, +$('al-pa-dias').value || 7) },
+  };
+  const { error } = await sb.from('config').upsert({ id: 'crm', dados: { ...CRM_CFG, alertas: novo } }, { onConflict: 'id' });
+  const m = $('al-msg');
+  if (error) { m.textContent = '⚠ ' + error.message; m.classList.add('erro'); return; }
+  CRM_CFG = { ...CRM_CFG, alertas: novo }; aplicarAlertas(novo); render(); renderAgenda();
+  const m2 = $('al-msg'); if (m2) { m2.classList.remove('erro'); m2.textContent = '✅ Regras salvas para toda a equipe'; }
+}
