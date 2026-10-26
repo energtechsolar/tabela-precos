@@ -87,6 +87,7 @@ async function iniciar() {
   $('btn-modelo-contrato').style.display = perfil.admin ? '' : 'none';
   $('btn-etapas').style.display = perfil.admin ? '' : 'none';
   await carregar();
+  if (typeof iniciarProjetos === 'function') await iniciarProjetos();
   iniciarAvisos();
 }
 async function entrar() {
@@ -241,6 +242,8 @@ async function mudarEtapa(id, etapa, extra) {
   render();
   const { error } = await sb.from('leads').update(mud).eq('id', id);
   if (error) { Object.assign(l, ant); render(); alert('Não foi possível mudar a etapa: ' + error.message); return; }
+  // o banco cria (ou cancela) o projeto de engenharia sozinho ao entrar/sair de "Ganho"
+  if ((etapa === 'ganho' || ant.etapa === 'ganho') && typeof carregarProjetos === 'function') await carregarProjetos();
   if (fichaId === id) abrirFicha(id, true);
 }
 
@@ -260,6 +263,7 @@ async function abrirFicha(id, recarregar) {
   const l = leads.find(x => x.id === id);
   if (!l) return;
   fichaId = id;
+  if (typeof projFichaId !== 'undefined') projFichaId = null;
   if (recem.delete(id)) { atualizarTitulo(); render(); }
   const props = orcs.filter(o => o.lead_id === id);
   const opResp = '<option value="">— Sem responsável —</option>' + equipe.filter(e => e.papel !== 'engenheiro').map(e => `<option value="${esc(e.email)}" ${e.email === l.responsavel_email ? 'selected' : ''}>${esc(e.nome || e.email)}</option>`).join('');
@@ -316,7 +320,7 @@ async function abrirFicha(id, recarregar) {
   $('fx-eventos').innerHTML = error ? '<div class="muted">Não foi possível carregar o histórico.</div>'
     : (data.length ? data.map(e => `<div class="evento ${e.tipo}"><div class="quando">${fmtDH(e.criado_em)} · ${esc(nomeDe(e.autor_email) || 'sistema')}</div>${esc(e.texto)}</div>`).join('') : '<div class="muted">Sem registros ainda.</div>');
 }
-function fecharFicha() { fichaId = null; $('ov-ficha').classList.remove('visivel'); }
+function fecharFicha() { fichaId = null; if (typeof projFichaId !== 'undefined') projFichaId = null; $('ov-ficha').classList.remove('visivel'); }
 
 async function salvarFicha(id) {
   const l = leads.find(x => x.id === id);
@@ -467,6 +471,7 @@ function blocoGanho(l) {
     return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--borda)"><span>${itens.length ? '✅' : (extra ? '▫️' : '⬜')} ${rot}${extra ? ' <span class="muted">(se a concessionária exigir)</span>' : ''}</span>${botao}</div>${lista}`;
   };
   return `<h3>🏆 Negócio ganho</h3>
+    ${typeof linhaProjeto === 'function' ? linhaProjeto(l) : ''}
     <div class="grade">
       <div class="largo muted">Proposta fechada: <b style="color:var(--amarelo)">${p ? 'Nº ' + String(p.id).padStart(5, '0') + ' · ' + esc(p.sistema || '') + ' · ' + fmtR(p.valor_final) : '—'}</b>${l.forma_pagamento ? ' · ' + esc(l.forma_pagamento) : ''} · <a href="#" onclick="abrirGanho(${l.id});return false">alterar</a></div>
     </div>
@@ -765,6 +770,7 @@ function renderAgenda() {
     <h3>${tit} <span class="muted">(${lista.length})</span></h3>
     ${lista.length ? lista.map(l => `<div class="prop prop-click" onclick="fecharAgenda(); abrirFicha(${l.id})"><span><b>${esc(l.nome || 'Sem nome')}</b><br><span class="muted">${esc([telBonito(l.telefone), l.cidade, nomeEtapa(l.etapa), l.responsavel_email ? nomeDe(l.responsavel_email).split(' ')[0] : ''].filter(Boolean).join(' · '))}</span></span><span class="muted" style="text-align:right;white-space:nowrap">${esc(extra(l))}</span></div>`).join('')
       : '<div class="muted" style="margin-bottom:6px">Nada aqui. ✅</div>'}`).join('')
+    + (typeof agendaProjetos === 'function' ? agendaProjetos() : '')
     + (perfil && perfil.admin ? `
     <h3>⚙ Regras do triângulo amarelo</h3>
     <div class="grade">
