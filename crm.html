@@ -83,6 +83,9 @@
   .tag.atraso { color:var(--vermelho); border-color:#7f1d1d; }
   .tag.hoje { color:var(--laranja); border-color:#7c2d12; }
   .tag.resp { color:var(--azul); border-color:#1e3a5f; }
+  .tag.alerta { color:#111; background:#facc15; border-color:#facc15; font-weight:700; }
+  .lead.com-alerta { border-left:3px solid #facc15; }
+  .chip.amarelo { border-color:#a16207; color:#facc15; }
   .vazio { text-align:center; color:#555; font-size:12px; padding:14px 0; }
   /* aviso de lead novo */
   .lead.recem { border-color:var(--amarelo); box-shadow:0 0 0 1px var(--amarelo); animation:piscar 1.2s ease-in-out 3; }
@@ -150,6 +153,8 @@
     <div class="barra">
       <input class="input busca" id="f-busca" placeholder="🔎 Buscar nome, telefone ou cidade" oninput="render()">
       <select class="select" id="f-resp" onchange="render()"></select>
+      <button class="btn btn-sec" onclick="abrirAgenda()">📋 Agenda do dia</button>
+      <button class="chip" id="chip-alerta" onclick="filtroAlerta=!filtroAlerta; render()">⚠ Pendências</button>
       <button class="chip" id="chip-follow" onclick="filtroFollow=!filtroFollow; render()">⏰ Follow-up</button>
       <button class="chip" id="chip-antigos" onclick="mostrarAntigos=!mostrarAntigos; render()">Ganhos/perdidos antigos</button>
       <button class="chip" id="chip-arquivados" onclick="verArquivados=!verArquivados; render()">🗄 Arquivados</button>
@@ -174,6 +179,15 @@
   <div class="ficha">
     <div class="ficha-topo"><h2 id="contrato-titulo">📝 Contrato</h2><button class="fechar" onclick="fecharContrato()">×</button></div>
     <div id="contrato-corpo" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<!-- AGENDA DO DIA -->
+<div class="overlay" id="ov-agenda" style="z-index:54" onclick="if(event.target===this)fecharAgenda()">
+  <div class="ficha">
+    <div class="ficha-topo"><div><h2>📋 Agenda do dia</h2><div class="muted" id="agenda-filtro"></div></div><button class="fechar" onclick="fecharAgenda()">×</button></div>
+    <p class="muted" style="margin-top:6px">Clique em um cliente para abrir a ficha. Para ver só os seus, escolha "Só os meus" no filtro de responsáveis.</p>
+    <div id="agenda-corpo"></div>
   </div>
 </div>
 
@@ -227,7 +241,7 @@
 
 <script src="js/comum.js?v=20261019a"></script>
 <div class="toast-lead" id="toast-lead"></div>
-<script src="js/crm.js?v=20261026b"></script>
+<script src="js/crm.js?v=20261027a"></script>
 <script src="js/contrato.js?v=20261019a"></script>
 <script>
 iniciar();
