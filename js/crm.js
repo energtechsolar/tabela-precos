@@ -406,6 +406,32 @@ async function confirmarGanho() {
   const p = orcs.find(o => o.id === prop);
   await sb.from('lead_eventos').insert({ lead_id: id, texto: '🏆 Negócio ganho' + (p ? ' · proposta Nº ' + String(p.id).padStart(5, '0') + ' · ' + fmtR(p.valor_final) : '') + (pag ? ' · ' + pag : '') });
   abrirFicha(id, true);
+  enviarEmailEngenharia(id, 'ganho');   // aviso automático ao engenheiro (cópia para o admin)
+}
+
+// ── e-mail para a engenharia (função "email-engenharia" no Supabase, remetente contato@energtechenergia.com.br) ──
+// "ganho": aviso curto automático; "dossie": dados + documentos anexados, pelo botão na ficha.
+async function enviarEmailEngenharia(id, tipo) {
+  const l = leads.find(x => x.id === id); if (!l) return;
+  const msg = () => $('doc-msg');
+  const aviso = (t, erro) => { const m = msg(); if (m) { m.textContent = t; m.classList.toggle('erro', !!erro); } };
+  if (tipo === 'dossie') {
+    const st = docsStatus(l);
+    if (st.falta && !confirm('Ainda faltam documentos (' + st.ok + ' de ' + st.total + '). Enviar o dossiê assim mesmo?')) return;
+  }
+  aviso(tipo === 'dossie' ? '⏳ Enviando o dossiê por e-mail…' : '⏳ Avisando a engenharia por e-mail…');
+  try {
+    const { data, error } = await sb.functions.invoke('email-engenharia', { body: { lead_id: id, tipo } });
+    let r = data;
+    if (error) { try { r = await error.context.json(); } catch (_) { r = { erro: error.message }; } }
+    if (!r || !r.ok) throw new Error((r && r.erro) || 'erro desconhecido');
+    if (fichaId === id) abrirFicha(id, true);
+    setTimeout(() => aviso(tipo === 'dossie'
+      ? '✅ Dossiê enviado com ' + r.anexos + ' anexo(s) para ' + r.para.join(', ')
+      : '✅ Engenharia avisada por e-mail (' + r.para.join(', ') + ')'), 300);
+  } catch (e) {
+    setTimeout(() => aviso('⚠ E-mail não enviado: ' + (e.message || e) + (tipo === 'ganho' ? '. O negócio continua salvo como ganho.' : ''), true), 300);
+  }
 }
 function docsStatus(l) {
   const docs = Array.isArray(l.documentos) ? l.documentos : [];
@@ -432,7 +458,7 @@ function blocoGanho(l) {
     <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--borda)"><span>${l.email ? '✅' : '⬜'} E-mail do cliente</span><span class="muted">${esc(l.email || 'preencha em Dados do cliente')}</span></div>
     ${DOCS_GANHO.map(linhaDoc).join('')}
     <div class="status-msg" id="doc-msg"></div>
-    <div class="acoes"><button class="btn btn-verde" onclick="avisarEngenharia(${l.id})">📣 Avisar engenharia (WhatsApp)</button></div>`;
+    <div class="acoes"><button class="btn" onclick="enviarEmailEngenharia(${l.id}, 'dossie')">📧 Enviar dossiê à engenharia (e-mail)</button><button class="btn btn-verde" onclick="avisarEngenharia(${l.id})">📣 Avisar pelo WhatsApp</button></div>`;
 }
 // fotos ficam menores antes de subir (máx. 2000 px); PDF vai como está
 function reduzirFoto(arq) {
