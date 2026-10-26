@@ -290,6 +290,7 @@ async function abrirFicha(id, recarregar) {
       <div><label>Origem</label><select class="select" id="fx-origem">${opOrig}</select></div>
       ${l.etapa === 'perdido' ? `<div class="largo muted">Motivo da perda: <b>${esc(l.motivo_perda || '—')}</b></div>` : ''}
     </div>
+    ${l.etapa !== 'ganho' && l.etapa !== 'perdido' ? blocoFollowFeito(l) : ''}
     <h3>Dados do cliente</h3>
     <div class="grade">${camposCliente('fx', l)}</div>
     <div class="acoes"><button class="btn" onclick="salvarFicha(${id})">💾 Salvar</button><span class="status-msg" id="fx-msg"></span></div>
@@ -724,12 +725,16 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.se
 // ── alertas (triângulo amarelo) e agenda do dia ──
 // Regras ligáveis pelo admin (ficam em config "crm" → alertas):
 //   sem_atendimento: lead parado em "Lead novo" há X dias;  parado: negócio aberto sem mudar de etapa há X dias e sem próximo contato marcado.
-const ALERTAS_PADRAO = { sem_atendimento: { ativo: true, dias: 1 }, parado: { ativo: true, dias: 7 } };
+const ALERTAS_PADRAO = { sem_atendimento: { ativo: true, dias: 1 }, parado: { ativo: true, dias: 7 }, etapas: {} };
 let ALERTAS = JSON.parse(JSON.stringify(ALERTAS_PADRAO));
 function aplicarAlertas(a) {
   ALERTAS = JSON.parse(JSON.stringify(ALERTAS_PADRAO));
-  if (a && typeof a === 'object') Object.keys(ALERTAS).forEach(k => { if (a[k]) ALERTAS[k] = { ativo: a[k].ativo !== false, dias: Math.max(1, +a[k].dias || ALERTAS[k].dias) }; });
+  if (a && typeof a === 'object') ['sem_atendimento', 'parado'].forEach(k => { if (a[k]) ALERTAS[k] = { ativo: a[k].ativo !== false, dias: Math.max(1, +a[k].dias || ALERTAS[k].dias) }; });
+  if (a && a.etapas && typeof a.etapas === 'object') Object.entries(a.etapas).forEach(([k, v]) => { if (isFinite(+v) && +v >= 0) ALERTAS.etapas[k] = +v; });
 }
+// prazo do triângulo de cada etapa aberta: próprio da etapa (0 = sem alerta) ou o geral de "negócio parado"
+const diasDaEtapa = id => (id in ALERTAS.etapas ? ALERTAS.etapas[id] : ALERTAS.parado.dias);
+const etapasAbertas = () => ETAPAS.filter(([id]) => !['novo', 'ganho', 'perdido'].includes(id));
 const diasDesde = iso => iso ? (Date.now() - new Date(iso).getTime()) / 86400000 : 0;
 function alertaDe(l) {
   if (!l || l.arquivado || l.etapa === 'ganho' || l.etapa === 'perdido') return null;
@@ -738,9 +743,9 @@ function alertaDe(l) {
     const r = ALERTAS.sem_atendimento;
     return r.ativo && diasDesde(desde) >= r.dias ? { tipo: 'sem_atendimento', curto: 'sem atendimento ' + d + 'd', dica: 'Lead novo há ' + d + ' dia(s) sem atendimento. Mova para "Em atendimento" quando entrar em contato.' } : null;
   }
-  const r = ALERTAS.parado;
+  const r = ALERTAS.parado, lim = diasDaEtapa(l.etapa);
   const temContatoFuturo = l.proximo_contato && new Date(l.proximo_contato) >= new Date(new Date().setHours(0, 0, 0, 0));
-  return r.ativo && !temContatoFuturo && diasDesde(desde) >= r.dias ? { tipo: 'parado', curto: 'parado ' + d + 'd', dica: 'Sem mudar de etapa há ' + d + ' dia(s) e sem próximo contato marcado. Avance a etapa ou agende o próximo contato.' } : null;
+  return r.ativo && lim > 0 && !temContatoFuturo && diasDesde(desde) >= lim ? { tipo: 'parado', curto: 'parado ' + d + 'd', dica: 'Sem mudar de etapa há ' + d + ' dia(s) e sem próximo contato marcado. Avance a etapa ou agende o próximo contato.' } : null;
 }
 
 function abrirAgenda() { renderAgenda(); $('ov-agenda').classList.add('visivel'); }
@@ -764,18 +769,56 @@ function renderAgenda() {
     <h3>⚙ Regras do triângulo amarelo</h3>
     <div class="grade">
       <div><label><input type="checkbox" id="al-sa-ativo" ${ALERTAS.sem_atendimento.ativo ? 'checked' : ''}> Lead novo sem atendimento</label><div style="display:flex;gap:6px;align-items:center"><input class="input" type="number" min="1" id="al-sa-dias" value="${ALERTAS.sem_atendimento.dias}" style="width:80px"> <span class="muted">dia(s)</span></div></div>
-      <div><label><input type="checkbox" id="al-pa-ativo" ${ALERTAS.parado.ativo ? 'checked' : ''}> Negócio parado</label><div style="display:flex;gap:6px;align-items:center"><input class="input" type="number" min="1" id="al-pa-dias" value="${ALERTAS.parado.dias}" style="width:80px"> <span class="muted">dia(s) sem mudar de etapa</span></div></div>
+      <div><label><input type="checkbox" id="al-pa-ativo" ${ALERTAS.parado.ativo ? 'checked' : ''}> Negócio parado (padrão)</label><div style="display:flex;gap:6px;align-items:center"><input class="input" type="number" min="1" id="al-pa-dias" value="${ALERTAS.parado.dias}" style="width:80px"> <span class="muted">dia(s) sem mudar de etapa</span></div></div>
     </div>
+    <p class="muted" style="margin:12px 0 6px">Prazo próprio de cada etapa (deixe em branco para usar o padrão; 0 = sem triângulo nessa etapa). Ex.: Financiamento a cada 10 dias.</p>
+    <div class="grade">${etapasAbertas().map(([id, nome]) => `<div><label>${esc(nome)}</label><div style="display:flex;gap:6px;align-items:center"><input class="input al-etapa" type="number" min="0" data-etapa="${esc(id)}" value="${id in ALERTAS.etapas ? ALERTAS.etapas[id] : ''}" placeholder="${ALERTAS.parado.dias}" style="width:80px"> <span class="muted">dia(s)</span></div></div>`).join('')}</div>
     <div class="acoes"><button class="btn btn-sec" onclick="salvarAlertas()">💾 Salvar regras</button><span class="status-msg" id="al-msg"></span></div>` : '');
 }
 async function salvarAlertas() {
   const novo = {
     sem_atendimento: { ativo: $('al-sa-ativo').checked, dias: Math.max(1, +$('al-sa-dias').value || 1) },
     parado: { ativo: $('al-pa-ativo').checked, dias: Math.max(1, +$('al-pa-dias').value || 7) },
+    etapas: {},
   };
+  document.querySelectorAll('.al-etapa').forEach(i => { if (i.value.trim() !== '' && isFinite(+i.value) && +i.value >= 0) novo.etapas[i.dataset.etapa] = Math.round(+i.value); });
   const { error } = await sb.from('config').upsert({ id: 'crm', dados: { ...CRM_CFG, alertas: novo } }, { onConflict: 'id' });
   const m = $('al-msg');
   if (error) { m.textContent = '⚠ ' + error.message; m.classList.add('erro'); return; }
   CRM_CFG = { ...CRM_CFG, alertas: novo }; aplicarAlertas(novo); render(); renderAgenda();
   const m2 = $('al-msg'); if (m2) { m2.classList.remove('erro'); m2.textContent = '✅ Regras salvas para toda a equipe'; }
+}
+
+// ── "follow-up feito": registra no histórico e agenda o próximo contato pelo prazo da etapa ──
+// Ex.: Financiamento com 10 dias → "Cobrei o banco…" e a próxima cobrança fica para daqui a 10 dias.
+function textoFollowPadrao(l) {
+  const nome = ((ETAPAS.find(e => e[0] === l.etapa) || [])[1] || '').toLowerCase();
+  if (nome.includes('financ')) return 'Cobrei o banco sobre o andamento do financiamento.';
+  if (nome.includes('proposta')) return 'Retornei ao cliente sobre a proposta.';
+  if (nome.includes('negocia')) return 'Contato de negociação com o cliente.';
+  return 'Contato feito com o cliente.';
+}
+function blocoFollowFeito(l) {
+  const d = diasDaEtapa(l.etapa) || ALERTAS.parado.dias;
+  const fin = ((ETAPAS.find(e => e[0] === l.etapa) || [])[1] || '').toLowerCase().includes('financ');
+  return `<div style="background:#1a170c;border:1px solid #3a2f0c;border-radius:10px;padding:10px 12px;margin-top:12px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input class="input" id="ff-texto" value="${esc(textoFollowPadrao(l))}" style="flex:1;min-width:200px">
+        <span class="muted">próximo em</span><input class="input" type="number" min="1" id="ff-dias" value="${d}" style="width:70px"><span class="muted">dia(s)</span>
+        <button class="btn" onclick="followFeito(${l.id})">✔ ${fin ? 'Cobrança feita' : 'Follow-up feito'}</button>
+      </div>
+      <div class="status-msg" id="ff-msg"></div>
+    </div>`;
+}
+async function followFeito(id) {
+  const l = leads.find(x => x.id === id); if (!l) return;
+  const txt = ($('ff-texto').value || '').trim() || textoFollowPadrao(l);
+  const n = Math.max(1, +$('ff-dias').value || diasDaEtapa(l.etapa) || 7);
+  const prox = new Date(); prox.setDate(prox.getDate() + n); prox.setHours(9, 0, 0, 0);
+  const mud = { proximo_contato: prox.toISOString(), atualizado_em: new Date().toISOString() };
+  if (!l.responsavel_email) mud.responsavel_email = perfil.email;
+  const { error } = await sb.from('leads').update(mud).eq('id', id);
+  if (error) { const m = $('ff-msg'); m.textContent = '⚠ ' + error.message; m.classList.add('erro'); return; }
+  await sb.from('lead_eventos').insert({ lead_id: id, texto: '✔ ' + txt + ' Próximo contato: ' + prox.toLocaleDateString('pt-BR') + '.' });
+  Object.assign(l, mud); render(); abrirFicha(id, true);
 }
