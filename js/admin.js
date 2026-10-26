@@ -306,8 +306,7 @@ function renderAdminTabela(tipo) {
         <td><input class="admin-input admin-input-sm" type="number" value="${item.mod}" onchange="IMPORTADO[${idx}].mod=+this.value"></td>
         <td><input class="admin-input admin-input-sm" value="${item.inv}" onchange="IMPORTADO[${idx}].inv=this.value"></td>
         <td><input class="admin-input admin-input-sm" type="number" value="${item.kwh}" onchange="IMPORTADO[${idx}].kwh=+this.value"></td>
-        <td><input class="admin-input admin-input-md" type="number" step="0.01" value="${item.inv_r}" onchange="IMPORTADO[${idx}].inv_r=+this.value"></td>
-        <td><input class="admin-input admin-input-md admin-input-custo" type="number" step="0.01" min="0" placeholder="—" value="${custoDoKit(item) ?? ''}" onchange="definirCusto(IMPORTADO[${idx}], 'importado', this.value)"></td>
+${celulasPreco('importado', idx, item)}
         <td><input class="admin-input admin-input-md" type="number" step="0.01" value="${item.entrada}" onchange="IMPORTADO[${idx}].entrada=+this.value"></td>
         <td><input class="admin-input admin-input-sm" type="number" step="0.01" value="${(item.com_pct*100).toFixed(1)}" onchange="IMPORTADO[${idx}].com_pct=+this.value/100"></td>
         <td style="white-space:nowrap"><button class="admin-btn-del" title="Itens do kit" style="color:var(--amarelo)" onclick="editarItensKit('importado',${idx})">📦</button> <button class="admin-btn-del" onclick="removerLinha('importado',${idx})">✕</button></td>`;
@@ -320,10 +319,9 @@ function renderAdminTabela(tipo) {
         <td><input class="admin-input admin-input-sm" type="number" value="${item.mod}" onchange="NACIONAL[${idx}].mod=+this.value"></td>
         <td><input class="admin-input admin-input-sm" value="${item.inv}" onchange="NACIONAL[${idx}].inv=this.value"></td>
         <td><input class="admin-input admin-input-sm" type="number" value="${item.kwh}" onchange="NACIONAL[${idx}].kwh=+this.value"></td>
-        <td><input class="admin-input admin-input-md" type="number" step="0.01" value="${item.inv_r}" onchange="NACIONAL[${idx}].inv_r=+this.value"></td>
-        <td><input class="admin-input admin-input-md admin-input-custo" type="number" step="0.01" min="0" placeholder="—" value="${custoDoKit(item) ?? ''}" onchange="definirCusto(NACIONAL[${idx}], 'nacional', this.value)"></td>
-        <td><input class="admin-input admin-input-md" type="number" step="0.01" value="${item.parc_a}" onchange="NACIONAL[${idx}].parc_a=+this.value"></td>
-        <td><input class="admin-input admin-input-md" type="number" step="0.01" value="${item.parc_m}" onchange="NACIONAL[${idx}].parc_m=+this.value"></td>
+${celulasPreco('nacional', idx, item)}
+        <td class="admin-calc" id="der-nacional-${idx}-p8"></td>
+        <td class="admin-calc" id="der-nacional-${idx}-p10"></td>
         <td><input class="admin-input admin-input-sm" type="number" step="0.01" value="${(item.com_pct*100).toFixed(1)}" onchange="NACIONAL[${idx}].com_pct=+this.value/100"></td>
         <td style="white-space:nowrap"><button class="admin-btn-del" title="Itens do kit" style="color:var(--amarelo)" onclick="editarItensKit('nacional',${idx})">📦</button> <button class="admin-btn-del" onclick="removerLinha('nacional',${idx})">✕</button></td>`;
     }
@@ -337,7 +335,52 @@ function renderAdminTabela(tipo) {
     tr.addEventListener('dragover', e => { if (_arrasto && _arrasto.tipo === tipo) { e.preventDefault(); tbody.querySelectorAll('.alvo').forEach(x => x.classList.remove('alvo')); tr.classList.add('alvo'); } });
     tr.addEventListener('drop', e => { e.preventDefault(); if (_arrasto && _arrasto.tipo === tipo) moverPara(tipo, _arrasto.de, idx); _arrasto = null; });
     tbody.appendChild(tr);
+    atualizarDerivados(tipo, idx);
   });
+}
+
+// ── preço de venda pelo custo (só admin): custo → markup → valor de venda; mostra venda − custo e as parcelas ──
+// O markup não é guardado: é sempre calculado do valor de venda e do custo. Custo e markup nunca chegam aos vendedores.
+const reaisAdm = v => (+v || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+function markupDe(item) { const c = custoDoKit(item); return c && +item.inv_r ? (item.inv_r / c - 1) * 100 : null; }
+function celulasPreco(tipo, idx, item) {
+  const p = `der-${tipo}-${idx}-`;
+  return `
+        <td><input class="admin-input admin-input-md admin-input-custo" type="number" step="0.01" min="0" placeholder="—" value="${custoDoKit(item) ?? ''}" oninput="mudarCusto('${tipo}',${idx},this.value)"></td>
+        <td><input class="admin-input admin-input-sm admin-input-custo" type="number" step="0.5" id="${p}mk" placeholder="—" title="Markup sobre o custo. Ao mudar, recalcula o valor de venda." oninput="mudarMarkup('${tipo}',${idx},this.value)"></td>
+        <td><input class="admin-input admin-input-md" type="number" step="0.01" id="${p}valor" value="${item.inv_r}" oninput="mudarValor('${tipo}',${idx},this.value)"></td>
+        <td class="admin-calc admin-lucro" id="${p}lucro"></td>`;
+}
+function atualizarDerivados(tipo, idx) {
+  const item = listaDo(tipo)[idx]; if (!item) return;
+  const c = custoDoKit(item), p = `der-${tipo}-${idx}-`, el = id => document.getElementById(p + id);
+  const mk = el('mk');
+  if (mk) { mk.disabled = !c; if (document.activeElement !== mk) { const m = markupDe(item); mk.value = m === null ? '' : m.toFixed(1); } }
+  const vr = el('valor'); if (vr && document.activeElement !== vr) vr.value = item.inv_r;
+  const lu = el('lucro');
+  if (lu) { const d = c === null ? null : (+item.inv_r || 0) - c; lu.textContent = d === null ? '—' : reaisAdm(d); lu.classList.toggle('neg', d !== null && d < 0); }
+  if (tipo === 'nacional') {
+    const v = +item.inv_r || 0;
+    if (el('p8')) el('p8').textContent = v ? reaisAdm(calcParcelaMensal(v, 8)) : '—';
+    if (el('p10')) el('p10').textContent = v ? reaisAdm(calcParcelaMensal(v, 10)) : '—';
+  }
+}
+function mudarCusto(tipo, idx, v) { definirCusto(listaDo(tipo)[idx], tipo, v); atualizarDerivados(tipo, idx); }
+function mudarValor(tipo, idx, v) { listaDo(tipo)[idx].inv_r = +v; atualizarDerivados(tipo, idx); }
+function mudarMarkup(tipo, idx, v) {
+  const item = listaDo(tipo)[idx], c = custoDoKit(item);
+  if (!c || String(v).trim() === '' || !isFinite(+v)) return;
+  item.inv_r = Math.round(c * (1 + (+v) / 100) * 100) / 100;
+  atualizarDerivados(tipo, idx);
+}
+function aplicarMarkupTodos(tipo) {
+  const msgId = tipo === 'importado' ? 'admin-msg-imp' : 'admin-msg-nac';
+  const v = +document.getElementById('mk-todos-' + tipo).value;
+  if (!isFinite(v) || v <= 0) { mostrarMsgAdmin(msgId, '⚠ Informe um markup maior que zero.', false); return; }
+  let n = 0, sem = 0;
+  listaDo(tipo).forEach(it => { const c = custoDoKit(it); if (!c) { sem++; return; } it.inv_r = Math.round(c * (1 + v / 100) * 100) / 100; n++; });
+  renderAdminTabela(tipo);
+  mostrarMsgAdmin(msgId, `Markup de ${String(v).replace('.', ',')}% aplicado em ${n} kit(s)${sem ? '; ' + sem + ' sem custo ficaram como estavam' : ''}. Confira e clique em "Salvar Alterações".`, true);
 }
 
 // ── ordem dos sistemas: arrastar, setas, ordenar por potência; nomes "Sistema N" se renumeram sozinhos ──
@@ -422,6 +465,7 @@ async function gravarNoSupabase(linhas) {
 }
 
 async function salvarAdmin() {
+  NACIONAL.forEach(it => { const pm = Math.round(calcParcelaMensal(+it.inv_r || 0, 8) * 100) / 100; it.parc_m = pm; it.parc_a = Math.round(pm * 12 * 100) / 100; });   // parcelas sempre calculadas do valor
   const msgId = document.getElementById('admin-sec-importado').classList.contains('ativa')
     ? 'admin-msg-imp' : 'admin-msg-nac';
   const problema =
