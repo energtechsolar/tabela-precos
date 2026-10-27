@@ -78,10 +78,15 @@ function montarPropostaPDF(d, fotos) {
   const temDesc = (d.descontoAVista || 0) > 0.5;
   const local = d.cidade || (d.regiao.nome.split(' (')[0] + ' / ' + d.regiao.uf);
   const orientTxt = { norte:'Norte', leste:'Leste', oeste:'Oeste', sul:'Sul' }[d.orientacao] || d.orientacao;
-  const estrTxt = { fibrocimento:'Fibrocimento', ceramico:'Cerâmico', metalico:'Metálico', laje:'Laje', solo:'Solo' }[d.estrutura] || d.estrutura;
+  const estrTxt = { fibrocimento:'Fibrocimento', ceramico:'Cerâmico', metalico:'Metálico', aluzinco:'Aluzinco', laje:'Laje', solo:'Solo' }[d.estrutura] || d.estrutura;
   const kwpTxt = d.item.kwp.toLocaleString('pt-BR');
   const kwh = v => Math.round(+v || 0).toLocaleString('pt-BR');
   const conc = PROPOSTA_CFG.concessionaria || 'concessionária';
+  // kit personalizado: tipo de sistema (on-grid, zero grid, híbrido, off-grid), baterias e pagamento a combinar
+  const tipoSis = d.item.tipo_sistema || 'ongrid';
+  const bat = d.item.baterias && +d.item.baterias.qtd > 0 ? d.item.baterias : null;
+  const aCombinar = d.item.pagamento === 'combinar';
+  const fmtN = n => String(+(+n || 0).toFixed(2)).replace('.', ',');
 
   // ═══════════════ PÁGINA 1 — CAPA ═══════════════
   caixa(X0, 10, CW, 242, PR);
@@ -93,7 +98,7 @@ function montarPropostaPDF(d, fotos) {
   if (fotos.capa) doc.addImage(fotos.capa, 'JPEG', FX, FY, FW, FH);
   else { caixa(FX, FY, FW, FH, PR2); icone('sol', FX + FW / 2, FY + FH / 2, 16, [70,70,70]); }
 
-  cor(BR); fonte(8.5, 'bold'); texto('SISTEMA DE ENERGIA SOLAR FOTOVOLTAICA', 21, 141, { charSpace:0.7 });
+  cor(BR); fonte(8.5, 'bold'); texto({ hibrido:'SISTEMA FOTOVOLTAICO HÍBRIDO COM BATERIAS', zerogrid:'SISTEMA FOTOVOLTAICO ZERO GRID', offgrid:'SISTEMA FOTOVOLTAICO OFF-GRID COM BATERIAS' }[tipoSis] || 'SISTEMA DE ENERGIA SOLAR FOTOVOLTAICA', 21, 141, { charSpace:0.7 });
   fonte(36, 'bold'); texto('PROPOSTA', 20.3, 156.5); texto('COMERCIAL', 20.3, 172);
   cor(AM); fonte(8, 'bold'); texto('PREPARADA PARA', 21, 184.5, { charSpace:0.8 });
   cor(BR); caber(d.nome, 165, 20, 12, 'bold'); texto(d.nome, 21, 193.5);
@@ -187,8 +192,13 @@ function montarPropostaPDF(d, fotos) {
   cor(CZ); fonte(6.3);
   texto('Estimativas para o primeiro ano de operação, com base na irradiação solar média da região.', X0, 211);
   texto('A geração real varia com o clima, sombreamento e manutenção, e a economia depende do seu consumo e das tarifas da concessionária.', X0, 214.5);
-  if (d.usaMeta) texto('Economia calculada sobre o consumo previsto informado pelo cliente: ' + brl0(d.conta) + ' por mês' + (d.contaHoje ? ' (hoje ' + brl0(d.contaHoje) + ').' : '.'), X0, 218);
-  preencher(fotos.pag2, d.usaMeta ? 221 : 217.5, (y0, livre) => {
+  let yNota = 218;
+  if (d.usaMeta) { texto('Economia calculada sobre o consumo previsto informado pelo cliente: ' + brl0(d.conta) + ' por mês' + (d.contaHoje ? ' (hoje ' + brl0(d.contaHoje) + ').' : '.'), X0, yNota); yNota += 3.5; }
+  const notaTipo = { zerogrid:'Sistema zero grid: a energia não é injetada na rede e não gera créditos. A economia vem do consumo no horário de geração.',
+    hibrido:'Sistema híbrido: a sobra de energia carrega as baterias' + (bat ? ' (' + fmtN(bat.qtd * bat.kwh) + ' kWh)' : '') + ', que alimentam o consumo à noite e na falta de energia da rede.',
+    offgrid:'Sistema off-grid: isolado da rede; a energia que sobra fica guardada nas baterias' + (bat ? ' (' + fmtN(bat.qtd * bat.kwh) + ' kWh)' : '') + '.' }[tipoSis];
+  if (notaTipo) { cor(PR); fonte(6.3, 'bold'); texto(linhas(notaTipo, CW)[0], X0, yNota); yNota += 3.5; cor(CZ); fonte(6.3); }
+  preencher(fotos.pag2, yNota - 0.5, (y0, livre) => {
     if (!(d.economia > 0)) return;
     // economia acumulada ano a ano (perda de 0,5% de geração por ano) x investimento à vista
     const acum = []; let s = 0; for (let t = 0; t < 25; t++) { s += d.economia * 12 * Math.pow(0.995, t); acum.push(s); }
@@ -224,8 +234,8 @@ function montarPropostaPDF(d, fotos) {
   // ═══════════════ PÁGINA 3 — EQUIPAMENTOS E SERVIÇOS ═══════════════
   doc.addPage(); cabecalho();
   secao(3, 'EQUIPAMENTOS E SERVIÇOS', 'Soluções de qualidade, com marcas reconhecidas e certificadas.');
-  const marcaMod = imp ? PROPOSTA_CFG.modulos_importado : PROPOSTA_CFG.modulos_nacional;
-  const marcaInv = imp ? PROPOSTA_CFG.inversor_importado : PROPOSTA_CFG.inversor_nacional;
+  const marcaMod = d.item.marca_mod || (imp ? PROPOSTA_CFG.modulos_importado : PROPOSTA_CFG.modulos_nacional);
+  const marcaInv = d.item.marca_inv || (imp ? PROPOSTA_CFG.inversor_importado : PROPOSTA_CFG.inversor_nacional);
   const bw2 = (CW - 5) / 2;
   const equip = [
     ['Módulos fotovoltaicos', d.item.mod + ' x ' + d.potW + ' W', marcaMod, ['Alta eficiência', (anos(PROPOSTA_CFG.garantia_modulos) || '12 anos') + ' de garantia', 'Certificação Inmetro', 'Resistência a intempéries']],
@@ -241,7 +251,9 @@ function montarPropostaPDF(d, fotos) {
   });
   const sw4 = (CW - 9) / 4;
   [['Estrutura', estrTxt, 'Para telhado ' + estrTxt.toLowerCase() + ', com certificação'], ['Cabos solares', 'Preto e vermelho', '4 mm, padrão solar'],
-   ['Quadro de proteção', 'DPS e disjuntores', 'conforme norma'], ['Kit aterramento', 'Padrão', 'da concessionária']].forEach(([r, v, s], i) => {
+   ['Quadro de proteção', 'DPS e disjuntores', 'conforme norma'],
+   bat ? ['Baterias', bat.qtd + ' x ' + fmtN(bat.kwh) + ' kWh', 'total ' + fmtN(bat.qtd * bat.kwh) + ' kWh' + (bat.marca ? ' · ' + bat.marca : '')]
+       : tipoSis === 'zerogrid' ? ['Exportação zero', 'Smart meter', 'controle de injeção na rede'] : ['Kit aterramento', 'Padrão', 'da concessionária']].forEach(([r, v, s], i) => {
     const x = X0 + i * (sw4 + 3), y = 93;
     caixa(x, y, sw4, 23, CZC, BD);
     rotulo(r, x + 4, y + 6.5);
@@ -334,7 +346,10 @@ function montarPropostaPDF(d, fotos) {
     const passos = [['painel', 'Módulos solares', 'Captam a luz do sol e produzem energia durante o dia.'],
                     ['raio', 'Inversor', 'Converte a energia dos módulos para uso na sua casa ou empresa.'],
                     ['casa', 'Consumo na hora', 'O que você usa durante o dia sai direto do seu telhado.'],
-                    ['moeda', 'Créditos de energia', 'A sobra vai para a rede da ' + conc + ' e vira crédito na conta por até 60 meses.']];
+                    { zerogrid: ['raio', 'Exportação zero', 'O controle limita a geração ao seu consumo: nada é enviado para a rede.'],
+                      hibrido: ['raio', 'Baterias', 'A sobra carrega as baterias e garante energia à noite e na falta de luz.'],
+                      offgrid: ['raio', 'Baterias', 'A sobra carrega as baterias para uso à noite e em dias sem sol.'] }[tipoSis]
+                    || ['moeda', 'Créditos de energia', 'A sobra vai para a rede da ' + conc + ' e vira crédito na conta por até 60 meses.']];
     const gap = 7, cw4 = (CW - 3 * gap) / 4, by = y1 + 4;
     passos.forEach(([ic, t, s], i) => {
       const x = X0 + i * (cw4 + gap);
@@ -352,7 +367,14 @@ function montarPropostaPDF(d, fotos) {
   secao(4, 'INVESTIMENTO E FORMAS DE PAGAMENTO', 'Escolha a condição que melhor se adapta a você.');
   const itensCfg = k => String(PROPOSTA_CFG[k] || '').split('\n').map(t => t.trim()).filter(Boolean);
   const opcoes = [];
-  opcoes.push({ titulo:'À VISTA', desenha:(x, y, w) => {
+  if (aCombinar) opcoes.push({ titulo:'INVESTIMENTO', desenha:(x, y, w) => {
+    cor(PR); caber(brl(d.valor), w - 8, 18, 10, 'bold'); texto(brl(d.valor), x + 4, y + 11);
+    fill(AM); doc.rect(x + 4, y + 15, w - 8, 6, 'F'); cor(PR); fonte(7.5, 'bold');
+    texto('Condições de pagamento a combinar com a Energtech', x + w / 2, y + 19, { align:'center' });
+    cor(CZ); fonte(7); doc.text(linhas('Entre em contato para definir a forma de pagamento que melhor se adapta a você.', w - 8), x + 4, y + 27);
+    return 32;
+  }});
+  else opcoes.push({ titulo:'À VISTA', desenha:(x, y, w) => {
     let yv = y + 9;
     if (temDesc) {   // "de R$ cheio" riscado em cima do valor à vista
       cor(CZ); fonte(7.5); texto('de ' + brl(cheio), x + 4, y + 6.5);
@@ -364,7 +386,8 @@ function montarPropostaPDF(d, fotos) {
     texto(temDesc ? 'Você economiza ' + brl(d.descontoAVista) : 'Melhor custo-benefício', x + w / 2, yv + 7.4, { align:'center' });
     return listaCheck(itensCfg('avista_itens'), x + 4, yv + 16, w - 8, 7.2, PR, 1.3) - y;
   }});
-  if (imp) opcoes.push({ titulo:'ENTRADA + PARCELAS', desenha:(x, y, w) => {
+  if (aCombinar) { /* só o valor */ }
+  else if (imp) opcoes.push({ titulo:'ENTRADA + PARCELAS', desenha:(x, y, w) => {
     cor(PR); fonte(11, 'bold'); texto('Entrada: ' + brl(d.pag.entrada), x + 4, y + 8);
     cor(CZ); fonte(6.5); texto('no ato do pedido', x + 4, y + 12);
     const nParc = d.pag.n || 10, comJuros = (+d.pag.juros || 0) > 0;
@@ -385,7 +408,7 @@ function montarPropostaPDF(d, fotos) {
   const prazos = String(PROPOSTA_CFG.fin_prazos || '').split(/[,;\s]+/).map(Number).filter(n => n > 0).slice(0, 6);
   const taxaFin = (+PROPOSTA_CFG.fin_taxa_mes || 0) / 100;
   const pmt = (v, n) => taxaFin > 0 ? v * taxaFin / (1 - Math.pow(1 + taxaFin, -n)) : v / n;
-  const mostrarFin = PROPOSTA_CFG.fin_ativo && imp && prazos.length > 0;   // nacional: só FINAME (a linha da Caixa é para imóvel urbano)
+  const mostrarFin = PROPOSTA_CFG.fin_ativo && imp && !aCombinar && prazos.length > 0;   // nacional: só FINAME (a linha da Caixa é para imóvel urbano)
   if (mostrarFin) opcoes.push({ titulo:'FINANCIAMENTO', sub: PROPOSTA_CFG.fin_banco, desenha:(x, y, w) => {
     cor(PR); fonte(8.5, 'bold'); texto('Parcelas estimadas', x + 4, y + 7);
     let yy = y + 10;
@@ -416,20 +439,22 @@ function montarPropostaPDF(d, fotos) {
     o.desenha(x, yOp + hHead, ow);
   });
   y = yOp + hHead + hBody + 8;
-  const menorParcela = Math.min(...[imp ? d.pag.parcela10 : d.pag.p120].concat(mostrarFin ? prazos.map(n => pmt(cheio, n)) : []).filter(v => v > 0));
+  const menorParcela = aCombinar ? 0 : Math.min(...[imp ? d.pag.parcela10 : d.pag.p120].concat(mostrarFin ? prazos.map(n => pmt(cheio, n)) : []).filter(v => v > 0));
   const msgEco = (d.economia > 0 && menorParcela <= d.economia) ? 'Sua economia estimada é de ' + brl0(d.economia) + ' por mês, e a parcela pode começar em ' + brl0(menorParcela) + '.' : '';
   fonte(7.4); const corpo = linhas('Em muitos casos, o valor da parcela pode ser igual ou menor do que a sua conta de luz atual. Ou seja: você troca a conta de energia por um investimento que fica seu.' + (msgEco ? ' ' + msgEco : ''), CW - 16);
   const hEco = 13 + corpo.length * 3.4;
-  caixa(X0, y, CW, hEco, AM);
-  cor(PR); fonte(10, 'bold'); texto('Parcela menor que a fatura', X0 + 8, y + 7.5);
-  fonte(7.4); doc.text(corpo, X0 + 8, y + 12.5);
-  y += hEco + 7;
+  if (!aCombinar) {
+    caixa(X0, y, CW, hEco, AM);
+    cor(PR); fonte(10, 'bold'); texto('Parcela menor que a fatura', X0 + 8, y + 7.5);
+    fonte(7.4); doc.text(corpo, X0 + 8, y + 12.5);
+    y += hEco + 7;
+  }
   const obs = [];
   if (sep) obs.push('Composição do valor' + (temDesc ? ' à vista' : '') + ': kit gerador ' + brl(d.valorKit) + ' + serviços de instalação ' + brl(d.valorServico) + '.'
     + (temDesc ? ' No parcelado e no financiamento: kit gerador ' + brl(d.valorKit) + ' + serviços de instalação ' + brl(d.valorServicoCheio) + ' = ' + brl(cheio) + '.' : ''));
   if (temDesc) obs.push('O desconto de ' + brl(d.descontoAVista) + ' vale para o pagamento à vista. Entrada + parcelas e financiamentos são calculados sobre ' + brl(cheio) + '.');
   if (!imp && !(d.fornecedor && d.fornecedor.finame) && PROPOSTA_CFG.codigo_finame) obs.push('Código FINAME do kit: ' + PROPOSTA_CFG.codigo_finame + '.');
-  obs.push('Condições de financiamento sujeitas à análise de crédito.');
+  if (!aCombinar) obs.push('Condições de financiamento sujeitas à análise de crédito.');
   // dados do cliente (para cadastro do financiamento) — linhas vazias não aparecem
   const temV = v => v && String(v).trim();
   const linhasCli = [
@@ -559,6 +584,7 @@ function montarPropostaPDF(d, fotos) {
   cor(PR); fonte(7.6, 'bold'); texto(linhas([d.vendedor || 'Energtech', PROPOSTA_CFG.telefone_exibir].filter(Boolean).join('  ·  '), bw2 - 6)[0], px + bw2 / 2, y + 43, { align:'center' });
   y += hb + 6;
   const faq = String(PROPOSTA_CFG.faq ?? PROPOSTA_PADRAO.faq ?? '').split('\n').map(t => t.split('|').map(x => x.trim())).filter(x => x[0] && x[1]).slice(0, 6)
+    .filter(([q]) => tipoSis === 'ongrid' || !/bateria/i.test(q))   // zero grid / híbrido / off-grid: a resposta "não precisa de bateria" não vale
     .map(([q, a]) => [q, a.replace(/a concessionária/g, 'a ' + conc)]);
   const livreF = FIM - 8 - y;
   if (faq.length && livreF >= 34) {

@@ -52,6 +52,12 @@
   .admin-lucro.neg { color:var(--vermelho); }
   .mk-todos { display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:13px; color:var(--muted); margin-bottom:12px; }
   .mk-todos .admin-btn-add { margin-bottom:0; }
+  .kp-grade { display:grid; grid-template-columns:1fr 1fr; gap:10px 12px; }
+  .kp-largo { grid-column:1/-1; }
+  .kp-titulo { font-weight:700; color:var(--amarelo); font-size:13px; margin-top:6px; border-top:1px solid var(--borda); padding-top:8px; }
+  .kp-campo label { display:block; font-size:12px; color:var(--muted); margin-bottom:4px; }
+  .kp-campo .admin-input, .kp-inv .admin-input { width:100%; box-sizing:border-box; }
+  @media (max-width:560px) { .kp-grade { grid-template-columns:1fr; } }
 </style>
 </head>
 <body class="tabela-oculta regua-oculta comissao-oculta">
@@ -132,6 +138,7 @@ try {
     <button class="btn-tabela" id="btn-tabela" onclick="alternarTabela()">📋 Mostrar tabela de preços</button>
     <button class="btn-tabela" id="btn-regua" onclick="alternarRegua()">⚙ Mostrar régua de negociação</button>
     <button class="btn-tabela" id="btn-comissao" onclick="alternarComissao()">👁 Mostrar comissão</button>
+    <button class="btn-tabela" id="btn-kit-pers" onclick="abrirKitPersonalizado()">🧩 Kit personalizado</button>
   </div>
 
   <!-- ABAS -->
@@ -570,6 +577,7 @@ try {
           <option value="fibrocimento">Fibrocimento</option>
           <option value="ceramico">Cerâmico</option>
           <option value="metalico">Metálico</option>
+          <option value="aluzinco">Aluzinco</option>
           <option value="laje">Laje</option>
           <option value="solo">Solo</option>
         </select>
@@ -632,6 +640,17 @@ try {
   <div style="display:flex;align-items:center;gap:12px;">
     <div class="copy">Uso interno — não compartilhar com clientes</div>
     <button class="btn-admin-footer" onclick="abrirAdmin()" title="Painel Admin">⚙</button>
+  </div>
+</div>
+
+<!-- MODAL KIT PERSONALIZADO (sistema fora da tabela) -->
+<div class="admin-overlay" id="kit-overlay" style="z-index:1100" onclick="if(event.target===this)fecharKitPersonalizado()">
+  <div class="admin-modal" style="max-width:640px">
+    <div class="admin-login" style="max-width:none; text-align:left">
+      <div class="admin-login-titulo">🧩 Kit personalizado</div>
+      <div class="admin-login-sub">Sistema fora da tabela: on-grid, zero grid, híbrido com baterias ou off-grid. Vale só para esta proposta.</div>
+      <div id="kit-corpo"></div>
+    </div>
   </div>
 </div>
 
@@ -867,12 +886,13 @@ try {
 </div>
 
 <script src="js/comum.js?v=20261019a"></script>
-<script src="js/precificador.js?v=20261028b"></script>
+<script src="js/precificador.js?v=20261028d"></script>
 <script src="js/logo.js?v=20261019a"></script>
-<script src="js/pdf.js?v=20261028b"></script>
-<script src="js/proposta.js?v=20261028b"></script>
-<script src="js/admin.js?v=20261028b"></script>
-<script src="js/app.js?v=20261028b"></script>
+<script src="js/pdf.js?v=20261028d"></script>
+<script src="js/proposta.js?v=20261028d"></script>
+<script src="js/admin.js?v=20261028d"></script>
+<script src="js/app.js?v=20261028d"></script>
+<script src="js/kit.js?v=20261028d"></script>
 <script>
 function alternarTabela(mostrar) {
   const oculta = typeof mostrar === 'boolean' ? !mostrar : !document.body.classList.contains('tabela-oculta');
@@ -901,7 +921,7 @@ function reguaMudou() {
   atualizarModoValor();
 }
 ['slider-adicional', 'slider-desconto'].forEach(id => document.getElementById(id).addEventListener('input', reguaMudou));
-// ── INIT ──────────────────────────────────────────────────────────────────────────
+// ── INIT ──────────────────────────────────────────────────────────────────────────────
 renderSeletorRegiao();
 atualizar();            // mostra a tabela de reserva na hora
 const _precosCarregados = carregarDoSupabase();   // e troca pelos valores oficiais assim que chegarem
