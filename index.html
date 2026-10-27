@@ -262,16 +262,16 @@ try {
     <!-- Fases -->
     <div class="dash-imp-fases">
       <div class="dash-fase fase1-bg">
-        <div class="dash-fase-titulo">⏳ Fase 1 — Durante as 10 parcelas</div>
+        <div class="dash-fase-titulo" id="imp-f1-titulo">⏳ Fase 1 — Durante as 10 parcelas</div>
         <div class="dash-fase-nome" id="imp-f1-periodo">Meses 1 a 10</div>
-        <div class="dash-fase-item"><span class="fi-lbl">Parcela do saldo (10×)</span><span class="fi-val vermelho" id="imp-f1-parcela">—</span></div>
+        <div class="dash-fase-item"><span class="fi-lbl" id="imp-f1-lbl-parcela">Parcela do saldo (10×)</span><span class="fi-val vermelho" id="imp-f1-parcela">—</span></div>
         <div class="dash-fase-item"><span class="fi-lbl">Taxa concessionária</span><span class="fi-val vermelho" id="imp-f1-taxa">—</span></div>
         <div class="dash-fase-item"><span class="fi-lbl">Total pago por mês</span><span class="fi-val vermelho" id="imp-f1-total-mes">—</span></div>
         <div class="dash-fase-item"><span class="fi-lbl">Já gastava de energia</span><span class="fi-val verde" id="imp-f1-gastava">—</span></div>
         <div class="dash-fase-item"><span class="fi-lbl">Custo extra real/mês</span><span class="fi-val amarelo" id="imp-f1-extra">—</span></div>
       </div>
       <div class="dash-fase fase2-bg">
-        <div class="dash-fase-titulo">🏆 Fase 2 — Após quitar (mês 11+)</div>
+        <div class="dash-fase-titulo" id="imp-f2-titulo">🏆 Fase 2 — Após quitar (mês 11+)</div>
         <div class="dash-fase-nome">Energia praticamente gratuita</div>
         <div class="dash-fase-item"><span class="fi-lbl">Produção mensal</span><span class="fi-val azul" id="imp-f2-producao">—</span></div>
         <div class="dash-fase-item"><span class="fi-lbl">Produção em reais (créditos)</span><span class="fi-val verde" id="imp-f2-creditos">—</span></div>
@@ -320,8 +320,8 @@ try {
           <th>Valor Tabela</th>
           <th>Valor Final Cliente</th>
           <th>Entrada</th>
-          <th>Saldo 10×</th>
-          <th>Parcela</th>
+          <th>Saldo</th>
+          <th id="th-parcela-imp">Parcela</th>
           <th class="th-comissao">Sua Comissão</th>
         </tr>
       </thead>
@@ -536,6 +536,21 @@ try {
         <div id="prop-demo" style="display:none;grid-column:1/-1;background:var(--bg);border:1px solid var(--borda);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.6"></div>
         <input type="hidden" id="prop-valor-kit">
       </div>
+    </div>
+
+    <!-- Parcelamento no boleto (só kits importados) -->
+    <div class="proposta-itens" id="neg-boleto">
+      <label class="tit" for="bol-parcelas">Entrada + parcelas no boleto</label>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <select id="bol-parcelas" class="proposta-select" style="width:auto;min-width:110px" onchange="mudouParcelas()"><option value="10">10x</option></select>
+        <span class="regiao-aviso">juros</span>
+        <input type="text" inputmode="decimal" id="bol-juros" class="proposta-input" style="width:90px" value="0" oninput="atualizar()" onblur="conferirJuros()">
+        <span class="regiao-aviso">% ao mês</span>
+      </div>
+      <div class="regiao-aviso" id="bol-regra" style="margin-top:6px"></div>
+      <div class="regiao-aviso" id="bol-aviso" style="color:var(--amarelo)"></div>
+      <div id="bol-resumo" style="margin-top:6px;font-size:13px"></div>
+      <div class="regiao-aviso" style="margin-top:4px">Na proposta e no WhatsApp o cliente vê só os valores em reais (parcela e total), nunca a taxa.</div>
     </div>
 
     <!-- Orientação do telhado -->
@@ -802,6 +817,30 @@ try {
             </div>
           </div>
         </div>
+        <div class="admin-section-titulo">Parcelamento no boleto (kits importados)</div>
+        <div class="regiao-aviso" style="margin-bottom:10px">Juros compostos ao mês com parcela fixa (como banco). O vendedor escolhe as parcelas até o máximo dele e pode subir a taxa, nunca abaixo do mínimo. Você (admin) pode usar qualquer condição. Ex.: até 6x sem juros, acima disso mínimo 1,5% ao mês.</div>
+        <div class="admin-cfg-grid">
+          <div class="admin-cfg-item">
+            <div class="admin-cfg-lbl">Parcelas sem juros (até)</div>
+            <div class="admin-cfg-row"><input type="number" class="admin-cfg-input" id="cfg-bol-semjuros" value="10" min="0" max="120" step="1"><span class="admin-cfg-unit">x</span></div>
+          </div>
+          <div class="admin-cfg-item">
+            <div class="admin-cfg-lbl">Juros mínimo acima disso</div>
+            <div class="admin-cfg-row"><input type="number" class="admin-cfg-input" id="cfg-bol-juros" value="0" min="0" max="10" step="0.1"><span class="admin-cfg-unit">% a.m.</span></div>
+          </div>
+          <div class="admin-cfg-item">
+            <div class="admin-cfg-lbl">Máximo de parcelas — vendedores</div>
+            <div class="admin-cfg-row"><input type="number" class="admin-cfg-input" id="cfg-bol-maxvend" value="12" min="1" max="120" step="1"><span class="admin-cfg-unit">x</span></div>
+          </div>
+          <div class="admin-cfg-item">
+            <div class="admin-cfg-lbl">Máximo de parcelas — admin</div>
+            <div class="admin-cfg-row"><input type="number" class="admin-cfg-input" id="cfg-bol-maxadm" value="36" min="1" max="120" step="1"><span class="admin-cfg-unit">x</span></div>
+          </div>
+          <div class="admin-cfg-item">
+            <div class="admin-cfg-lbl">Parcelas que já vêm selecionadas</div>
+            <div class="admin-cfg-row"><input type="number" class="admin-cfg-input" id="cfg-bol-padrao" value="10" min="1" max="120" step="1"><span class="admin-cfg-unit">x</span></div>
+          </div>
+        </div>
         <div class="admin-section-titulo">Fornecedores do kit e contas para pagamento</div>
         <div class="regiao-aviso" style="margin-bottom:10px">Os dados aparecem na página 4 da proposta. Em cada orçamento o vendedor escolhe o fornecedor; a conta padrão da Energtech já vem marcada. Depois de editar, clique em "Salvar Configurações".</div>
         <div id="admin-fornecedores"></div>
@@ -828,12 +867,12 @@ try {
 </div>
 
 <script src="js/comum.js?v=20261019a"></script>
-<script src="js/precificador.js?v=20261020b"></script>
+<script src="js/precificador.js?v=20261028b"></script>
 <script src="js/logo.js?v=20261019a"></script>
-<script src="js/pdf.js?v=20261020b"></script>
-<script src="js/proposta.js?v=20261020c"></script>
-<script src="js/admin.js?v=20261026a"></script>
-<script src="js/app.js?v=20261024a"></script>
+<script src="js/pdf.js?v=20261028b"></script>
+<script src="js/proposta.js?v=20261028b"></script>
+<script src="js/admin.js?v=20261028b"></script>
+<script src="js/app.js?v=20261028b"></script>
 <script>
 function alternarTabela(mostrar) {
   const oculta = typeof mostrar === 'boolean' ? !mostrar : !document.body.classList.contains('tabela-oculta');
@@ -862,7 +901,7 @@ function reguaMudou() {
   atualizarModoValor();
 }
 ['slider-adicional', 'slider-desconto'].forEach(id => document.getElementById(id).addEventListener('input', reguaMudou));
-// ── INIT ────────────────────────────────────────────────────────────────────────
+// ── INIT ──────────────────────────────────────────────────────────────────────────
 renderSeletorRegiao();
 atualizar();            // mostra a tabela de reserva na hora
 const _precosCarregados = carregarDoSupabase();   // e troca pelos valores oficiais assim que chegarem

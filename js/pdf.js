@@ -367,8 +367,9 @@ function montarPropostaPDF(d, fotos) {
   if (imp) opcoes.push({ titulo:'ENTRADA + PARCELAS', desenha:(x, y, w) => {
     cor(PR); fonte(11, 'bold'); texto('Entrada: ' + brl(d.pag.entrada), x + 4, y + 8);
     cor(CZ); fonte(6.5); texto('no ato do pedido', x + 4, y + 12);
-    cor(PR); fonte(11, 'bold'); doc.text(linhas('10x ' + brl(d.pag.parcela10), w - 8), x + 4, y + 19.5);
-    cor(CZ); fonte(6.5); texto('parcelas mensais' + (temDesc ? '  ·  total ' + brl(cheio) : ''), x + 4, y + 23.5);
+    const nParc = d.pag.n || 10, comJuros = (+d.pag.juros || 0) > 0;
+    cor(PR); fonte(11, 'bold'); doc.text(linhas(nParc + 'x ' + brl(d.pag.parcela10), w - 8), x + 4, y + 19.5);
+    cor(CZ); fonte(6.5); texto((comJuros ? 'parcelas mensais fixas  ·  total ' + brl(d.pag.totalPrazo) : 'parcelas mensais' + (temDesc ? '  ·  total ' + brl(cheio) : '')), x + 4, y + 23.5);
     return listaCheck(itensCfg('parcelado_itens'), x + 4, y + 30, w - 8, 7.2, PR, 1.3) - y;
   }});
   else opcoes.push({ titulo:'FINAME (BNDES)', desenha:(x, y, w) => {

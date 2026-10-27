@@ -506,6 +506,11 @@ function carregarConfig() {
   document.getElementById('cfg-split-add').value    = CFG.split_adicional * 100;
   document.getElementById('cfg-split-desc').value   = CFG.split_desconto_extra * 100;
   document.getElementById('cfg-adicional-max').value = document.getElementById('slider-adicional').max;
+  document.getElementById('cfg-bol-padrao').value   = BOLETO_CFG.padrao;
+  document.getElementById('cfg-bol-semjuros').value = BOLETO_CFG.sem_juros_ate;
+  document.getElementById('cfg-bol-juros').value    = BOLETO_CFG.juros_min;
+  document.getElementById('cfg-bol-maxvend').value  = BOLETO_CFG.max_vendedor;
+  document.getElementById('cfg-bol-maxadm').value   = BOLETO_CFG.max_admin;
   renderAdminRegioes();
   renderAdminProposta();
   renderAdminImagens();
@@ -521,6 +526,14 @@ async function salvarConfig() {
     adicional_max:        +document.getElementById('cfg-adicional-max').value,
   };
   const regioesInvalidas = REGIOES.some(r => !r.nome || !isFinite(r.fator) || r.fator < 50 || r.fator > 160);
+  const num = id => +String(document.getElementById(id).value).replace(',', '.');
+  const boleto = { padrao: num('cfg-bol-padrao'), sem_juros_ate: num('cfg-bol-semjuros'), juros_min: num('cfg-bol-juros'),
+                   max_vendedor: num('cfg-bol-maxvend'), max_admin: num('cfg-bol-maxadm') };
+  if (Object.values(boleto).some(v => !isFinite(v) || v < 0) || boleto.max_vendedor < 1 || boleto.juros_min > 10
+      || boleto.max_vendedor > 120 || boleto.max_admin > 120 || boleto.padrao < 1 || boleto.padrao > boleto.max_vendedor) {
+    mostrarMsgAdmin('admin-msg-cfg', '⚠ Parcelamento no boleto: confira os números (parcelas entre 1 e 120, padrão até o máximo do vendedor, juros até 10% ao mês).', false);
+    return;
+  }
   if (Object.values(novo).some(v => !isFinite(v) || v < 0) || regioesInvalidas) {
     mostrarMsgAdmin('admin-msg-cfg', '⚠ Preencha todos os campos com números válidos.', false);
     return;
@@ -530,6 +543,7 @@ async function salvarConfig() {
   CFG.split_adicional      = novo.split_adicional;
   CFG.split_desconto_extra = novo.split_desconto_extra;
   document.getElementById('slider-adicional').max = novo.adicional_max;
+  novo.boleto = boleto; aplicarBoletoCfg(boleto);
   atualizar();
 
   const botoes = document.querySelectorAll('.admin-salvar');
