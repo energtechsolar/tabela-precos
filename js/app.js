@@ -28,6 +28,10 @@ async function enviarFila() {
   _enviandoFila = true;
   const resta = [];
   for (const f of fila) {
+    if (!f.registro.lead_id) {   // proposta feita sem cliente escolhido: cria (ou acha) o lead antes de enviar
+      const idLead = await garantirLeadDoOrcamento(f.registro);
+      if (idLead) { f.registro.lead_id = idLead; f.leadId = idLead; }
+    }
     const { error } = await sb.from('orcamentos').insert(f.registro);
     if (error) { console.error('Fila:', error); resta.push(f); continue; }
     if (f.leadId) await sb.from('leads').update({ status:'orcamento_criado', atualizado_em: new Date().toISOString() }).eq('id', f.leadId);
@@ -421,11 +425,38 @@ function statusProposta(txt, tipo) {
   el.className = 'proposta-status' + (tipo ? ' ' + tipo : '');
 }
 
+// Proposta feita sem escolher um cliente da lista: o lead é criado sozinho no CRM (etapa "Proposta enviada"),
+// para nenhuma proposta ficar fora do funil. Antes, procura um lead com o mesmo telefone para não duplicar.
+async function garantirLeadDoOrcamento(registro) {
+  if (!sb || !registro) return null;
+  const c = (registro.dados && registro.dados.cliente) || {};
+  const tel = registro.telefone || null, fim = tel ? String(tel).slice(-8) : '';
+  if (fim.length === 8) {
+    const { data: achado } = await sb.from('leads').select('id').like('telefone', '%' + fim).order('recebido_em', { ascending:false }).limit(1);
+    if (achado && achado.length) return achado[0].id;
+  }
+  const novo = {
+    nome: registro.cliente_nome || 'Cliente', telefone: tel, email: registro.email || null, cidade: registro.cidade || null,
+    cpf_cnpj: (registro.dados && registro.dados.cpf_cnpj) || null, endereco: c.endereco || null, cep: c.cep || null,
+    uc: c.uc || null, concessionaria: c.concessionaria || null,
+    etapa: 'proposta', status: 'orcamento_criado', origem: 'outro', responsavel_email: registro.vendedor_email || null,
+  };
+  const { data, error } = await sb.from('leads').insert(novo).select('id').single();
+  if (error || !data) { console.error('Lead automático:', error); return null; }
+  await sb.from('lead_eventos').insert({ lead_id: data.id, tipo: 'nota', texto: 'Lead criado automaticamente pela proposta feita no precificador (cliente digitado à mão).' });
+  return data.id;
+}
+let _salvandoOrc = false, _ultimoSalvoOrc = null, _leadsAuto = {};   // nome|telefone → lead criado nesta sessão
 async function salvarOrcamento() {
   if (!perfil || !perfil.vendedor || !sb) {
     statusProposta('⚠ Orçamento NÃO foi salvo no sistema — entre com seu login de vendedor para salvar.', 'aviso');
     return;
   }
+  if (_salvandoOrc) return;   // clique duplo: ignora enquanto o primeiro está salvando
+  _salvandoOrc = true;
+  try { await salvarOrcamentoAgora(); } finally { _salvandoOrc = false; }
+}
+async function salvarOrcamentoAgora() {
   const orientacao = document.getElementById('prop-orientacao').value;
   const estrutura  = document.getElementById('prop-estrutura').value;
   const producaoMensal = Math.round(propostaItem.kwp * fatorRegiao() * FATOR_ORIENTACAO[orientacao]);
@@ -468,8 +499,20 @@ async function salvarOrcamento() {
       kit: clonar(propostaItem), calculo: clonar(propostaCalc)
     }
   };
+  // mesma proposta salva de novo em menos de 2 minutos: confirma antes (evita orçamento em dobro)
+  const chaveOrc = chave({ ...registro, lead_id: null, dados: { ...registro.dados, revisao_de: null } });
+  if (_ultimoSalvoOrc && _ultimoSalvoOrc.chave === chaveOrc && Date.now() - _ultimoSalvoOrc.em < 120000
+      && !confirm('Este orçamento já foi salvo agora há pouco (Nº ' + _ultimoSalvoOrc.id + '). Salvar outro igual?')) {
+    statusProposta('Orçamento Nº ' + _ultimoSalvoOrc.id + ' já estava salvo — nada foi duplicado.', 'ok');
+    return;
+  }
   statusProposta('⏳ Salvando orçamento…', '');
   if (!navigator.onLine) { guardarNaFila(registro, leadSelecionado); return; }
+  if (!registro.lead_id) {   // cliente digitado à mão: liga ao lead dele (criado agora ou já existente)
+    const k = (registro.cliente_nome + '|' + (registro.telefone || '')).toLowerCase();
+    const idLead = _leadsAuto[k] || await garantirLeadDoOrcamento(registro);
+    if (idLead) { registro.lead_id = idLead; _leadsAuto[k] = idLead; }
+  }
   const { data, error } = await sb.from('orcamentos').insert(registro).select('id').single();
   if (error && ehFalhaDeRede(error)) { guardarNaFila(registro, leadSelecionado); return; }
   if (error) {
@@ -477,16 +520,17 @@ async function salvarOrcamento() {
     statusProposta('⚠ Erro ao salvar o orçamento: ' + (error.message || 'tente novamente.'), 'aviso');
     return;
   }
-  if (leadSelecionado) {
+  if (registro.lead_id) {
     // devolve à ficha do cliente o que foi preenchido na proposta (só campos com valor; não apaga nada)
     const c = dadosClienteTela(), mud = { status:'orcamento_criado', atualizado_em: new Date().toISOString() };
     [['cpf_cnpj', c.cpf], ['endereco', c.endereco], ['cep', c.cep], ['uc', c.uc], ['concessionaria', c.concessionaria], ['email', c.email]].forEach(([k, v]) => { if (v) mud[k] = v; });
     if (c.telefone) mud.telefone = telDigitos(c.telefone);
-    await sb.from('leads').update(mud).eq('id', leadSelecionado);
-    const l = leadsCache.find(x => x.id === leadSelecionado); if (l) l.status = 'orcamento_criado';
+    await sb.from('leads').update(mud).eq('id', registro.lead_id);
+    const l = leadsCache.find(x => x.id === registro.lead_id); if (l) l.status = 'orcamento_criado';
     carregarLeads();
   }
   ultimoOrcamentoId = data.id;
+  _ultimoSalvoOrc = { chave: chaveOrc, em: Date.now(), id: data.id };
   statusProposta(`✅ Orçamento nº ${data.id} salvo — ${fmt(registro.valor_final)}`, 'ok');
 }
 
