@@ -39,6 +39,89 @@ function calcParcelaMensal(valorFinanciado, anos) {
   }
 }
 
+// ── PARCELAMENTO NO BOLETO (kits importados) ────────────────────────────────
+// Entrada (fixa por kit) + N parcelas mensais fixas. Juros em % ao mês, tabela Price (parcela fixa, como banco).
+// O admin define: até quantas parcelas pode ser sem juros, o juro mínimo acima disso e o máximo de parcelas.
+// O vendedor escolhe as parcelas (até o máximo dele) e pode subir a taxa, nunca abaixo do mínimo. O admin pode tudo.
+const BOLETO_PADRAO = { padrao: 10, sem_juros_ate: 10, juros_min: 0, max_vendedor: 12, max_admin: 36 };
+let BOLETO_CFG = { ...BOLETO_PADRAO };
+function aplicarBoletoCfg(b) {
+  BOLETO_CFG = { ...BOLETO_PADRAO };
+  if (b && typeof b === 'object') Object.keys(BOLETO_PADRAO).forEach(k => { if (b[k] !== null && b[k] !== '' && isFinite(+b[k]) && +b[k] >= 0) BOLETO_CFG[k] = +b[k]; });
+  montarSelectParcelas(true);
+  // volta para a condição padrão (parcelas padrão com o juro mínimo delas)
+  const sel = document.getElementById('bol-parcelas'), inp = document.getElementById('bol-juros');
+  if (sel) sel.value = String(Math.min(Math.max(1, Math.round(BOLETO_CFG.padrao)), sel.options.length));
+  if (inp) inp.value = fmtPct(jurosMinimo(+(sel && sel.value) || BOLETO_CFG.padrao));
+}
+const ehAdminBoleto = () => typeof perfil !== 'undefined' && !!perfil && !!perfil.admin;
+const maxParcelas = () => Math.max(1, Math.round(ehAdminBoleto() ? Math.max(BOLETO_CFG.max_admin, BOLETO_CFG.max_vendedor) : BOLETO_CFG.max_vendedor));
+const jurosMinimo = n => n <= BOLETO_CFG.sem_juros_ate ? 0 : BOLETO_CFG.juros_min;
+const fmtPct = v => (+v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+function parcelaPrice(saldo, n, jurosPct) {
+  n = Math.max(1, Math.round(+n || 1)); const i = (+jurosPct || 0) / 100;
+  if (!(saldo > 0)) return 0;
+  return i > 0 ? saldo * i / (1 - Math.pow(1 + i, -n)) : saldo / n;
+}
+// condição escolhida na tela (respeitando o máximo e o juro mínimo de quem está logado)
+function boletoEscolhido() {
+  const sel = document.getElementById('bol-parcelas'), inp = document.getElementById('bol-juros');
+  let n = Math.round(+(sel && sel.value) || BOLETO_CFG.padrao);
+  n = Math.min(Math.max(1, n), Math.max(maxParcelas(), n > maxParcelas() && sel && sel.dataset.extra === String(n) ? n : 0));
+  let j = inp && inp.value.trim() !== '' ? Math.max(0, +String(inp.value).replace(',', '.') || 0) : jurosMinimo(n);
+  if (!ehAdminBoleto()) j = Math.max(j, jurosMinimo(n));
+  return { n, juros: Math.round(j * 100) / 100 };
+}
+function calcBoleto(saldo, b) {
+  b = b || boletoEscolhido();
+  const parcela = parcelaPrice(saldo, b.n, b.juros);
+  return { n: b.n, juros: b.juros, parcela, totalParcelas: parcela * b.n, jurosReais: Math.max(0, parcela * b.n - Math.max(0, saldo)) };
+}
+function montarSelectParcelas(forcar) {
+  const sel = document.getElementById('bol-parcelas'); if (!sel) return;
+  const max = maxParcelas();
+  if (!forcar && sel.options.length === max && !sel.dataset.extra) return;
+  const atual = +sel.value || BOLETO_CFG.padrao;
+  let h = ''; for (let n = 1; n <= max; n++) h += `<option value="${n}">${n}x</option>`;
+  sel.innerHTML = h; delete sel.dataset.extra;
+  sel.value = String(Math.min(Math.max(1, atual), max));
+}
+// usado ao revisar uma proposta salva com mais parcelas do que o vendedor pode escolher hoje
+function definirBoleto(n, juros) {
+  const sel = document.getElementById('bol-parcelas'), inp = document.getElementById('bol-juros'); if (!sel || !inp) return;
+  montarSelectParcelas(true);
+  n = Math.max(1, Math.round(+n || BOLETO_CFG.padrao));
+  if (n > maxParcelas()) { sel.insertAdjacentHTML('beforeend', `<option value="${n}">${n}x (proposta original)</option>`); sel.dataset.extra = String(n); }
+  sel.value = String(n); inp.value = fmtPct(+juros || 0).replace('.', '');
+}
+function mudouParcelas() { const inp = document.getElementById('bol-juros'); if (inp) inp.value = fmtPct(jurosMinimo(+document.getElementById('bol-parcelas').value)); atualizar(); }
+function conferirJuros() {
+  const inp = document.getElementById('bol-juros'); if (!inp) return;
+  const b = boletoEscolhido(); inp.value = fmtPct(b.juros); atualizar();
+}
+function atualizarBlocoBoleto() {
+  const bloco = document.getElementById('neg-boleto'); if (!bloco || !document.getElementById('bol-resumo')) return;
+  bloco.style.display = abaAtual === 'importado' ? '' : 'none';
+  montarSelectParcelas(false);
+  const b = boletoEscolhido(), min = jurosMinimo(b.n);
+  const inp = document.getElementById('bol-juros');
+  if (inp && document.activeElement !== inp && inp.value.trim() === '') inp.value = fmtPct(b.juros);
+  const regra = BOLETO_CFG.juros_min > 0
+    ? `Até ${BOLETO_CFG.sem_juros_ate}x pode ser sem juros · acima disso mínimo ${fmtPct(BOLETO_CFG.juros_min)}% ao mês`
+    : `Até ${BOLETO_CFG.sem_juros_ate}x sem juros (o admin ainda não definiu juros mínimo acima disso)`;
+  document.getElementById('bol-regra').textContent = regra + (ehAdminBoleto() ? ' · admin: sem trava' : '');
+  const digitado = inp ? Math.max(0, +String(inp.value).replace(',', '.') || 0) : 0;
+  const aviso = document.getElementById('bol-aviso');
+  aviso.textContent = !ehAdminBoleto() && digitado < min ? `⚠ Em ${b.n}x o juro mínimo é ${fmtPct(min)}% ao mês — a proposta usa ${fmtPct(min)}%.` : '';
+  const idx = linhaFoco && linhaFoco.startsWith('importado') ? +linhaFoco.split('-')[1] : -1, item = IMPORTADO[idx];
+  const res = document.getElementById('bol-resumo');
+  if (!item) { res.textContent = 'Selecione um sistema na tabela para ver a parcela.'; return; }
+  const c = calcLinha(item, +document.getElementById('slider-adicional').value, +document.getElementById('slider-desconto').value);
+  const saldo = Math.max(0, valorCheioDe(item, c) - item.entrada), k = calcBoleto(saldo, b);
+  res.innerHTML = `Entrada <b>${fmt(item.entrada)}</b> + <b>${k.n}x de ${fmt(k.parcela)}</b> · total a prazo <b>${fmt(item.entrada + k.totalParcelas)}</b>`
+    + (k.jurosReais > 0.005 ? ` · <span style="color:var(--verde)">juros para a empresa: ${fmt(k.jurosReais)}</span>` : ' · sem juros');
+}
+
 // ── CALCULA LINHA ───────────────────────────────────────────────────────────
 function calcLinha(item, adicional, descPct) {
   const base = item.inv_r;
@@ -64,6 +147,7 @@ function renderTabela(dados, tbodyId, tipo) {
   const adicional = +document.getElementById('slider-adicional').value;
   const descPct   = +document.getElementById('slider-desconto').value;
   const tbody = document.getElementById(tbodyId);
+  const bol = boletoEscolhido();
   tbody.innerHTML = '';
   if (!dados.length) {
     tbody.innerHTML = `<tr><td colspan="20" style="text-align:center;padding:28px 12px;color:var(--muted)">🔒 Entre com seu login (no topo da página) para ver a tabela de preços.</td></tr>`;
@@ -93,12 +177,12 @@ function renderTabela(dados, tbodyId, tipo) {
 
     let colsExtra = '';
     if (tipo === 'importado') {
-      const saldo10 = valorCheioDe(item, c) - item.entrada;
-      const parcela = saldo10 / 10;
+      const saldo = Math.max(0, valorCheioDe(item, c) - item.entrada);
+      const k = calcBoleto(saldo, bol);
       colsExtra = `
         <td class="td-muted">${fmt(item.entrada)}</td>
-        <td class="td-azul">${fmt(Math.max(0,saldo10))}</td>
-        <td class="td-muted">${fmtShort(Math.max(0,parcela))}</td>`;
+        <td class="td-azul">${fmt(saldo)}</td>
+        <td class="td-muted">${k.n}x ${fmtShort(k.parcela)}</td>`;
     } else {
       const pm = calcParcelaMensal(valorCheioDe(item, c), finAnos);
       const pa = pm * 12;
@@ -135,9 +219,9 @@ function atualizarDashImp() {
   const taxaConc   = +document.getElementById('imp-taxa-conc').value || 50;
   const tarifa     = +document.getElementById('imp-tarifa').value || 0.89;
 
-  // Saldo após entrada
+  // Saldo após entrada, pago em N parcelas (condição escolhida na régua)
   const saldo = Math.max(0, valorCheioDe(item, c) - item.entrada);
-  const parcela10 = saldo / 10;
+  const k = calcBoleto(saldo), N = k.n, parcela10 = k.parcela;
 
   // Fase 1
   const totalMes   = parcela10 + taxaConc;
@@ -148,7 +232,7 @@ function atualizarDashImp() {
   const ecoLiquida    = creditosReais - taxaConc;
 
   // Custo real do investimento
-  const custoReal = item.entrada + (parcela10 * 10) + (taxaConc * 10) - (contaAtual * 10);
+  const custoReal = item.entrada + (parcela10 * N) + (taxaConc * N) - (contaAtual * N);
   const paybackMeses = custoReal > 0 ? Math.ceil(custoReal / ecoLiquida) : 0;
   const paybackAnos  = (paybackMeses / 12).toFixed(1);
 
@@ -156,6 +240,10 @@ function atualizarDashImp() {
     item.nome + ' · ' + item.kwp + ' kWp · ' + geracaoKit(item).toLocaleString('pt-BR') + ' kWh/mês';
 
   // Fase 1
+  document.getElementById('imp-f1-titulo').textContent    = '⏳ Fase 1 — Durante as ' + N + ' parcelas';
+  document.getElementById('imp-f1-periodo').textContent   = N > 1 ? 'Meses 1 a ' + N : 'Mês 1';
+  document.getElementById('imp-f1-lbl-parcela').textContent = 'Parcela do saldo (' + N + '×)';
+  document.getElementById('imp-f2-titulo').textContent    = '🏆 Fase 2 — Após quitar (mês ' + (N + 1) + '+)';
   document.getElementById('imp-f1-parcela').textContent   = fmt(parcela10);
   document.getElementById('imp-f1-taxa').textContent      = fmt(taxaConc);
   document.getElementById('imp-f1-total-mes').textContent = fmt(totalMes);
@@ -280,6 +368,8 @@ function atualizar() {
   document.getElementById('desc-vendedor').textContent = fmt(cRef.descVendedor);
   document.getElementById('desc-empresa').textContent  = fmt(cRef.descEmpresa);
 
+  atualizarBlocoBoleto();
+  { const th = document.getElementById('th-parcela-imp'); if (th) th.textContent = 'Parcela (' + boletoEscolhido().n + 'x)'; }
   renderTabela(IMPORTADO, 'tbody-importado', 'importado');
   renderTabela(NACIONAL,  'tbody-nacional',  'nacional');
   atualizarResumo(adicional, descPct);
@@ -347,6 +437,7 @@ function trocarAba(aba, btn) {
   btn.classList.add('ativo');
   document.getElementById('tabela-importado').style.display = aba === 'importado' ? '' : 'none';
   document.getElementById('tabela-nacional').style.display  = aba === 'nacional'  ? '' : 'none';
+  atualizarBlocoBoleto();   // parcelamento no boleto só aparece nos importados
 }
 
 // ── PAINEL PROPOSTA ─────────────────────────────────────────────────────────

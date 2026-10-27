@@ -153,6 +153,7 @@ function coletarDadosProposta() {
     emissao: hoje,
     vendedor: perfil && perfil.vendedor ? (perfil.nome || perfil.email) : '',
     fornecedor: fornecedorSel(), contaPag: contaSel(), descontoSoAVista: true,
+    boleto: tipo === 'importado' ? boletoEscolhido() : null,
   });
 }
 
@@ -177,8 +178,11 @@ function calcularDadosProposta(e) {
   const valorCheio = novaRegra ? valorCheioDe(item, calc) : valor;
   const paybackMeses = economia > 0 ? Math.ceil(valor / economia) : null;
   let eco25 = 0; for (let t = 0; t < 25; t++) eco25 += economia * 12 * Math.pow(0.995, t);
+  // importado: entrada + N parcelas (propostas antigas, sem a marca "boleto", seguem 10x sem juros)
+  const bol = e.boleto && +e.boleto.n > 0 ? { n: Math.round(+e.boleto.n), juros: +e.boleto.juros || 0 } : { n: 10, juros: 0 };
+  const saldoImp = Math.max(0, valorCheio - item.entrada), parcImp = parcelaPrice(saldoImp, bol.n, bol.juros);
   const pag = tipo === 'importado'
-    ? { entrada: item.entrada, saldo: Math.max(0, valorCheio - item.entrada), parcela10: Math.max(0, valorCheio - item.entrada) / 10 }
+    ? { entrada: item.entrada, saldo: saldoImp, n: bol.n, juros: bol.juros, parcela: parcImp, parcela10: parcImp, totalPrazo: item.entrada + parcImp * bol.n }
     : { p96: calcParcelaMensal(valorCheio, 8), p120: calcParcelaMensal(valorCheio, 10), kit: valorCheio / 1.30, servicos: valorCheio - valorCheio / 1.30 };
   const modoValor = e.modoValor || 'global';
   let valorKit = modoValor === 'separado' ? (e.valorKit || valor / (+PROPOSTA_CFG.fator_kit || 1.30)) : null;
@@ -231,6 +235,7 @@ async function reimprimirProposta(id) {
     regiao: dd.regiao && dd.regiao.fator ? dd.regiao : { ...regiaoSel(), fator: fatorRegiao() },
     numero: String(o.id).padStart(5, '0'), emissao: new Date(o.criado_em),
     vendedor, fornecedor: forn, contaPag, descontoSoAVista: !!dd.desconto_so_avista,
+    boleto: dd.boleto && +dd.boleto.parcelas > 0 ? { n: +dd.boleto.parcelas, juros: +dd.boleto.juros_mes || 0 } : null,
   });
   const fotos = {};
   await Promise.all(SLOTS_IMAGEM.map(async ([slot, , w, h]) => {
@@ -283,7 +288,7 @@ function mensagemProposta(d) {
   const primeiro = (d.nome || '').split(' ')[0] || '';
   const imp = d.tipo === 'importado';
   const pagamento = imp
-    ? `à vista ${brl(d.valor)} ou entrada de ${brl(d.pag.entrada)} + 10x de ${brl(d.pag.parcela10)}`
+    ? `à vista ${brl(d.valor)} ou entrada de ${brl(d.pag.entrada)} + ${d.pag.n}x de ${brl(d.pag.parcela)}`
     : `à vista ${brl(d.valor)}, ou FINAME em 96x de ${brl(d.pag.p96)} sem juros, ou 120x de ${brl(d.pag.p120)}`;
   const avista = d.descontoAVista > 0.5 ? ' à vista' : '';
   const linhasMsg = [
