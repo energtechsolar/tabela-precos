@@ -549,7 +549,8 @@ async function carregarRevisao(id) {
   const tipo = o.tipo === 'nacional' ? 'nacional' : 'importado';
   const lista = tipo === 'importado' ? IMPORTADO : NACIONAL;
   let idx = lista.findIndex(k => snap.uid && k.uid === snap.uid);
-  if (idx < 0) idx = lista.findIndex(k => k.nome === snap.nome && +k.kwp === +snap.kwp);
+  if (idx < 0 && !snap.personalizado) idx = lista.findIndex(k => k.nome === snap.nome && +k.kwp === +snap.kwp);
+  if (idx < 0 && snap.personalizado && typeof colocarKitNaLista === 'function') { _kitEditando = JSON.parse(JSON.stringify(snap)); idx = colocarKitNaLista(_kitEditando, tipo); }
   if (idx < 0) { msg('⚠ O kit da proposta Nº ' + num + ' (' + (snap.nome || '?') + ') não está mais na tabela. Faça uma proposta nova.', true); return; }
   // região, tarifa e régua como estavam na proposta
   if (dd.regiao && dd.regiao.id && REGIOES.some(r => r.id === dd.regiao.id)) mudarRegiao(dd.regiao.id);

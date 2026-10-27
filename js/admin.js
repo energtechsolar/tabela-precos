@@ -127,9 +127,9 @@ async function carregarCustos() {
 async function gravarCustos() {
   if (!sb || !adminLogado) return { ok:true };
   const tipoDe = uid => IMPORTADO.some(k => k.uid === uid) ? 'importado' : (NACIONAL.some(k => k.uid === uid) ? 'nacional' : null);
-  const mudou = Object.keys(custos).filter(uid => custos[uid] !== custosSalvos[uid] && isFinite(custos[uid]))
+  const mudou = Object.keys(custos).filter(uid => !String(uid).startsWith('kp-') && custos[uid] !== custosSalvos[uid] && isFinite(custos[uid]))
     .map(uid => ({ kit_uid: uid, tipo: tipoDe(uid), custo: custos[uid], atualizado_em: new Date().toISOString() }));
-  const apagar = Object.keys(custosSalvos).filter(uid => !(uid in custos));
+  const apagar = Object.keys(custosSalvos).filter(uid => !(uid in custos) && !String(uid).startsWith('kp-'));
   if (!mudou.length && !apagar.length) return { ok:true, alterados:false };
   if (mudou.length) {
     const { error } = await sb.from('kit_custos').upsert(mudou, { onConflict:'kit_uid' });
@@ -153,7 +153,7 @@ function atualizarCustoResumo(item, c) {
   elM.style.color = margem < 0 ? 'var(--vermelho)' : 'var(--verde)';
 }
 
-// ── TROCAR SENHA ────────────────────────────────────────────────────────────
+// ── TROCAR SENHA ────────────────────────────────────────────────────────────────────────
 function abrirTrocarSenha() {
   if (!perfil) { abrirLogin(); return; }
   ['senha-atual','senha-nova','senha-confirma'].forEach(id => document.getElementById(id).value = '');
@@ -194,7 +194,7 @@ async function trocarSenha() {
   setTimeout(fecharTrocarSenha, 2500);
 }
 
-// ── PAINEL ADMIN ────────────────────────────────────────────────────────────
+// ── PAINEL ADMIN ────────────────────────────────────────────────────────────────────────
 async function verificarSessao() { await carregarPerfil(); }
 
 function mostrarLoginArea(titulo) {
@@ -277,6 +277,7 @@ async function sairAdmin() {
 }
 
 function mostrarPainel() {
+  if (typeof removerKitsPersonalizados === 'function') removerKitsPersonalizados();   // kit personalizado nunca entra na tabela de preços
   document.getElementById('admin-login-area').style.display = 'none';
   document.getElementById('admin-painel-area').style.display = 'block';
   renderAdminTabela('importado');
@@ -465,6 +466,7 @@ async function gravarNoSupabase(linhas) {
 }
 
 async function salvarAdmin() {
+  if (typeof removerKitsPersonalizados === 'function') removerKitsPersonalizados();
   NACIONAL.forEach(it => { const pm = Math.round(calcParcelaMensal(+it.inv_r || 0, 8) * 100) / 100; it.parc_m = pm; it.parc_a = Math.round(pm * 12 * 100) / 100; });   // parcelas sempre calculadas do valor
   const msgId = document.getElementById('admin-sec-importado').classList.contains('ativa')
     ? 'admin-msg-imp' : 'admin-msg-nac';

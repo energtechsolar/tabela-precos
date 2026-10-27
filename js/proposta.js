@@ -8,6 +8,9 @@ const PROPOSTA_PADRAO = {
   inversor_importado: 'Sofar, Solis ou Huawei',
   modulos_nacional:   'Módulos nacionais (linha FINAME)',
   inversor_nacional:  'PHB',
+  // fabricantes oferecidos no "Kit personalizado" (um por linha; o vendedor também pode digitar outro)
+  marcas_modulos:    'DAH\nRonma\nJinko\nJA Solar\nRisen\nGokin\nTsun\nHansun\nTCL\nLongi\nTrina Solar\nBYD\nMinasol\nDMEGC\nAstronergy',
+  marcas_inversores: 'Chint\nSolis\nPHB\nSofar\nGoodwe\nWEG\nSungrow\nDeye\nHuawei\nAuxsol\nLivoltek',
   garantia_inversor:  '10 anos contra defeitos de fabricação',
   garantia_modulos:   '12 anos contra defeitos de fabricação, além da garantia de geração do fabricante',
   garantia_servicos:  '1 ano de garantia dos serviços de instalação',
@@ -287,7 +290,9 @@ async function gerarPDF(modo) {
 function mensagemProposta(d) {
   const primeiro = (d.nome || '').split(' ')[0] || '';
   const imp = d.tipo === 'importado';
-  const pagamento = imp
+  const pagamento = d.item.pagamento === 'combinar'
+    ? `${brl(d.valor)}, condições de pagamento a combinar`
+    : imp
     ? `à vista ${brl(d.valor)} ou entrada de ${brl(d.pag.entrada)} + ${d.pag.n}x de ${brl(d.pag.parcela)}`
     : `à vista ${brl(d.valor)}, ou FINAME em 96x de ${brl(d.pag.p96)} sem juros, ou 120x de ${brl(d.pag.p120)}`;
   const avista = d.descontoAVista > 0.5 ? ' à vista' : '';
@@ -295,7 +300,8 @@ function mensagemProposta(d) {
     `Olá${primeiro ? ', ' + primeiro : ''}! ☀`,
     d.vendedor ? `Aqui é ${d.vendedor}, da *Energtech Engenharia Solar*. Segue o resumo da sua proposta:` : `Segue o resumo da sua proposta da *Energtech Engenharia Solar*:`,
     '',
-    `🔋 *Sistema:* ${d.item.kwp.toLocaleString('pt-BR')} kWp (${d.item.mod} módulos de ${d.potW} W)`,
+    `🔋 *Sistema:* ${d.item.kwp.toLocaleString('pt-BR')} kWp (${d.item.mod} módulos de ${d.potW} W` + (d.item.personalizado && d.item.inv ? ` + inversor ${d.item.inv}` : '') + `)`
+      + ({ zerogrid: ' · zero grid', hibrido: ' · híbrido com baterias', offgrid: ' · off-grid' }[d.item.tipo_sistema] || ''),
     `⚡ *Geração estimada:* ${Math.round(d.geracao).toLocaleString('pt-BR')} kWh por mês`,
     `💡 *Economia estimada:* ${brl(d.economia)} por mês`,
   ];
@@ -515,6 +521,8 @@ const CAMPOS_PROPOSTA = [
   ['inversor_importado', 'Inversores — kits importados (marcas)', 'input'],
   ['modulos_nacional', 'Módulos — kits nacionais (marcas)', 'input'],
   ['inversor_nacional', 'Inversores — kits nacionais (marcas)', 'input'],
+  ['marcas_modulos', 'Kit personalizado — fabricantes de módulos (um por linha; para adicionar, escreva numa linha nova)', 'textarea'],
+  ['marcas_inversores', 'Kit personalizado — fabricantes de inversores (um por linha; para adicionar, escreva numa linha nova)', 'textarea'],
   ['garantia_inversor', 'Garantia do inversor', 'input'],
   ['garantia_modulos', 'Garantia dos módulos', 'input'],
   ['garantia_servicos', 'Garantia dos serviços', 'input'],
