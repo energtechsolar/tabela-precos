@@ -554,6 +554,9 @@ try {
         <label><input type="radio" name="modo-valor" value="global" checked onchange="atualizarModoValor()"> Valor global (kit + serviço juntos)</label>
         <label><input type="radio" name="modo-valor" value="separado" onchange="atualizarModoValor()"> Separar kit e mão de obra (financiamento)</label>
       </div>
+      <div class="modo-valor" id="bloco-preco-fechado" style="display:none">
+        <label><input type="checkbox" id="prop-preco-fechado" onchange="atualizarModoValor()"> 🔒 Preço fechado: o valor total vale também no parcelado e no financiamento (sem "de / por" e sem desconto só no à vista) — ex.: negócio já fechado com preço antigo</label>
+      </div>
       <div class="proposta-grid" style="margin-bottom:0">
         <div class="proposta-field campo-separado">
           <label>Valor do kit (R$)</label>
@@ -951,7 +954,7 @@ function reguaMudou() {
   atualizarModoValor();
 }
 ['slider-adicional', 'slider-desconto'].forEach(id => document.getElementById(id).addEventListener('input', reguaMudou));
-// ── INIT ──────────────────────────────────────────────────────────────────────────────
+// ── INIT ──────────────────────────────────────────────────────────────────────────
 renderSeletorRegiao();
 atualizar();            // mostra a tabela de reserva na hora
 const _precosCarregados = carregarDoSupabase();   // e troca pelos valores oficiais assim que chegarem

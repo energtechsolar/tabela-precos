@@ -376,9 +376,10 @@ function recalcularComissao() {
 function valorEditado(qual) {
   if (!propostaCalc) return;
   const kitEl = document.getElementById('prop-kit-txt'), servEl = document.getElementById('prop-serv-txt'), totEl = document.getElementById('prop-total-txt');
-  if (qual === 'total') {
+  if (qual === 'total') {   // muda o total: o kit fica e a mão de obra absorve a diferença
     const t = lerReais(totEl.value);
     definirTotalProposta(t);
+    if (lerReais(kitEl.value) > t) kitEl.value = fmtReais(Math.round(t / fatorKit() * 100) / 100);
     servEl.value = fmtReais(Math.max(0, t - lerReais(kitEl.value)));
   } else {
     const k = lerReais(kitEl.value), sv = lerReais(servEl.value);
@@ -392,9 +393,12 @@ function atualizarModoValor() {
   const sep = modoSeparado();
   document.querySelectorAll('.campo-separado').forEach(el => el.style.display = sep ? '' : 'none');
   const totEl = document.getElementById('prop-total-txt');
-  totEl.readOnly = sep;
-  totEl.title = sep ? 'Soma do kit + mão de obra' : '';
+  totEl.title = sep ? 'Digite o total: o valor do kit fica e a mão de obra ajusta a diferença' : '';
+  // preço fechado (só admin): o mesmo valor vale no à vista, parcelado e financiamento
+  const pf = document.getElementById('prop-preco-fechado'), adm = typeof adminLogado !== 'undefined' && adminLogado;
+  if (pf) { const box = document.getElementById('bloco-preco-fechado'); if (box) box.style.display = adm ? '' : 'none'; if (!adm) pf.checked = false; }
   if (!propostaCalc) return;
+  propostaCalc.precoFechado = !!(pf && pf.checked);
   if (sep) {   // kit + mão de obra sempre fecham o total
     const total = propostaCalc.valorFinal, kitEl = document.getElementById('prop-kit-txt');
     let k = lerReais(kitEl.value);
