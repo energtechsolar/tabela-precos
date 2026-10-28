@@ -496,7 +496,8 @@ async function salvarOrcamentoAgora() {
       regiao: { id: regiaoSel().id, nome: regiaoSel().nome, uf: regiaoSel().uf, fator: fatorRegiao() },
       adicional: +document.getElementById('slider-adicional').value,
       desconto_pct: +document.getElementById('slider-desconto').value,
-      kit: clonar(propostaItem), calculo: clonar(propostaCalc)
+      kit: clonar(propostaItem), calculo: clonar(propostaCalc),
+      fatura: typeof faturaLida !== 'undefined' && faturaLida && faturaLida.nome_proposta === (document.getElementById('prop-nome').value.trim()) ? clonar(faturaLida) : null,
     }
   };
   // mesma proposta salva de novo em menos de 2 minutos: confirma antes (evita orçamento em dobro)
@@ -529,9 +530,15 @@ async function salvarOrcamentoAgora() {
     const l = leadsCache.find(x => x.id === registro.lead_id); if (l) l.status = 'orcamento_criado';
     carregarLeads();
   }
+  // admin: custo do kit personalizado vai para os custos do orçamento (vendedores não veem)
+  let avisoCusto = '';
+  if (adminLogado && propostaItem.personalizado && typeof custoDoKit === 'function' && custoDoKit(propostaItem) != null) {
+    const { error: eC } = await sb.rpc('registrar_custo_kit_personalizado', { p_orcamento: data.id, p_custo: custoDoKit(propostaItem) });
+    if (eC) { console.error('Custo do kit:', eC); avisoCusto = ' (⚠ custo do kit não foi gravado: ' + eC.message + ')'; }
+  }
   ultimoOrcamentoId = data.id;
   _ultimoSalvoOrc = { chave: chaveOrc, em: Date.now(), id: data.id };
-  statusProposta(`✅ Orçamento nº ${data.id} salvo — ${fmt(registro.valor_final)}`, 'ok');
+  statusProposta(`✅ Orçamento nº ${data.id} salvo — ${fmt(registro.valor_final)}` + avisoCusto, avisoCusto ? 'aviso' : 'ok');
 }
 
 // ── REVISAR UMA PROPOSTA (CRM → index.html?revisar=Nº) ──────────────────────
@@ -550,7 +557,9 @@ async function carregarRevisao(id) {
   const lista = tipo === 'importado' ? IMPORTADO : NACIONAL;
   let idx = lista.findIndex(k => snap.uid && k.uid === snap.uid);
   if (idx < 0 && !snap.personalizado) idx = lista.findIndex(k => k.nome === snap.nome && +k.kwp === +snap.kwp);
-  if (idx < 0 && snap.personalizado && typeof colocarKitNaLista === 'function') { _kitEditando = JSON.parse(JSON.stringify(snap)); idx = colocarKitNaLista(_kitEditando, tipo); }
+  if (idx < 0 && snap.personalizado && typeof colocarKitNaLista === 'function') { _kitEditando = JSON.parse(JSON.stringify(snap)); idx = colocarKitNaLista(_kitEditando, tipo);
+    if (adminLogado) { const { data: cc } = await sb.from('orcamento_custos').select('custo_kit').eq('orcamento_id', id).maybeSingle(); if (cc && cc.custo_kit != null) custos[_kitEditando.uid] = +cc.custo_kit; }
+  }
   if (idx < 0) { msg('⚠ O kit da proposta Nº ' + num + ' (' + (snap.nome || '?') + ') não está mais na tabela. Faça uma proposta nova.', true); return; }
   // região, tarifa e régua como estavam na proposta
   if (dd.regiao && dd.regiao.id && REGIOES.some(r => r.id === dd.regiao.id)) mudarRegiao(dd.regiao.id);
