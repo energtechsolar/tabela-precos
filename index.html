@@ -526,6 +526,10 @@ try {
         <input type="text" class="proposta-input" id="prop-concessionaria" list="lista-concessionarias" placeholder="Ex: Celesc, Copel">
         <datalist id="lista-concessionarias"><option value="Celesc"><option value="Copel"><option value="RGE"><option value="DCELT"><option value="Ceraçá"></datalist>
       </div>
+      <div class="proposta-field" style="grid-column:1/-1">
+        <label>Titular da UC (nome na fatura, se for outra pessoa)</label>
+        <input type="text" class="proposta-input" id="prop-titular-uc" placeholder="Ex.: marido, empresa — usado na homologação e no contrato">
+      </div>
     </div>
 
     <!-- Itens e valores da proposta -->
@@ -947,7 +951,7 @@ function reguaMudou() {
   atualizarModoValor();
 }
 ['slider-adicional', 'slider-desconto'].forEach(id => document.getElementById(id).addEventListener('input', reguaMudou));
-// ── INIT ──────────────────────────────────────────────────────────────────────────
+// ── INIT ──────────────────────────────────────────────────────────────────────────────
 renderSeletorRegiao();
 atualizar();            // mostra a tabela de reserva na hora
 const _precosCarregados = carregarDoSupabase();   // e troca pelos valores oficiais assim que chegarem

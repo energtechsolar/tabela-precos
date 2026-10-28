@@ -459,6 +459,7 @@ function montarPropostaPDF(d, fotos) {
   const temV = v => v && String(v).trim();
   const linhasCli = [
     [['Nome/Razão social', d.nome && d.nome !== 'Cliente' ? d.nome : '']],
+    [['Titular da UC', d.titularUc && String(d.titularUc).trim().toUpperCase() !== String(d.nome || '').trim().toUpperCase() ? d.titularUc : '']],   // só quando é outra pessoa
     [['CPF/CNPJ', d.cpf], ['Município/UF', d.cidade]],
     [['Telefone', d.telefone], ['E-mail', d.email]],
     [['Endereço', [d.endereco, d.cep ? 'CEP ' + d.cep : ''].filter(Boolean).join(' · ')]],
