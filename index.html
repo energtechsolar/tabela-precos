@@ -71,6 +71,10 @@
   .fat-vazio { border-color:#b45309 !important; }
   .fat-avisos { margin-top:8px; font-size:13px; color:var(--amarelo); line-height:1.5; }
   @media (max-width:560px) { .fat-grade { grid-template-columns:1fr; } }
+  /* modo simples: avisa que o bloco de itens e valores está escondido */
+  .aviso-modo-simples { display:none; margin:6px 0 14px; padding:10px 12px; border:1px dashed #5a4a10; border-radius:10px; font-size:13px; color:var(--muted); }
+  .aviso-modo-simples a { color:var(--amarelo); }
+  body.modo-campo .aviso-modo-simples { display:block; }
 </style>
 </head>
 <body class="tabela-oculta regua-oculta comissao-oculta">
@@ -559,11 +563,11 @@ try {
       </div>
       <div class="proposta-grid" style="margin-bottom:0">
         <div class="proposta-field campo-separado">
-          <label>Valor do kit (R$)</label>
+          <label>Valor do kit na proposta (R$) — o que vai para o cliente e o banco</label>
           <input type="text" inputmode="decimal" class="proposta-input" id="prop-kit-txt" placeholder="Ex: 25.384,62" oninput="valorEditado('kit')" onblur="formatarCampoReais(this)">
         </div>
         <div class="proposta-field campo-separado">
-          <label>Mão de obra / serviços (R$)</label>
+          <label>Mão de obra / serviços na proposta (R$)</label>
           <input type="text" inputmode="decimal" class="proposta-input" id="prop-serv-txt" placeholder="Ex: 7.615,38" oninput="valorEditado('servico')" onblur="formatarCampoReais(this)">
         </div>
         <div class="proposta-field">
@@ -576,6 +580,8 @@ try {
         <input type="hidden" id="prop-valor-kit">
       </div>
     </div>
+
+    <div class="aviso-modo-simples">📱 Modo simples: itens do kit e valores (total, kit e mão de obra) ficam escondidos. Para alterar, <a href="#" onclick="alternarModo();return false">toque aqui para o 🖥 Modo completo</a>.</div>
 
     <!-- Parcelamento no boleto (só kits importados) -->
     <div class="proposta-itens" id="neg-boleto">

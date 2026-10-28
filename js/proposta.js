@@ -487,7 +487,8 @@ function atualizarDemonstrativo() {
     h += ln('Nota de repasse do fornecedor (kit na proposta − custo)', fmt(r.repasse), 'color:var(--muted)')
        + ln('(−) Imposto descontado no repasse (' + pctTxt + ')', fmt(imposto))
        + ln('Volta do fornecedor para a Energtech', fmt(r.volta), 'color:var(--muted)');
-    if (kit < custo - 0.5) h += '<div style="color:var(--vermelho)">⚠ Kit na proposta abaixo do custo do fornecedor.</div>';
+    if (kit < custo - 0.5) h += '<div style="color:var(--vermelho)">⚠ Kit na proposta abaixo do custo do fornecedor. Confira se não inverteu os campos: o custo é o que pagamos hoje; o valor do kit é o que vai na proposta.</div>';
+    else if (Math.abs(kit - custo) <= 0.5) h += '<div style="color:var(--amarelo)">⚠ O custo do kit está igual ao valor do kit na proposta (sem nota de repasse). Confira se não inverteu os campos: o custo é o que pagamos hoje ao fornecedor.</div>';
   }
   h += ln('(−) Comissão do vendedor', fmt(com))
      + ln('Margem real da Energtech', fmt(margem), 'font-weight:700;border-top:1px solid var(--borda);padding-top:4px;margin-top:4px;color:' + (margem < 0 ? 'var(--vermelho)' : 'var(--verde)'));
