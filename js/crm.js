@@ -27,7 +27,7 @@ function blocoFormulario(l) {
   return `<h3>Respostas do formulário do anúncio</h3><div class="grade">${itens.map(([k, v]) =>
     `<div class="largo"><label>${esc(String(k).replace(/_/g, ' ').replace(/\?$/, ''))}</label><div>${esc(v)}</div></div>`).join('')}</div>`;
 }
-const COLUNAS_LEAD = 'id, nome, telefone, email, cidade, etapa, etapa_em, responsavel_email, proximo_contato, motivo_perda, origem, recebido_em, cpf_cnpj, endereco, cep, uc, concessionaria, forma_pagamento, arquivado, orcamento_ganho_id, documentos, form_meta:dados_brutos->campos, form_meta2:dados_brutos->meta->campos';
+const COLUNAS_LEAD = 'id, nome, telefone, email, cidade, etapa, etapa_em, responsavel_email, proximo_contato, motivo_perda, origem, recebido_em, cpf_cnpj, endereco, cep, uc, concessionaria, titular_uc, forma_pagamento, arquivado, orcamento_ganho_id, documentos, form_meta:dados_brutos->campos, form_meta2:dados_brutos->meta->campos';
 let perfil = null, leads = [], orcs = [], equipe = [], filtroFollow = false, filtroAlerta = false, CRM_CFG = {}, mostrarAntigos = false, verArquivados = false, arrastando = null, fichaId = null, perdaId = null, ganhoId = null;
 // documentos do negócio ganho (pasta privada "documentos"; nenhum é obrigatório, a ficha mostra o que falta)
 const DOCS_GANHO = [
@@ -360,14 +360,15 @@ function camposCliente(pre, l) {
     + c('cep', 'CEP', l.cep, 'inputmode="numeric" placeholder="00000-000"')
     + c('cidade', 'Município / UF', l.cidade, 'placeholder="Chapecó / SC"')
     + c('uc', 'Unidade consumidora (UC)', l.uc, 'inputmode="numeric"')
-    + c('conc', 'Concessionária', l.concessionaria, 'list="lista-conc" placeholder="Celesc, Copel…"');
+    + c('conc', 'Concessionária', l.concessionaria, 'list="lista-conc" placeholder="Celesc, Copel…"')
+    + c('titular', 'Titular da UC (nome na fatura, se for outra pessoa)', l.titular_uc, 'placeholder="Ex.: marido, empresa"', true);
 }
 function lerCamposCliente(pre) {
   const v = id => ($(pre + '-' + id).value || '').trim() || null;
   let tel = ($(pre + '-tel').value || '').replace(/\D/g, '') || null;
   if (tel && (tel.length === 10 || tel.length === 11)) tel = '55' + tel;
   return { nome: v('nome'), cpf_cnpj: v('cpf'), telefone: tel, email: v('email'), endereco: v('end'), cep: v('cep'),
-           cidade: v('cidade'), uc: v('uc'), concessionaria: v('conc') };
+           cidade: v('cidade'), uc: v('uc'), concessionaria: v('conc'), titular_uc: v('titular') };
 }
 
 function novoLead() {
@@ -551,6 +552,7 @@ function avisarEngenharia(id) {
     p ? '🔋 ' + (p.sistema || '') + ' · ' + String(p.kwp).replace('.', ',') + ' kWp · ' + fmtR(p.valor_final) + ' (proposta Nº ' + String(p.id).padStart(5, '0') + ')' : '',
     l.forma_pagamento ? '💳 ' + l.forma_pagamento : '',
     l.uc ? '⚡ UC ' + l.uc + (l.concessionaria ? ' · ' + l.concessionaria : '') : (l.concessionaria ? '⚡ ' + l.concessionaria : ''),
+    l.titular_uc && l.titular_uc !== l.nome ? '🧾 Titular da UC: ' + l.titular_uc : '',
     l.endereco ? '🏠 ' + l.endereco : '',
     loc ? '📍 https://www.google.com/maps?q=' + encodeURIComponent(loc.valor) : '',
     '📎 Documentos: ' + st.ok + ' de ' + st.total + (falta.length ? ' (faltam: ' + falta.join(', ') + ')' : ' ✅'),
