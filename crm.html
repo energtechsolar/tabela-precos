@@ -125,7 +125,12 @@
   .status-msg.erro { color:var(--vermelho); }
   .modal { background:var(--card); border:1px solid var(--borda); border-radius:14px; padding:18px; width:min(420px, 92vw); margin:auto; }
   #ov-perda, #ov-ganho, #ov-etapas, #ov-feriados { justify-content:center; align-items:center; z-index:60; }
-  @media (max-width:640px) { .grade { grid-template-columns:1fr; } .header-title { text-align:left; } }
+  .receb { display:grid; grid-template-columns:150px 1fr 110px 140px 140px; gap:6px 8px; align-items:end; background:var(--card2); border:1px solid var(--borda); border-left:3px solid var(--borda); border-radius:8px; padding:8px; margin-bottom:6px; font-size:12px; }
+  .receb label { color:var(--muted); display:flex; flex-direction:column; gap:2px; }
+  .receb .input, .receb .select { padding:5px 7px; font-size:13px; }
+  .receb .receb-sit { grid-column:1 / -1; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .receb.ok { border-left-color:var(--verde); opacity:.85; } .receb.atraso { border-left-color:var(--vermelho); } .receb.hoje { border-left-color:var(--laranja); }
+  @media (max-width:640px) { .grade { grid-template-columns:1fr; } .receb { grid-template-columns:1fr 1fr; } .receb > .input { grid-column:1 / -1; } .header-title { text-align:left; } }
 </style>
 </head>
 <body>
@@ -271,7 +276,7 @@
 
 <script src="js/comum.js?v=20261019a"></script>
 <div class="toast-lead" id="toast-lead"></div>
-<script src="js/crm.js?v=20261028a"></script>
+<script src="js/crm.js?v=20261028b"></script>
 <script src="js/projetos.js?v=20261028a"></script>
 <script src="js/contrato.js?v=20261019a"></script>
 <script>

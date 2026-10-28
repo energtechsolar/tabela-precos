@@ -27,8 +27,8 @@ function blocoFormulario(l) {
   return `<h3>Respostas do formulário do anúncio</h3><div class="grade">${itens.map(([k, v]) =>
     `<div class="largo"><label>${esc(String(k).replace(/_/g, ' ').replace(/\?$/, ''))}</label><div>${esc(v)}</div></div>`).join('')}</div>`;
 }
-const COLUNAS_LEAD = 'id, nome, telefone, email, cidade, etapa, etapa_em, responsavel_email, proximo_contato, motivo_perda, origem, recebido_em, cpf_cnpj, endereco, cep, uc, concessionaria, titular_uc, rg, rg_orgao, data_nascimento, forma_pagamento, arquivado, orcamento_ganho_id, documentos, form_meta:dados_brutos->campos, form_meta2:dados_brutos->meta->campos';
-let perfil = null, leads = [], orcs = [], equipe = [], filtroFollow = false, filtroAlerta = false, CRM_CFG = {}, mostrarAntigos = false, verArquivados = false, arrastando = null, fichaId = null, perdaId = null, ganhoId = null;
+const COLUNAS_LEAD = 'id, nome, telefone, email, cidade, etapa, etapa_em, responsavel_email, proximo_contato, motivo_perda, origem, recebido_em, cpf_cnpj, endereco, cep, uc, concessionaria, titular_uc, rg, rg_orgao, data_nascimento, forma_pagamento, arquivado, orcamento_ganho_id, vendedor_id, documentos, form_meta:dados_brutos->campos, form_meta2:dados_brutos->meta->campos';
+let perfil = null, leads = [], orcs = [], equipe = [], pessoas = [], filtroFollow = false, filtroAlerta = false, CRM_CFG = {}, mostrarAntigos = false, verArquivados = false, arrastando = null, fichaId = null, perdaId = null, ganhoId = null;
 // documentos do negócio ganho (pasta privada "documentos"; nenhum é obrigatório, a ficha mostra o que falta)
 const DOCS_GANHO = [
   ['cnh', 'CNH / RG do titular', 'arquivo'], ['fatura', 'Fatura de energia', 'arquivo'], ['localizacao', 'Localização da instalação', 'local'],
@@ -104,12 +104,14 @@ async function sair() { pararAvisos(); await sb.auth.signOut(); perfil = null; a
 
 async function carregar() {
   $('kanban').innerHTML = '<div class="muted">Carregando…</div>';
-  const [l, o, v, cfgCrm] = await Promise.all([
+  const [l, o, v, cfgCrm, eq] = await Promise.all([
     sb.from('leads').select(COLUNAS_LEAD).order('recebido_em', { ascending:false }).limit(2000),
     sb.from('orcamentos').select('id, lead_id, sistema, kwp, valor_final, tipo, vendedor_email, criado_em, revisao_de:dados->>revisao_de').order('criado_em', { ascending:false }).limit(5000),
     sb.from('vendedores').select('email, nome, papel'),
     sb.from('config').select('dados').eq('id', 'crm').maybeSingle(),
+    perfil && perfil.admin ? sb.from('equipe').select('id, nome, tipo, recebe_comissao, comissao_pct, ativo').order('nome') : Promise.resolve({ data: [] }),
   ]);
+  pessoas = (eq && eq.data) || [];
   CRM_CFG = (cfgCrm && cfgCrm.data && cfgCrm.data.dados) || {};
   aplicarEtapas(CRM_CFG.etapas); aplicarAlertas(CRM_CFG.alertas);
   if (l.error) { mostrar('aviso', '⚠ Erro ao carregar os leads: ' + esc(l.error.message) + '<br>Se o CRM acabou de ser instalado, confira se o script 07 foi aplicado no Supabase.'); return; }
@@ -285,6 +287,7 @@ async function abrirFicha(id, recarregar) {
       ${perfil && perfil.admin ? `<button class="btn btn-sec" style="color:var(--vermelho)" onclick="excluirLead(${id})">🗑 Excluir</button>` : ''}
     </div>
     ${l.etapa === 'ganho' ? blocoGanho(l) : blocoDocs(l)}
+    ${l.etapa === 'ganho' && perfil && perfil.admin ? '<h3>💰 Recebimentos <span class="muted" style="font-size:12px;font-weight:400">🔒 só admin</span></h3><div id="fx-receb"><div class="muted">Carregando…</div></div>' : ''}
     ${blocoFormulario(l)}
     <h3>Negócio</h3>
     <div class="grade">
@@ -292,6 +295,7 @@ async function abrirFicha(id, recarregar) {
       <div><label>Responsável</label><select class="select" id="fx-resp">${opResp}</select></div>
       <div><label>Próximo contato</label><input class="input" type="datetime-local" id="fx-prox" value="${paraInput(l.proximo_contato)}"></div>
       <div><label>Origem</label><select class="select" id="fx-origem">${opOrig}</select></div>
+      ${perfil && perfil.admin ? `<div><label>🔒 Vendedor da venda (comissão)</label><select class="select" id="fx-vend">${opVendedorVenda(l)}</select></div>` : ''}
       ${l.etapa === 'perdido' ? `<div class="largo muted">Motivo da perda: <b>${esc(l.motivo_perda || '—')}</b></div>` : ''}
     </div>
     ${l.etapa !== 'ganho' && l.etapa !== 'perdido' ? blocoFollowFeito(l) : ''}
@@ -309,6 +313,7 @@ async function abrirFicha(id, recarregar) {
     <div class="acoes"><button class="btn btn-sec" onclick="anotar(${id})">+ Adicionar anotação</button></div>
     <div id="fx-eventos" style="margin-top:12px"><div class="muted">Carregando…</div></div>`;
   $('ov-ficha').classList.add('visivel');
+  if (l.etapa === 'ganho' && perfil && perfil.admin) carregarRecebimentos(id);
   sb.from('leads').select('contratos').eq('id', id).maybeSingle().then(({ data: lc }) => {
     const box = $('fx-contratos'); if (!box || fichaId !== id) return;
     const lista = (lc && Array.isArray(lc.contratos)) ? lc.contratos.slice().reverse() : [];
@@ -332,6 +337,7 @@ async function salvarFicha(id) {
     proximo_contato: prox ? new Date(prox).toISOString() : null,
     atualizado_em: new Date().toISOString(),
   };
+  if (perfil && perfil.admin && $('fx-vend')) mud.vendedor_id = +$('fx-vend').value || null;
   const { error } = await sb.from('leads').update(mud).eq('id', id);
   const msg = $('fx-msg');
   if (error) { msg.textContent = '⚠ ' + error.message; msg.classList.add('erro'); return; }
@@ -497,6 +503,143 @@ function blocoDocs(l) {
     <div class="acoes">${env('fatura', 'Enviar fatura')}${env('cnh', 'Enviar CNH / RG')}</div>
     <div class="status-msg" id="doc-msg"></div>`;
 }
+// ── vendedor da venda (comissão): equipe cadastrada que recebe comissão, inclusive vendedores sem acesso. Só admin. ──
+function opVendedorVenda(l) {
+  const lista = pessoas.filter(p => (p.recebe_comissao && p.ativo) || p.id === l.vendedor_id);
+  return '<option value="">— Não informado —</option>' + lista.map(p => `<option value="${p.id}" ${p.id === l.vendedor_id ? 'selected' : ''}>${esc(p.nome)}${p.comissao_pct != null ? ' · ' + String(p.comissao_pct).replace('.', ',') + '%' : ''}</option>`).join('');
+}
+
+// ── recebimentos do negócio ganho (tabela "recebimentos", só admin) ──
+// Cada linha é uma parcela: entrada, boleto, banco (financiamento), repasse do fornecedor ou outro.
+// Edita direto na linha (salva ao sair do campo). "Recebido em" preenchido = recebido.
+const TIPOS_REC = { entrada:'Entrada', boleto:'Boleto', banco:'Banco / financiamento', repasse:'Repasse do fornecedor', outro:'Outro' };
+let recebs = [], recebLead = null;
+const hojeISO = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+const somaDias = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+const somaMeses = (iso, n) => { const d = new Date(iso + 'T12:00:00'); const dia = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() + n); d.setDate(Math.min(dia, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); return d.toISOString().slice(0, 10); };
+function numBR(t) {
+  let s = String(t ?? '').replace(/[R$\s]/g, '');
+  if (!s) return null;
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  const n = Number(s); return isFinite(n) ? Math.round(n * 100) / 100 : null;
+}
+const valBR = v => v === null || v === undefined || v === '' ? '' : (+v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function situacaoReceb(r) {
+  if (r.recebido_em) return ['ok', '✅ Recebido'];
+  if (!r.vencimento) return ['', 'Sem data'];
+  if (r.vencimento < hojeISO()) return ['atraso', '⚠ Atrasado ' + dias(r.vencimento + 'T12:00:00') + ' dia(s)'];
+  if (r.vencimento === hojeISO()) return ['hoje', 'Vence hoje'];
+  return ['', 'A receber'];
+}
+async function carregarRecebimentos(id) {
+  recebLead = id;
+  const { data, error } = await sb.from('recebimentos').select('*').eq('lead_id', id).order('vencimento', { ascending: true, nullsFirst: false }).order('id');
+  if (fichaId !== id) return;
+  if (error) { $('fx-receb').innerHTML = '<div class="muted">⚠ Não foi possível carregar os recebimentos: ' + esc(error.message) + '</div>'; return; }
+  recebs = data || [];
+  renderRecebimentos();
+}
+function renderRecebimentos() {
+  const box = $('fx-receb'); if (!box) return;
+  const l = leads.find(x => x.id === recebLead) || {}, p = propostaDoLead(l);
+  const total = p ? +p.valor_final || 0 : 0;
+  const doCliente = recebs.filter(r => r.tipo !== 'repasse');
+  const lancado = doCliente.reduce((a, r) => a + (+r.valor || 0), 0);
+  const recebido = recebs.reduce((a, r) => a + (r.recebido_em ? +(r.valor_recebido ?? r.valor) || 0 : 0), 0);
+  const falta = recebs.reduce((a, r) => a + (r.recebido_em ? 0 : +r.valor || 0), 0);
+  const optTipo = t => Object.entries(TIPOS_REC).map(([k, n]) => `<option value="${k}" ${k === t ? 'selected' : ''}>${n}</option>`).join('');
+  const linha = r => { const [cls, txt] = situacaoReceb(r);
+    return `<div class="receb ${cls}">
+      <select class="select" onchange="salvarReceb(${r.id}, 'tipo', this.value)">${optTipo(r.tipo)}</select>
+      <input class="input" placeholder="Descrição (ex.: boleto 2/4)" value="${esc(r.descricao || '')}" onchange="salvarReceb(${r.id}, 'descricao', this.value)">
+      <label>Valor (R$)<input class="input" inputmode="decimal" value="${valBR(r.valor)}" onchange="salvarReceb(${r.id}, 'valor', this.value)"></label>
+      <label>Vencimento<input class="input" type="date" value="${r.vencimento || ''}" onchange="salvarReceb(${r.id}, 'vencimento', this.value)"></label>
+      <label>Recebido em<input class="input" type="date" value="${r.recebido_em || ''}" onchange="salvarReceb(${r.id}, 'recebido_em', this.value)"></label>
+      <span class="receb-sit"><span class="tag ${cls === 'ok' ? 'resp' : cls}">${txt}</span>
+        ${r.recebido_em ? '' : `<button class="btn btn-verde" style="padding:3px 9px;font-size:12px" onclick="salvarReceb(${r.id}, 'recebido_em', hojeISO())">✔ Recebi hoje</button>`}
+        <a href="#" style="color:var(--vermelho);font-size:12px" onclick="apagarReceb(${r.id});return false">apagar</a></span>
+    </div>`; };
+  // financiamento: o banco paga o kit direto ao fornecedor, então as parcelas não somam o total (é esperado)
+  const comBanco = recebs.some(r => r.tipo === 'banco'), dif = Math.round((total - lancado) * 100) / 100;
+  const aviso = recebs.length && total && !comBanco && Math.abs(dif) > 0.5
+    ? `<div style="color:var(--amarelo);font-size:13px;margin:6px 0">⚠ As parcelas do cliente somam ${fmtR(lancado)} e a proposta fechada é de ${fmtR(total)}: ${dif > 0 ? 'faltam ' + fmtR(dif) : 'sobram ' + fmtR(-dif)} nas parcelas.</div>` : '';
+  box.innerHTML = `
+    <div class="muted" style="margin-bottom:6px">Proposta fechada: <b>${fmtR(total)}</b> · Recebido: <b style="color:var(--verde)">${fmtR(recebido)}</b> · Falta receber: <b style="color:var(--amarelo)">${fmtR(falta)}</b></div>
+    ${aviso}
+    ${recebs.map(linha).join('') || '<div class="muted">Nenhuma parcela lançada. Use "⚡ Sugerir parcelas" (pela forma de pagamento) ou "+ Parcela".</div>'}
+    <div class="acoes">
+      ${recebs.length ? '' : `<button class="btn" onclick="sugerirParcelas(${recebLead})">⚡ Sugerir parcelas</button>`}
+      <button class="btn btn-sec" onclick="novaParcela(${recebLead})">+ Parcela</button>
+      <span class="status-msg" id="receb-msg"></span>
+    </div>`;
+}
+function msgReceb(t, erro) { const m = $('receb-msg'); if (m) { m.textContent = t; m.classList.toggle('erro', !!erro); } }
+async function salvarReceb(id, campo, valor) {
+  const r = recebs.find(x => x.id === id); if (!r) return;
+  const mud = {};
+  if (campo === 'valor') { const n = numBR(valor); if (n === null || n < 0) { msgReceb('⚠ Valor inválido.', true); renderRecebimentos(); return; } mud.valor = n; }
+  else if (campo === 'recebido_em') { mud.recebido_em = valor || null; mud.valor_recebido = valor ? (r.valor_recebido ?? r.valor) : null; }
+  else mud[campo] = (valor || '').trim ? (valor.trim() || null) : valor;
+  const { error } = await sb.from('recebimentos').update(mud).eq('id', id);
+  if (error) { msgReceb('⚠ Não salvou: ' + error.message, true); return; }
+  Object.assign(r, mud);
+  if (campo === 'valor' && r.recebido_em) { r.valor_recebido = r.valor; await sb.from('recebimentos').update({ valor_recebido: r.valor }).eq('id', id); }
+  renderRecebimentos(); msgReceb('✅ Salvo');   // sem registro no histórico: o histórico os vendedores também veem
+}
+async function novaParcela(leadId) {
+  const l = leads.find(x => x.id === leadId), p = l && propostaDoLead(l);
+  const { data, error } = await sb.from('recebimentos').insert({ lead_id: leadId, orcamento_id: p ? p.id : null, tipo: 'boleto', valor: 0, vencimento: somaDias(hojeISO(), 30) }).select('*').single();
+  if (error) { msgReceb('⚠ ' + error.message, true); return; }
+  recebs.push(data); renderRecebimentos(); msgReceb('Parcela criada: preencha o valor.');
+}
+async function apagarReceb(id) {
+  const r = recebs.find(x => x.id === id); if (!r) return;
+  if (!confirm('Apagar a parcela de ' + fmtR(r.valor) + (r.recebido_em ? ' (já marcada como RECEBIDA)' : '') + '?')) return;
+  const { error } = await sb.from('recebimentos').delete().eq('id', id);
+  if (error) { msgReceb('⚠ ' + error.message, true); return; }
+  recebs = recebs.filter(x => x.id !== id); renderRecebimentos();
+}
+// sugestão pela forma de pagamento do ganho:
+//  financiamento/FINAME: o banco paga o kit direto ao fornecedor → 1 parcela do banco (total − kit), após a instalação
+//  à vista: 1 entrada do total · demais (entrada + parcelas, cartão, vazio): entrada no valor do kit + N boletos mensais
+//  kit acima do custo: + repasse do fornecedor (nota de repasse, já sem o imposto)
+async function sugerirParcelas(leadId) {
+  const l = leads.find(x => x.id === leadId), p = l && propostaDoLead(l);
+  if (!p) { msgReceb('⚠ Marque a proposta fechada (link "alterar" no bloco Negócio ganho).', true); return; }
+  msgReceb('⏳ Calculando…');
+  const [o, c] = await Promise.all([
+    sb.from('orcamentos').select('valor_final, modo_valor:dados->>modo_valor, valor_kit:dados->>valor_kit, repasse_pct:dados->>repasse_pct').eq('id', p.id).maybeSingle(),
+    sb.from('orcamento_custos').select('custo_kit').eq('orcamento_id', p.id).maybeSingle(),
+  ]);
+  const od = o.data || {}, total = +od.valor_final || +p.valor_final || 0;
+  const custo = c.data && c.data.custo_kit != null ? +c.data.custo_kit : null;
+  const kitProp = od.modo_valor === 'separado' && +od.valor_kit ? +od.valor_kit : null;
+  const kit = kitProp || custo || 0;
+  const forma = (l.forma_pagamento || '').toLowerCase(), hoje = hojeISO();
+  const base = { lead_id: leadId, orcamento_id: p.id };
+  const novas = [];
+  if (/financ|finame|banco|bndes|caixa/.test(forma)) {
+    novas.push({ ...base, tipo: 'banco', descricao: 'Liberação do banco após a instalação (o kit o banco paga direto ao fornecedor)', valor: Math.round((total - kit) * 100) / 100, vencimento: null });
+  } else if (/vista/.test(forma)) {
+    novas.push({ ...base, tipo: 'entrada', descricao: 'Pagamento à vista', valor: total, vencimento: hoje });
+  } else {
+    const n = Math.max(1, Math.min(24, parseInt(prompt('Em quantos boletos fica o restante (depois da entrada no valor do kit)?', '3'), 10) || 0));
+    if (!n) { msgReceb(''); return; }
+    novas.push({ ...base, tipo: 'entrada', descricao: 'Entrada (valor do kit)', valor: kit, vencimento: hoje });
+    const resto = Math.round((total - kit) * 100), parte = Math.floor(resto / n);
+    for (let i = 1; i <= n; i++) novas.push({ ...base, tipo: 'boleto', descricao: 'Boleto ' + i + '/' + n, valor: (i === n ? resto - parte * (n - 1) : parte) / 100, vencimento: somaMeses(hoje, i) });
+  }
+  if (kitProp && custo != null && kitProp - custo > 0.5) {
+    const pct = od.repasse_pct != null && od.repasse_pct !== '' ? +od.repasse_pct : 4;
+    const rep = Math.round((kitProp - custo) * 100) / 100, volta = Math.round((rep - Math.round(rep * pct) / 100) * 100) / 100;
+    novas.push({ ...base, tipo: 'repasse', descricao: 'Nota de repasse do fornecedor ' + fmtR(rep) + ' − imposto (já descontado)', valor: volta, vencimento: null });
+  }
+  const { data, error } = await sb.from('recebimentos').insert(novas).select('*');
+  if (error) { msgReceb('⚠ ' + error.message, true); return; }
+  recebs = (data || []).concat(recebs); renderRecebimentos();
+  msgReceb(kit ? '✅ Parcelas sugeridas. Confira valores e datas (o banco e o repasse ficam sem data até você saber).' : '⚠ Não achei o valor do kit: confira a entrada / parcela do banco.', !kit);
+}
+
 // ── leitura de CNH / RG já anexado (função "ler-documento"): CPF, RG, órgão emissor e nascimento ──
 // O resultado aparece para conferir; "Preencher na ficha" coloca nos campos e o vendedor clica em Salvar.
 function linkLerDoc(l, d) {
