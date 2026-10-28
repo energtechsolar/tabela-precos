@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://cmrndntnaaooapbdmgip.supabase.co;">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Financeiro — Energtech</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  :root {
+    --amarelo:#FFC107; --amarelo-dim:#e6ac00; --preto:#111; --bg:#0f0f0f; --card:#1a1a1a; --card2:#222;
+    --borda:#2e2e2e; --texto:#e0e0e0; --muted:#8a8a8a; --verde:#4ade80; --vermelho:#f87171; --azul:#60a5fa; --laranja:#fb923c;
+  }
+  body { background:var(--bg); font-family:'Barlow',sans-serif; color:var(--texto); min-height:100vh; padding-bottom:60px; }
+  a { color:var(--azul); }
+  .header { background:var(--amarelo); padding:16px 24px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+  .logo-area { display:flex; align-items:center; gap:12px; }
+  .logo-icon { width:42px; height:42px; background:var(--preto); border-radius:50%; display:flex; align-items:center; justify-content:center; }
+  .brand-name { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:900; color:var(--preto); line-height:1; }
+  .brand-sub { font-size:10px; font-weight:600; color:var(--preto); letter-spacing:.2em; text-transform:uppercase; opacity:.6; }
+  .header-title { text-align:right; }
+  .header-title h1 { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:700; color:var(--preto); text-transform:uppercase; letter-spacing:.05em; }
+  .header-links { font-size:12px; color:var(--preto); margin-top:3px; }
+  .header-links a { color:var(--preto); font-weight:700; }
+  .page { max-width:1200px; margin:0 auto; padding:20px 16px; }
+  .card { background:var(--card); border:1px solid var(--borda); border-radius:14px; padding:18px; margin-bottom:16px; }
+  .card h2 { font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:900; letter-spacing:.1em; text-transform:uppercase; color:var(--amarelo); margin-bottom:12px; }
+  .muted { color:var(--muted); font-size:13px; }
+  .login { max-width:360px; margin:40px auto; text-align:center; }
+  .input, .select { background:var(--card2); border:1px solid var(--borda); color:var(--texto); font-family:'Barlow',sans-serif; font-size:14px; padding:8px 10px; border-radius:8px; outline:none; width:100%; }
+  .input:focus, .select:focus { border-color:var(--amarelo); }
+  .login .input { margin-bottom:10px; }
+  .btn { background:var(--amarelo); color:var(--preto); font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:900; letter-spacing:.05em; padding:8px 14px; border:none; border-radius:8px; cursor:pointer; white-space:nowrap; }
+  .btn:hover { background:var(--amarelo-dim); }
+  .btn-sec { background:var(--card2); color:var(--texto); border:1px solid var(--borda); }
+  .btn-verde { background:#166534; color:#fff; }
+  .btn-p { padding:3px 9px; font-size:12px; }
+  .erro { color:var(--vermelho); font-size:13px; margin-top:8px; min-height:16px; }
+  #conteudo { display:none; }
+  .abas { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; align-items:center; }
+  .aba { background:var(--card2); border:1px solid var(--borda); color:var(--texto); border-radius:20px; padding:8px 14px; font-size:14px; cursor:pointer; }
+  .aba.ativa { border-color:var(--amarelo); color:var(--amarelo); }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:10px; margin-bottom:16px; }
+  .kpi { background:var(--card); border:1px solid var(--borda); border-radius:12px; padding:14px; }
+  .kpi-val { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:900; color:var(--amarelo); line-height:1.1; }
+  .kpi-lbl { font-size:12px; color:var(--muted); margin-top:3px; }
+  .kpi.verm .kpi-val { color:var(--vermelho); } .kpi.verde .kpi-val { color:var(--verde); }
+  .tabela-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); font-weight:600; padding:7px 8px; border-bottom:1px solid var(--borda); white-space:nowrap; }
+  td { padding:8px; border-bottom:1px solid #242424; vertical-align:middle; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  tr.atraso td:first-child { border-left:3px solid var(--vermelho); }
+  .tag { display:inline-block; font-size:11px; padding:1px 7px; border-radius:20px; background:#1a1a1a; border:1px solid var(--borda); color:var(--muted); white-space:nowrap; }
+  .tag.atraso { color:var(--vermelho); border-color:#7f1d1d; } .tag.ok { color:var(--verde); border-color:#1f4d33; } .tag.auto { color:var(--azul); border-color:#1e3a5f; }
+  .neg { color:var(--vermelho); } .pos { color:var(--verde); }
+  .vazio { text-align:center; color:var(--muted); padding:18px 0; font-size:13px; }
+  .linha-topo { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+  .linha-topo h2 { margin-bottom:0; }
+  .barras { display:flex; gap:8px; align-items:flex-end; height:170px; padding:8px 0; overflow-x:auto; }
+  .barra-mes { display:flex; flex-direction:column; align-items:center; gap:4px; min-width:52px; flex:1; }
+  .barra-par { display:flex; gap:3px; align-items:flex-end; height:130px; }
+  .barra-par div { width:16px; border-radius:3px 3px 0 0; }
+  .b-ent { background:var(--verde); } .b-sai { background:var(--vermelho); }
+  .barra-mes span { font-size:11px; color:var(--muted); }
+  .grade2 { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:16px; }
+  .dre td:first-child { color:var(--muted); } .dre tr.total td { font-weight:700; color:var(--texto); border-top:1px solid var(--borda); }
+  .status-msg { font-size:12px; min-height:16px; color:var(--verde); } .status-msg.erro { color:var(--vermelho); }
+  @media (max-width:640px) { .header-title { text-align:left; } td, th { padding:6px 5px; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo-area">
+    <div class="logo-icon"><svg width="26" height="26" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="13" fill="#FFC107"/><path d="M16 3L8 15h7l-3 10 10-13h-7l1-9z" fill="#111"/></svg></div>
+    <div><div class="brand-name">Energtech</div><div class="brand-sub">Engenharia Solar</div></div>
+  </div>
+  <div class="header-title"><h1>Financeiro</h1><div class="header-links" id="header-links"><a href="crm.html">CRM</a></div></div>
+</div>
+
+<div class="page">
+  <div class="card login" id="login" style="display:none">
+    <h2 style="font-family:'Barlow Condensed',sans-serif;color:var(--amarelo)">🔑 Entrar</h2>
+    <p class="muted" style="margin-bottom:16px">Use o mesmo login do CRM.</p>
+    <input class="input" type="email" id="login-email" placeholder="E-mail" autocomplete="username">
+    <input class="input" type="password" id="login-senha" placeholder="Senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')entrar()">
+    <button class="btn" id="login-btn" style="width:100%" onclick="entrar()">Entrar</button>
+    <div class="erro" id="login-erro"></div>
+  </div>
+  <div class="card" id="aviso" style="display:none"><p id="aviso-txt" class="muted"></p></div>
+
+  <div id="conteudo">
+    <div class="abas">
+      <button class="aba ativa" data-aba="fluxo" onclick="trocarAba('fluxo')">📅 Contas do mês</button>
+      <button class="aba" data-aba="saude" onclick="trocarAba('saude')">📈 Saúde financeira</button>
+      <button class="aba" data-aba="fixos" onclick="trocarAba('fixos')">🏢 Custos fixos</button>
+      <button class="aba" data-aba="param" onclick="trocarAba('param')">⚙ Parâmetros</button>
+      <span style="flex:1"></span>
+      <label class="muted">Mês <input class="input" type="month" id="f-mes" style="width:auto;display:inline-block" onchange="carregar()"></label>
+      <button class="btn btn-sec" onclick="carregar()" title="Atualizar">🔄</button>
+    </div>
+    <div class="status-msg" id="msg"></div>
+    <div id="aba-fluxo"></div>
+    <div id="aba-saude" style="display:none"></div>
+    <div id="aba-fixos" style="display:none"></div>
+    <div id="aba-param" style="display:none"></div>
+  </div>
+</div>
+
+<script src="js/comum.js?v=20261019a"></script>
+<script>
+// Energtech — Financeiro (só admin)
+// Contas do mês: o que entra (recebimentos) e o que sai (a pagar). O "a pagar" automático (kit ao fornecedor,
+// comissão, Simples sobre serviços, salários, diárias e custos fixos) é gerado pela função financeiro_sincronizar.
+// Saúde financeira: caixa real (o que entrou e saiu) dos últimos 12 meses + resultado do mês por competência.
+const $ = id => document.getElementById(id);
+const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtR = v => (+v || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+const fmtR0 = v => (+v || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL', maximumFractionDigits:0 });
+const dBR = iso => iso ? iso.slice(0, 10).split('-').reverse().join('/') : '—';
+const hojeISO = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+const ultimoDia = ym => { const [a, m] = ym.split('-').map(Number); return ym + '-' + String(new Date(a, m, 0).getDate()).padStart(2, '0'); };
+const somaMes = (ym, n) => { const [a, m] = ym.split('-').map(Number); const d = new Date(a, m - 1 + n, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
+const nomeMes = ym => { const [a, m] = ym.split('-').map(Number); return new Date(a, m - 1, 1).toLocaleDateString('pt-BR', { month:'short' }).replace('.', '') + '/' + String(a).slice(2); };
+function numBR(t) { let s = String(t ?? '').replace(/[R$\s]/g, ''); if (!s) return null; if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return isFinite(n) ? Math.round(n * 100) / 100 : null; }
+const TIPOS_PAG = { kit:'Kit ao fornecedor', comissao:'Comissão', imposto:'Imposto (Simples)', salario:'Salário', diarias:'Diárias / instalações', instalacao:'Instalação', fixo:'Custo fixo', outro:'Outro' };
+const TIPOS_REC = { entrada:'Entrada', boleto:'Boleto', banco:'Banco / financiamento', repasse:'Repasse do fornecedor', outro:'Outro' };
+const CATEGORIAS = { aluguel:'Aluguel', energia_agua:'Energia / água', internet_telefone:'Internet / telefone', marketing:'Marketing / anúncios', contador:'Contador', software:'Sistemas / software', veiculo:'Veículo / combustível', prolabore:'Pró-labore', emprestimo:'Empréstimo / financiamento', outros:'Outros' };
+let perfil = null, aba = 'fluxo', REC = [], PAG = [], FIXOS = [], PRM = {}, GANHOS = [];
+
+function msg(t, erro) { const m = $('msg'); m.textContent = t || ''; m.classList.toggle('erro', !!erro); }
+function mostrar(qual, texto) {
+  $('login').style.display = qual === 'login' ? '' : 'none';
+  $('aviso').style.display = qual === 'aviso' ? '' : 'none';
+  $('conteudo').style.display = qual === 'conteudo' ? 'block' : 'none';
+  if (texto) $('aviso-txt').innerHTML = texto;
+}
+function renderHeader() {
+  let h = '<a href="crm.html">🗂 CRM</a> · <a href="painel.html">📊 Orçamentos</a> · <a href="./">📄 Precificador</a>';
+  if (perfil) h += ` · 👤 ${esc(perfil.nome || perfil.email)} · <a href="#" onclick="sair();return false">Sair</a>`;
+  $('header-links').innerHTML = h;
+}
+async function iniciar() {
+  if (!sb) { mostrar('aviso', '⚠ Sem conexão com o servidor.'); return; }
+  const { data } = await sb.auth.getSession();
+  if (!data || !data.session) { perfil = null; renderHeader(); mostrar('login'); return; }
+  const r = await sb.rpc('meu_perfil'); perfil = r.data || {};
+  renderHeader();
+  if (!perfil.admin) { mostrar('aviso', 'O Financeiro é só para o administrador.'); return; }
+  mostrar('conteudo');
+  if (!$('f-mes').value) $('f-mes').value = hojeISO().slice(0, 7);
+  await carregar();
+}
+async function entrar() {
+  const email = $('login-email').value.trim(), senha = $('login-senha').value;
+  $('login-erro').textContent = '';
+  const { error } = await sb.auth.signInWithPassword({ email, password: senha });
+  if (error) { $('login-erro').textContent = 'E-mail ou senha incorretos.'; return; }
+  await iniciar();
+}
+async function sair() { await sb.auth.signOut(); perfil = null; await iniciar(); }
+function trocarAba(a) {
+  aba = a;
+  document.querySelectorAll('.aba').forEach(b => b.classList.toggle('ativa', b.dataset.aba === a));
+  ['fluxo', 'saude', 'fixos', 'param'].forEach(k => $('aba-' + k).style.display = k === a ? '' : 'none');
+  render();
+}
+
+async function carregar() {
+  const ym = $('f-mes').value || hojeISO().slice(0, 7);
+  msg('⏳ Atualizando…');
+  const s = await sb.rpc('financeiro_sincronizar', { p_mes: ym + '-01' });
+  if (s.error) { msg('⚠ ' + s.error.message, true); return; }
+  // o mês atual também (salários e custos fixos do mês corrente), se estiver olhando outro mês
+  if (ym !== hojeISO().slice(0, 7)) await sb.rpc('financeiro_sincronizar', { p_mes: hojeISO() });
+  const [r, p, f, prm, g] = await Promise.all([
+    sb.from('recebimentos').select('*, leads(nome)').limit(5000),
+    sb.from('pagamentos').select('*, leads(nome), equipe(nome)').limit(10000),
+    sb.from('custos_fixos').select('*').order('nome'),
+    sb.from('fin_parametros').select('*').eq('id', 1).maybeSingle(),
+    sb.from('leads').select('id, nome, etapa_em, forma_pagamento, orcamento_ganho_id').eq('etapa', 'ganho').limit(5000),
+  ]);
+  const err = [r, p, f, prm, g].find(x => x.error);
+  if (err) { msg('⚠ ' + err.error.message, true); return; }
+  REC = r.data || []; PAG = p.data || []; FIXOS = f.data || []; PRM = prm.data || {}; GANHOS = g.data || [];
+  const ids = GANHOS.map(l => l.orcamento_ganho_id).filter(Boolean);
+  if (ids.length) {
+    const [o, c] = await Promise.all([
+      sb.from('orcamentos').select('id, lead_id, valor_final, modo_valor:dados->>modo_valor, valor_kit:dados->>valor_kit, repasse_pct:dados->>repasse_pct').in('id', ids),
+      sb.from('orcamento_custos').select('orcamento_id, custo_kit').in('orcamento_id', ids),
+    ]);
+    const mapa = Object.fromEntries((o.data || []).map(x => [x.id, x])), custos = Object.fromEntries((c.data || []).map(x => [x.orcamento_id, x.custo_kit]));
+    GANHOS.forEach(l => {
+      const x = mapa[l.orcamento_ganho_id] || {};
+      l.valor = +x.valor_final || 0;
+      l.custo = custos[l.orcamento_ganho_id] != null ? +custos[l.orcamento_ganho_id] : null;
+      // nota de repasse (kit na proposta acima do custo): o imposto dela sai da margem
+      const kit = x.modo_valor === 'separado' ? +x.valor_kit || 0 : 0;
+      const rep = kit && l.custo != null ? Math.max(0, kit - l.custo) : 0;
+      l.impRepasse = Math.round(rep * (x.repasse_pct != null && x.repasse_pct !== '' ? +x.repasse_pct : 4)) / 100;
+      l.financ = /financ|finame|banco|bndes|caixa/i.test(l.forma_pagamento || '');
+    });
+  }
+  msg('');
+  render();
+}
+function render() { if (aba === 'fluxo') renderFluxo(); else if (aba === 'saude') renderSaude(); else if (aba === 'fixos') renderFixos(); else renderParam(); }
+
+// ── comissão: liberada conforme o cliente paga (parcelas do cliente/banco recebidas ÷ total das parcelas) ──
+function fracaoRecebida(leadId) {
+  const ps = REC.filter(x => x.lead_id === leadId && x.tipo !== 'repasse');
+  const tot = ps.reduce((a, x) => a + (+x.valor || 0), 0);
+  const rec = ps.filter(x => x.recebido_em).reduce((a, x) => a + (+(x.valor_recebido ?? x.valor) || 0), 0);
+  return tot > 0 ? Math.min(1, rec / tot) : 0;
+}
+function comissoes() {
+  return PAG.filter(p => p.auto && p.tipo === 'comissao').map(p => {
+    const pago = PAG.filter(x => !x.auto && x.tipo === 'comissao' && x.lead_id === p.lead_id && x.pago_em).reduce((a, x) => a + (+x.valor || 0), 0);
+    const fr = fracaoRecebida(p.lead_id), liberada = Math.round(+p.valor * fr * 100) / 100;
+    return { ...p, pago, fr, liberada, agora: Math.max(0, Math.round((liberada - pago) * 100) / 100), resta: Math.max(0, Math.round((+p.valor - pago) * 100) / 100) };
+  });
+}
+const nomeCli = x => (x.leads && x.leads.nome) || '';
+const linkCli = x => x.lead_id ? `<a href="crm.html?lead=${x.lead_id}">${esc(nomeCli(x) || 'cliente')}</a>` : '';
+
+function renderFluxo() {
+  const ym = $('f-mes').value, ini = ym + '-01', fim = ultimoDia(ym), hoje = hojeISO();
+  const noMes = d => d && d >= ini && d <= fim;
+  // a receber: não recebidos até o fim do mês (inclui atrasados) e sem data
+  const aReceber = REC.filter(x => !x.recebido_em && (!x.vencimento || x.vencimento <= fim)).sort((a, b) => (a.vencimento || '9') < (b.vencimento || '9') ? -1 : 1);
+  const recebidos = REC.filter(x => noMes(x.recebido_em));
+  const atrasadoRec = REC.filter(x => !x.recebido_em && x.vencimento && x.vencimento < hoje).reduce((a, x) => a + +x.valor, 0);
+  const somaRecMes = REC.filter(x => !x.recebido_em && noMes(x.vencimento)).reduce((a, x) => a + +x.valor, 0);
+  const recebidoMes = recebidos.reduce((a, x) => a + +(x.valor_recebido ?? x.valor), 0);
+  const coms = comissoes();
+  const aPagar = PAG.filter(x => !x.pago_em && !(x.auto && x.tipo === 'comissao') && (!x.vencimento || x.vencimento <= fim)).sort((a, b) => (a.vencimento || '9') < (b.vencimento || '9') ? -1 : 1);
+  const pagos = PAG.filter(x => noMes(x.pago_em) && !(x.auto && x.tipo === 'comissao'));
+  const comAgora = coms.reduce((a, c) => a + c.agora, 0);
+  const somaPagMes = aPagar.filter(x => !x.vencimento || x.vencimento <= fim).reduce((a, x) => a + +x.valor, 0) + comAgora;
+  const pagoMes = pagos.reduce((a, x) => a + +x.valor, 0);
+  const saldo = recebidoMes + somaRecMes - pagoMes - somaPagMes;
+  const kp = (v, t, cls) => `<div class="kpi ${cls || ''}"><div class="kpi-val">${v}</div><div class="kpi-lbl">${t}</div></div>`;
+  const stRec = x => x.vencimento && x.vencimento < hoje ? `<span class="tag atraso">atrasado</span>` : (x.vencimento ? '' : '<span class="tag">sem data</span>');
+  const linhaRec = x => `<tr class="${x.vencimento && x.vencimento < hoje ? 'atraso' : ''}"><td>${linkCli(x)}</td><td>${esc(TIPOS_REC[x.tipo] || x.tipo)}${x.descricao ? '<br><span class="muted">' + esc(x.descricao) + '</span>' : ''}</td><td>${dBR(x.vencimento)} ${stRec(x)}</td><td class="num">${fmtR(x.valor)}</td><td class="num"><button class="btn btn-verde btn-p" onclick="receber(${x.id})">✔ Recebi</button></td></tr>`;
+  const linhaPag = x => `<tr class="${x.vencimento && x.vencimento < hoje ? 'atraso' : ''}"><td>${esc(TIPOS_PAG[x.tipo] || x.tipo)}${x.auto ? ' <span class="tag auto">auto</span>' : ''}</td><td>${esc(x.descricao || '')}${x.lead_id ? '<br>' + linkCli(x) : ''}${x.obs ? '<br><span class="muted">' + esc(x.obs) + '</span>' : ''}</td><td>${dBR(x.vencimento)}${x.vencimento && x.vencimento < hoje ? ' <span class="tag atraso">vencido</span>' : ''}</td><td class="num">${fmtR(x.valor)}</td><td class="num" style="white-space:nowrap"><button class="btn btn-verde btn-p" onclick="pagar(${x.id})">✔ Paguei</button> ${editavel(x) ? `<button class="btn btn-sec btn-p" onclick="editarPag(${x.id})">✏</button>` : ''} ${!x.auto ? `<button class="btn btn-sec btn-p" style="color:var(--vermelho)" onclick="apagarPag(${x.id})">🗑</button>` : ''}</td></tr>`;
+  const linhaCom = c => `<tr><td>${esc((c.equipe && c.equipe.nome) || 'Vendedor não informado')}</td><td>${linkCli(c)}<br><span class="muted">comissão ${fmtR(c.valor)} · cliente pagou ${Math.round(c.fr * 100)}% · já pago ${fmtR(c.pago)}</span></td><td class="num">${fmtR(c.liberada)}</td><td class="num"><b>${fmtR(c.agora)}</b></td><td class="num">${c.agora > 0 ? `<button class="btn btn-verde btn-p" onclick="pagarComissao(${c.id})">✔ Paguei</button>` : '<span class="muted">—</span>'}</td></tr>`;
+  const tab = (cab, linhas, vazio) => `<div class="tabela-wrap"><table><thead><tr>${cab}</tr></thead><tbody>${linhas || `<tr><td colspan="9" class="vazio">${vazio}</td></tr>`}</tbody></table></div>`;
+  const comAbertas = coms.filter(c => c.resta > 0.004);
+  $('aba-fluxo').innerHTML = `
+    <div class="kpis">
+      ${kp(fmtR0(recebidoMes), '✅ Recebido no mês', 'verde')}
+      ${kp(fmtR0(somaRecMes), '⏳ A receber no mês (vencendo)')}
+      ${kp(fmtR0(atrasadoRec), '⚠ A receber atrasado (todos os meses)', atrasadoRec > 0 ? 'verm' : '')}
+      ${kp(fmtR0(pagoMes), '💸 Pago no mês')}
+      ${kp(fmtR0(somaPagMes), '📌 A pagar até o fim do mês (inclui vencidos e comissões liberadas)')}
+      ${kp(fmtR0(saldo), '⚖ Saldo previsto do mês (entra − sai)', saldo < 0 ? 'verm' : 'verde')}
+    </div>
+    <div class="card"><div class="linha-topo"><h2>⬇ A receber</h2><span class="muted">As parcelas são lançadas na ficha do cliente (CRM → 💰 Recebimentos)</span></div>
+      ${tab('<th>Cliente</th><th>Parcela</th><th>Vencimento</th><th class="num">Valor</th><th></th>', aReceber.map(linhaRec).join(''), 'Nada a receber até o fim do mês. ✅')}</div>
+    <div class="card"><div class="linha-topo"><h2>⬆ A pagar</h2><button class="btn btn-sec" onclick="novoPagamento()">+ Lançamento avulso</button></div>
+      ${tab('<th>Tipo</th><th>Descrição</th><th>Vencimento</th><th class="num">Valor</th><th></th>', aPagar.map(linhaPag).join(''), 'Nada a pagar até o fim do mês. ✅')}</div>
+    <div class="card"><div class="linha-topo"><h2>🤝 Comissões</h2><span class="muted">Liberadas conforme o cliente paga (sobre o valor total da venda)</span></div>
+      ${tab('<th>Vendedor</th><th>Venda</th><th class="num">Liberada</th><th class="num">A pagar agora</th><th></th>', comAbertas.map(linhaCom).join(''), 'Nenhuma comissão em aberto.')}</div>
+    <div class="grade2">
+      <div class="card"><h2>✅ Recebido em ${nomeMes(ym)}</h2>${tab('<th>Data</th><th>Cliente</th><th class="num">Valor</th>', recebidos.sort((a, b) => a.recebido_em < b.recebido_em ? -1 : 1).map(x => `<tr><td>${dBR(x.recebido_em)}</td><td>${linkCli(x)} <span class="muted">${esc(TIPOS_REC[x.tipo] || '')}</span></td><td class="num">${fmtR(x.valor_recebido ?? x.valor)}</td></tr>`).join(''), 'Nada recebido no mês.')}</div>
+      <div class="card"><h2>💸 Pago em ${nomeMes(ym)}</h2>${tab('<th>Data</th><th>Descrição</th><th class="num">Valor</th><th></th>', pagos.sort((a, b) => a.pago_em < b.pago_em ? -1 : 1).map(x => `<tr><td>${dBR(x.pago_em)}</td><td>${esc(TIPOS_PAG[x.tipo] || '')} <span class="muted">${esc(x.descricao || '')}</span></td><td class="num">${fmtR(x.valor)}</td><td class="num"><a href="#" onclick="desfazerPag(${x.id});return false" class="muted">desfazer</a></td></tr>`).join(''), 'Nada pago no mês.')}</div>
+    </div>`;
+}
+const editavel = x => !x.auto || ['fixo', 'salario', 'diarias', 'instalacao', 'outro'].includes(x.tipo);
+
+async function receber(id) {
+  const x = REC.find(r => r.id === id); if (!x) return;
+  const d = prompt('Data do recebimento (DD/MM/AAAA):', dBR(hojeISO())); if (!d) return;
+  const iso = paraISO(d); if (!iso) { msg('⚠ Data inválida.', true); return; }
+  const { error } = await sb.from('recebimentos').update({ recebido_em: iso, valor_recebido: x.valor }).eq('id', id);
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  x.recebido_em = iso; x.valor_recebido = x.valor; msg('✅ Recebimento registrado.'); render();
+}
+function paraISO(t) { const m = String(t || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if (!m) return null; return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0'); }
+async function pagar(id) {
+  const x = PAG.find(p => p.id === id); if (!x) return;
+  const d = prompt('Data do pagamento de ' + fmtR(x.valor) + ' (DD/MM/AAAA):', dBR(hojeISO())); if (!d) return;
+  const iso = paraISO(d); if (!iso) { msg('⚠ Data inválida.', true); return; }
+  const { error } = await sb.from('pagamentos').update({ pago_em: iso }).eq('id', id);
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  x.pago_em = iso; msg('✅ Pagamento registrado.'); render();
+}
+async function desfazerPag(id) {
+  const x = PAG.find(p => p.id === id); if (!x || !confirm('Desfazer o pagamento de ' + fmtR(x.valor) + '?')) return;
+  if (!x.auto && x.tipo === 'comissao') {   // pagamento de comissão é um lançamento próprio: apaga
+    const { error } = await sb.from('pagamentos').delete().eq('id', id); if (error) { msg('⚠ ' + error.message, true); return; }
+    PAG = PAG.filter(p => p.id !== id);
+    const mae = PAG.find(p => p.auto && p.tipo === 'comissao' && p.lead_id === x.lead_id && p.pago_em);
+    if (mae) { await sb.from('pagamentos').update({ pago_em: null }).eq('id', mae.id); mae.pago_em = null; }
+  } else {
+    const { error } = await sb.from('pagamentos').update({ pago_em: null }).eq('id', id); if (error) { msg('⚠ ' + error.message, true); return; }
+    x.pago_em = null;
+  }
+  render();
+}
+async function pagarComissao(id) {
+  const c = comissoes().find(x => x.id === id); if (!c) return;
+  const v = prompt('Valor pago de comissão (liberado agora: ' + fmtR(c.agora) + '):', c.agora.toLocaleString('pt-BR', { minimumFractionDigits: 2 }));
+  const n = numBR(v); if (!n || n <= 0) return;
+  const ins = { tipo: 'comissao', descricao: 'Pagamento · ' + (c.descricao || ''), lead_id: c.lead_id, orcamento_id: c.orcamento_id, pessoa_id: c.pessoa_id, competencia: hojeISO().slice(0, 8) + '01', valor: n, pago_em: hojeISO(), auto: false };
+  const { data, error } = await sb.from('pagamentos').insert(ins).select('*, leads(nome), equipe(nome)').single();
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  PAG.push(data);
+  if (c.pago + n >= +c.valor - 0.004) { await sb.from('pagamentos').update({ pago_em: hojeISO() }).eq('id', c.id); const m = PAG.find(p => p.id === c.id); if (m) m.pago_em = hojeISO(); }
+  msg('✅ Comissão paga.'); render();
+}
+async function editarPag(id) {
+  const x = PAG.find(p => p.id === id); if (!x) return;
+  const v = numBR(prompt('Valor (R$):', (+x.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 }))); if (v === null) return;
+  const d = prompt('Vencimento (DD/MM/AAAA, vazio = sem data):', x.vencimento ? dBR(x.vencimento) : ''); if (d === null) return;
+  const iso = d.trim() ? paraISO(d) : null; if (d.trim() && !iso) { msg('⚠ Data inválida.', true); return; }
+  const { error } = await sb.from('pagamentos').update({ valor: v, vencimento: iso }).eq('id', id);
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  x.valor = v; x.vencimento = iso; render();
+}
+async function apagarPag(id) {
+  const x = PAG.find(p => p.id === id); if (!x || !confirm('Apagar "' + (x.descricao || TIPOS_PAG[x.tipo]) + '" de ' + fmtR(x.valor) + '?')) return;
+  const { error } = await sb.from('pagamentos').delete().eq('id', id); if (error) { msg('⚠ ' + error.message, true); return; }
+  PAG = PAG.filter(p => p.id !== id); render();
+}
+async function novoPagamento() {
+  const desc = prompt('Descrição da saída (ex.: manutenção do carro, material elétrico extra):'); if (!desc) return;
+  const v = numBR(prompt('Valor (R$):')); if (!v) return;
+  const d = prompt('Vencimento (DD/MM/AAAA):', dBR(hojeISO())); const iso = paraISO(d); if (!iso) { msg('⚠ Data inválida.', true); return; }
+  const pagoJa = confirm('Já foi pago? (OK = já pago hoje · Cancelar = fica a pagar)');
+  const { data, error } = await sb.from('pagamentos').insert({ tipo: 'outro', descricao: desc, valor: v, vencimento: iso, competencia: iso.slice(0, 8) + '01', pago_em: pagoJa ? hojeISO() : null }).select('*, leads(nome), equipe(nome)').single();
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  PAG.push(data); render();
+}
+
+// ── saúde financeira ──
+function renderSaude() {
+  const ym = $('f-mes').value, meses = Array.from({ length: 12 }, (_, i) => somaMes(ym, i - 11));
+  const grupo = t => ({ kit:'kit', comissao:'comissao', imposto:'imposto', salario:'equipe', diarias:'equipe', instalacao:'equipe', fixo:'fixo', outro:'outro' }[t] || 'outro');
+  const caixa = meses.map(m => {
+    const ini = m + '-01', fim = ultimoDia(m), em = d => d && d >= ini && d <= fim;
+    const ent = REC.filter(x => em(x.recebido_em)).reduce((a, x) => a + +(x.valor_recebido ?? x.valor), 0);
+    const sai = { kit: 0, comissao: 0, imposto: 0, equipe: 0, fixo: 0, outro: 0 };
+    PAG.filter(x => em(x.pago_em) && !(x.auto && x.tipo === 'comissao')).forEach(x => { sai[grupo(x.tipo)] += +x.valor; });
+    const tot = Object.values(sai).reduce((a, b) => a + b, 0);
+    return { m, ent, sai, tot, res: ent - tot };
+  });
+  let acum = 0; caixa.forEach(c => { acum += c.res; c.acum = acum; });
+  const max = Math.max(1, ...caixa.map(c => Math.max(c.ent, c.tot)));
+  // competência do mês: vendas fechadas e o que elas custam; custos fixos e equipe do mês
+  const ini = ym + '-01', fim = ultimoDia(ym);
+  const vendas = GANHOS.filter(l => l.etapa_em && l.etapa_em.slice(0, 10) >= ini && l.etapa_em.slice(0, 10) <= fim);
+  const fat = vendas.reduce((a, l) => a + (+l.valor || 0), 0), idsV = new Set(vendas.map(l => l.id));
+  const daVenda = t => PAG.filter(x => x.auto && x.tipo === t && idsV.has(x.lead_id)).reduce((a, x) => a + +x.valor, 0);
+  // custo do kit de todas as vendas (nas financiadas o banco paga o fornecedor, mas é custo da venda do mesmo jeito)
+  const custoKit = vendas.reduce((a, l) => a + (l.custo || 0), 0), com = daVenda('comissao'), imp = daVenda('imposto');
+  const impRep = vendas.reduce((a, l) => a + (l.impRepasse || 0), 0);
+  const financ = vendas.filter(l => l.financ), semCusto = vendas.filter(l => l.custo == null);
+  const kitBanco = (financ.length ? `<tr><td colspan="2" class="muted" style="font-size:12px">↳ ${financ.length} financiada(s): kit pago pelo banco direto ao fornecedor (é custo da venda, mas não sai do caixa da Energtech).</td></tr>` : '')
+    + (semCusto.length ? `<tr><td colspan="2" style="font-size:12px;color:var(--amarelo)">⚠ Sem custo do kit registrado: ${semCusto.map(l => esc(l.nome)).join(', ')}</td></tr>` : '');
+  const margemC = fat - custoKit - com - imp - impRep;
+  const compM = t => PAG.filter(x => x.competencia === ini && t.includes(x.tipo) && !x.lead_id).reduce((a, x) => a + +x.valor, 0);
+  const fixosMes = compM(['fixo']), equipeMes = compM(['salario', 'diarias', 'instalacao']), outrosMes = PAG.filter(x => x.tipo === 'outro' && x.competencia === ini).reduce((a, x) => a + +x.valor, 0);
+  const resultado = margemC - fixosMes - equipeMes - outrosMes;
+  // ponto de equilíbrio: custos do mês ÷ margem de contribuição média (últimos 3 meses com venda)
+  const ult3 = [0, 1, 2].map(i => somaMes(ym, -i)).map(m => {
+    const v = GANHOS.filter(l => l.etapa_em && l.etapa_em.slice(0, 7) === m), ids = new Set(v.map(l => l.id));
+    const f = v.reduce((a, l) => a + (+l.valor || 0), 0), c = v.reduce((a, l) => a + (l.custo || 0) + (l.impRepasse || 0), 0) + PAG.filter(x => x.auto && ['comissao', 'imposto'].includes(x.tipo) && ids.has(x.lead_id)).reduce((a, x) => a + +x.valor, 0);
+    return { f, mc: f - c };
+  });
+  const f3 = ult3.reduce((a, x) => a + x.f, 0), mc3 = ult3.reduce((a, x) => a + x.mc, 0), pctMC = f3 > 0 ? mc3 / f3 : 0;
+  const custosMes = fixosMes + equipeMes;
+  const equilibrio = pctMC > 0 ? custosMes / pctMC : 0;
+  const linha = (t, v, cls) => `<tr class="${cls || ''}"><td>${t}</td><td class="num">${v}</td></tr>`;
+  const sinal = v => `<span class="${v < 0 ? 'neg' : 'pos'}">${fmtR(v)}</span>`;
+  const c12 = caixa.slice(-3), media3 = c12.reduce((a, c) => a + c.res, 0) / 3;
+  $('aba-saude').innerHTML = `
+    <div class="kpis">
+      <div class="kpi ${caixa[11].res < 0 ? 'verm' : 'verde'}"><div class="kpi-val">${fmtR0(caixa[11].res)}</div><div class="kpi-lbl">Caixa de ${nomeMes(ym)} (entrou − saiu)</div></div>
+      <div class="kpi ${media3 < 0 ? 'verm' : 'verde'}"><div class="kpi-val">${fmtR0(media3)}</div><div class="kpi-lbl">Média de caixa dos últimos 3 meses</div></div>
+      <div class="kpi ${resultado < 0 ? 'verm' : 'verde'}"><div class="kpi-val">${fmtR0(resultado)}</div><div class="kpi-lbl">Resultado de ${nomeMes(ym)} (vendas do mês − custos)</div></div>
+      <div class="kpi"><div class="kpi-val">${pctMC ? fmtR0(equilibrio) : '—'}</div><div class="kpi-lbl">Ponto de equilíbrio: vendas necessárias por mês para cobrir fixos + equipe${pctMC ? ' (margem média ' + Math.round(pctMC * 100) + '%)' : ''}</div></div>
+    </div>
+    <div class="grade2">
+      <div class="card"><h2>📊 Resultado de ${nomeMes(ym)} (competência)</h2>
+        <table class="dre"><tbody>
+          ${linha('Vendas fechadas (' + vendas.length + ')', fmtR(fat))}
+          ${linha('(−) Kits ao fornecedor (custo fechado)', fmtR(custoKit))}
+          ${kitBanco}
+          ${linha('(−) Comissões', fmtR(com))}
+          ${linha('(−) Simples ' + String(PRM.simples_pct ?? 6).replace('.', ',') + '% sobre serviços', fmtR(imp))}
+          ${impRep ? linha('(−) Imposto das notas de repasse', fmtR(impRep)) : ''}
+          ${linha('= Margem de contribuição', sinal(margemC), 'total')}
+          ${linha('(−) Custos fixos', fmtR(fixosMes))}
+          ${linha('(−) Equipe (salários, diárias, instalações)', fmtR(equipeMes))}
+          ${linha('(−) Outras saídas', fmtR(outrosMes))}
+          ${linha('= Resultado do mês', sinal(resultado), 'total')}
+        </tbody></table>
+        <p class="muted" style="margin-top:8px">Competência: considera as vendas fechadas no mês e os custos daquele mês, mesmo que ainda não tenham sido pagos ou recebidos.</p>
+      </div>
+      <div class="card"><h2>💵 Caixa real — últimos 12 meses</h2>
+        <div class="barras">${caixa.map(c => `<div class="barra-mes" title="${nomeMes(c.m)}: entrou ${fmtR(c.ent)} · saiu ${fmtR(c.tot)}"><div class="barra-par"><div class="b-ent" style="height:${Math.round(c.ent / max * 125)}px"></div><div class="b-sai" style="height:${Math.round(c.tot / max * 125)}px"></div></div><span>${nomeMes(c.m)}</span></div>`).join('')}</div>
+        <p class="muted"><span style="color:var(--verde)">■</span> entrou &nbsp; <span style="color:var(--vermelho)">■</span> saiu &nbsp;· só o que foi marcado como recebido / pago</p>
+      </div>
+    </div>
+    <div class="card"><h2>📒 Caixa mês a mês</h2><div class="tabela-wrap"><table>
+      <thead><tr><th>Mês</th><th class="num">Entrou</th><th class="num">Kits</th><th class="num">Comissões</th><th class="num">Impostos</th><th class="num">Equipe</th><th class="num">Fixos</th><th class="num">Outros</th><th class="num">Resultado</th><th class="num">Acumulado</th></tr></thead>
+      <tbody>${caixa.slice().reverse().map(c => `<tr><td>${nomeMes(c.m)}</td><td class="num pos">${fmtR0(c.ent)}</td><td class="num">${fmtR0(c.sai.kit)}</td><td class="num">${fmtR0(c.sai.comissao)}</td><td class="num">${fmtR0(c.sai.imposto)}</td><td class="num">${fmtR0(c.sai.equipe)}</td><td class="num">${fmtR0(c.sai.fixo)}</td><td class="num">${fmtR0(c.sai.outro)}</td><td class="num"><b class="${c.res < 0 ? 'neg' : 'pos'}">${fmtR0(c.res)}</b></td><td class="num ${c.acum < 0 ? 'neg' : ''}">${fmtR0(c.acum)}</td></tr>`).join('')}</tbody>
+    </table></div>
+    <p class="muted" style="margin-top:8px">O histórico começa quando os recebimentos e pagamentos passam a ser marcados no sistema. Meses anteriores ficam zerados.</p></div>`;
+}
+
+// ── custos fixos ──
+function renderFixos() {
+  const ativos = FIXOS.filter(f => f.ativo), total = ativos.reduce((a, f) => a + +f.valor, 0);
+  const opt = c => Object.entries(CATEGORIAS).map(([k, n]) => `<option value="${k}" ${k === c ? 'selected' : ''}>${n}</option>`).join('');
+  $('aba-fixos').innerHTML = `
+    <div class="kpis"><div class="kpi"><div class="kpi-val">${fmtR0(total)}</div><div class="kpi-lbl">Custos fixos por mês (${ativos.length} ativos)</div></div>
+      <div class="kpi"><div class="kpi-val">${fmtR0(PAG.filter(x => x.tipo === 'salario' && x.competencia === $('f-mes').value + '-01').reduce((a, x) => a + +x.valor, 0))}</div><div class="kpi-lbl">Salários da equipe fixa (vêm do cadastro da equipe)</div></div></div>
+    <div class="card"><div class="linha-topo"><h2>🏢 Custos fixos mensais</h2><button class="btn" onclick="novoFixo()">+ Custo fixo</button></div>
+      <div class="tabela-wrap"><table><thead><tr><th>Nome</th><th>Categoria</th><th class="num">Valor mensal</th><th>Dia venc.</th><th>Ativo</th><th></th></tr></thead><tbody>
+      ${FIXOS.map(f => `<tr><td><input class="input" value="${esc(f.nome)}" onchange="salvarFixo(${f.id}, 'nome', this.value)"></td>
+        <td><select class="select" onchange="salvarFixo(${f.id}, 'categoria', this.value)">${opt(f.categoria)}</select></td>
+        <td class="num"><input class="input" style="width:110px;text-align:right" inputmode="decimal" value="${(+f.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}" onchange="salvarFixo(${f.id}, 'valor', this.value)"></td>
+        <td><input class="input" style="width:64px" type="number" min="1" max="31" value="${f.dia_vencimento}" onchange="salvarFixo(${f.id}, 'dia_vencimento', this.value)"></td>
+        <td><input type="checkbox" ${f.ativo ? 'checked' : ''} onchange="salvarFixo(${f.id}, 'ativo', this.checked)"></td>
+        <td><button class="btn btn-sec btn-p" style="color:var(--vermelho)" onclick="apagarFixo(${f.id})">🗑</button></td></tr>`).join('') || '<tr><td colspan="6" class="vazio">Nenhum custo fixo cadastrado. Ex.: aluguel, internet, marketing, contador, sistemas.</td></tr>'}
+      </tbody></table></div>
+      <p class="muted" style="margin-top:8px">Todo mês o sistema cria sozinho a conta a pagar de cada custo ativo (aba Contas do mês). Mudar o valor aqui vale para os próximos meses; a conta do mês já criada pode ser ajustada no ✏.</p>
+    </div>`;
+}
+async function novoFixo() {
+  const nome = prompt('Nome do custo fixo (ex.: Aluguel da sede, Internet, Anúncios Meta):'); if (!nome) return;
+  const v = numBR(prompt('Valor mensal (R$):')); if (v === null) return;
+  const dia = Math.min(31, Math.max(1, parseInt(prompt('Dia do vencimento (1 a 31):', '10'), 10) || 10));
+  const cat = /alug/i.test(nome) ? 'aluguel' : /internet|telefone|celular/i.test(nome) ? 'internet_telefone' : /market|anúnc|anunc|meta|google|tráfego|trafego/i.test(nome) ? 'marketing' : /contab|contador/i.test(nome) ? 'contador' : /energia|água|agua|luz/i.test(nome) ? 'energia_agua' : /carro|ve[ií]culo|combust/i.test(nome) ? 'veiculo' : /sistema|software|app/i.test(nome) ? 'software' : 'outros';
+  const { data, error } = await sb.from('custos_fixos').insert({ nome, valor: v, dia_vencimento: dia, categoria: cat }).select('*').single();
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  FIXOS.push(data); await carregar();
+}
+async function salvarFixo(id, campo, valor) {
+  const mud = {}; if (campo === 'valor') { const n = numBR(valor); if (n === null) return; mud.valor = n; } else if (campo === 'dia_vencimento') mud.dia_vencimento = Math.min(31, Math.max(1, +valor || 10)); else mud[campo] = valor;
+  const { error } = await sb.from('custos_fixos').update(mud).eq('id', id);
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  Object.assign(FIXOS.find(f => f.id === id), mud); msg('✅ Salvo'); renderFixos();
+}
+async function apagarFixo(id) {
+  const f = FIXOS.find(x => x.id === id); if (!f || !confirm('Apagar o custo fixo "' + f.nome + '"? (as contas já lançadas ficam; para só parar de lançar, desmarque "Ativo")')) return;
+  const { error } = await sb.from('custos_fixos').delete().eq('id', id); if (error) { msg('⚠ ' + error.message, true); return; }
+  FIXOS = FIXOS.filter(x => x.id !== id); renderFixos();
+}
+
+// ── parâmetros ──
+function renderParam() {
+  $('aba-param').innerHTML = `<div class="card"><h2>⚙ Parâmetros do financeiro</h2>
+    <div class="kpis" style="grid-template-columns:repeat(auto-fit, minmax(220px, 1fr))">
+      <label class="muted">Simples Nacional sobre serviços (%)<input class="input" id="p-simples" inputmode="decimal" value="${String(PRM.simples_pct ?? 6).replace('.', ',')}"></label>
+      <label class="muted">Dia de vencimento do DAS (mês seguinte)<input class="input" id="p-das" type="number" min="1" max="28" value="${PRM.das_dia ?? 20}"></label>
+      <label class="muted">Dia de pagamento de salários e diárias (mês seguinte)<input class="input" id="p-sal" type="number" min="1" max="28" value="${PRM.salario_dia ?? 5}"></label>
+      <label class="muted">Ganhos a partir de (entram automático no a pagar)<input class="input" id="p-ini" type="date" value="${PRM.inicio || ''}"></label>
+    </div>
+    <button class="btn" onclick="salvarParam()">💾 Salvar parâmetros</button>
+    <p class="muted" style="margin-top:10px">Serviços = valor total − valor do kit na proposta (kit separado) ou total − custo do kit (estimado). O Simples, a comissão e o kit ainda não pagos são recalculados sozinhos se a venda ou o custo mudar; o que já foi pago não muda.</p></div>`;
+}
+async function salvarParam() {
+  const mud = { simples_pct: numBR($('p-simples').value) ?? 6, das_dia: Math.min(28, Math.max(1, +$('p-das').value || 20)), salario_dia: Math.min(28, Math.max(1, +$('p-sal').value || 5)), inicio: $('p-ini').value || PRM.inicio, atualizado_em: new Date().toISOString() };
+  const { error } = await sb.from('fin_parametros').update(mud).eq('id', 1);
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  msg('✅ Parâmetros salvos.'); await carregar();
+}
+
+iniciar();
+</script>
+</body>
+</html>
