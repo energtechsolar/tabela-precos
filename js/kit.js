@@ -51,11 +51,14 @@ function abrirKitPersonalizado(base) {
       <div class="kp-titulo kp-largo">Estrutura e valores</div>
       <div class="kp-campo"><label>Estrutura</label><select id="kp-estr" class="admin-input" onchange="kitMudou()">${ESTRUTURAS_KIT.map(([v, t]) => `<option value="${v}" ${v === (k.estrutura || 'fibrocimento') ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
       <div class="kp-campo"><label>Valor de venda (R$)</label><input id="kp-valor" class="admin-input" inputmode="decimal" value="${k.inv_r ? fmtReais(k.inv_r) : ''}" placeholder="260.000,00" oninput="kitMudou()" onblur="formatarCampoReais(this)"></div>
-      <div class="kp-campo"><label>Pagamento</label><select id="kp-pag" class="admin-input" onchange="kitMudou()">
-        <option value="combinar" ${k.pagamento === 'combinar' || !k.pagamento ? 'selected' : ''}>A combinar</option>
-        <option value="parcelado" ${k.pagamento === 'parcelado' ? 'selected' : ''}>À vista ou entrada + parcelas no boleto</option>
-        <option value="finame" ${k.pagamento === 'finame' ? 'selected' : ''}>À vista ou FINAME (kit nacional)</option></select></div>
-      <div class="kp-campo" id="kp-entrada-box"><label>Entrada (R$)</label><input id="kp-entrada" class="admin-input" inputmode="decimal" value="${k.entrada ? fmtReais(k.entrada) : ''}" oninput="kitMudou()" onblur="formatarCampoReais(this)"></div>
+      <div class="kp-campo"><label>Origem do kit</label><select id="kp-origem" class="admin-input" onchange="kitMudou()">
+        <option value="importado" ${origemKit(k) === 'importado' ? 'selected' : ''}>Importado</option>
+        <option value="nacional" ${origemKit(k) === 'nacional' ? 'selected' : ''}>Nacional (FINAME)</option></select></div>
+      <div class="kp-campo"><label>Formas de pagamento na proposta</label><select id="kp-pag" class="admin-input" onchange="kitMudou()">
+        <option value="tabela" ${k.pagamento !== 'combinar' ? 'selected' : ''}>Iguais às da tabela</option>
+        <option value="combinar" ${k.pagamento === 'combinar' ? 'selected' : ''}>A combinar</option></select>
+        <div class="regiao-aviso" id="kp-pag-dica" style="margin-top:4px"></div></div>
+      <div class="kp-campo" id="kp-entrada-box"><label>Entrada no ato do pedido (R$)</label><input id="kp-entrada" class="admin-input" inputmode="decimal" value="${k.entrada ? fmtReais(k.entrada) : ''}" oninput="kitMudou()" onblur="formatarCampoReais(this)"></div>
       <div class="kp-campo"><label>Comissão do vendedor (%)</label><input id="kp-com" class="admin-input" inputmode="decimal" value="${k.com_pct != null ? String(+(k.com_pct * 100).toFixed(2)).replace('.', ',') : '0'}" oninput="kitMudou()"></div>
       ${adminLogado ? `<div class="kp-campo"><label>🔒 Custo do kit HOJE — quanto pagamos ao fornecedor (só admin)</label><input id="kp-custo" class="admin-input" inputmode="decimal" value="${k.uid && custoDoKit(k) != null ? fmtReais(custoDoKit(k)) : ''}" oninput="kitMudou()" onblur="formatarCampoReais(this)"><div class="regiao-aviso" style="margin-top:4px">Não é o valor da proposta. O valor que vai para o cliente e o banco você coloca depois, em "Valor do kit na proposta".</div></div>` : ''}
       <div class="kp-titulo kp-largo">Itens que aparecem na proposta <button class="link-mini" onclick="document.getElementById('kp-itens').dataset.editado='';kitMudou()">↺ gerar de novo</button></div>
@@ -71,6 +74,8 @@ function abrirKitPersonalizado(base) {
   document.getElementById('kit-overlay').classList.add('visivel');
   kitMudou();
 }
+// origem do kit: importado (à vista, entrada + parcelas e financiamento) ou nacional (à vista e FINAME)
+function origemKit(k) { return k.origem || (k.pagamento === 'finame' ? 'nacional' : 'importado'); }
 function fecharKitPersonalizado() { document.getElementById('kit-overlay').classList.remove('visivel'); }
 function linhaInversor(v) {
   return `<div class="kp-inv" style="display:grid;grid-template-columns:70px 110px 1fr 34px;gap:8px;margin-bottom:6px">
@@ -110,9 +115,10 @@ function lerKitPersonalizado() {
     'QUADRO DE PROTEÇÃO CA (DPS E DISJUNTORES)',
     tipoSis === 'zerogrid' ? 'CONTROLE DE EXPORTAÇÃO ZERO (SMART METER / LIMITADOR)' : '',
   ].filter(Boolean).join('\n');
-  const pag = v('kp-pag') || 'combinar';
+  const origem = v('kp-origem') || 'importado';
+  const pag = v('kp-pag') === 'tabela' ? (origem === 'nacional' ? 'finame' : 'parcelado') : 'combinar';
   return {
-    personalizado: true, tipo_sistema: tipoSis, estrutura: estr, pagamento: pag,
+    personalizado: true, tipo_sistema: tipoSis, estrutura: estr, pagamento: pag, origem,
     nome: 'Kit personalizado ' + fmtKw(kwp) + ' kWp', top: false,
     kwp, mod: qtd, potW: w, inv: invTxt || '—', inv_lista: invs, kw_inversor: kwInv,
     kwh: Math.round(kwp * FATOR_REF), inv_r: lerReais(v('kp-valor')),
@@ -127,6 +133,10 @@ function kitMudou() {
   const comBat = k.tipo_sistema === 'hibrido' || k.tipo_sistema === 'offgrid';
   document.querySelectorAll('#kit-corpo .kp-bat').forEach(el => el.style.display = comBat ? '' : 'none');
   document.getElementById('kp-entrada-box').style.display = k.pagamento === 'parcelado' ? '' : 'none';
+  const dica = document.getElementById('kp-pag-dica');
+  if (dica) dica.textContent = k.pagamento === 'parcelado' ? 'A proposta mostra: à vista, entrada + parcelas no boleto e o financiamento (se estiver ativo), como nos kits importados.'
+    : k.pagamento === 'finame' ? 'A proposta mostra: à vista e FINAME (96x e 120x), como nos kits nacionais.'
+    : 'A proposta mostra só o valor, com "condições a combinar".';
   const it = document.getElementById('kp-itens');
   if (!it.dataset.editado) it.value = k.itensAuto;
   const avisos = [];
@@ -154,7 +164,7 @@ function usarKitPersonalizado() {
   erro.style.display = 'none';
   const item = { ...k, uid: 'kp-' + Date.now().toString(36), itens: document.getElementById('kp-itens').value.trim() || k.itensAuto };
   delete item.itensAuto; delete item.custo;
-  const tipo = k.pagamento === 'finame' ? 'nacional' : 'importado';
+  const tipo = k.origem === 'nacional' ? 'nacional' : 'importado';
   const idx = colocarKitNaLista(item, tipo);
   if (k.custo && typeof custos === 'object') custos[item.uid] = k.custo;   // só na tela do admin (não vai para a tabela de custos)
   _kitEditando = item;
