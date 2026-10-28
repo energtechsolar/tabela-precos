@@ -197,11 +197,25 @@ async function guardarArquivoFatura(leadId) {
     return { doc: a.doc, novo: true };
   } catch (e) { console.error('Fatura (arquivo):', e); return null; }
 }
+// tenta 3 vezes (no celular a conexão às vezes falha bem nessa hora); não duplica se a fatura já estiver na ficha
 async function anexarFaturaAoLead(leadId, r) {
   if (!r || !r.novo) return true;
-  const { data: l } = await sb.from('leads').select('documentos').eq('id', leadId).maybeSingle();
-  const docs = Array.isArray(l && l.documentos) ? l.documentos : [];
-  const { error } = await sb.from('leads').update({ documentos: [...docs, r.doc] }).eq('id', leadId);
-  if (error) console.error('Fatura (ficha do cliente):', error);
-  return !error;
+  let erro = null;
+  for (let tentativa = 1; tentativa <= 3; tentativa++) {
+    try {
+      const { data: l, error: eL } = await sb.from('leads').select('documentos').eq('id', leadId).maybeSingle();
+      if (eL) throw eL;
+      const docs = Array.isArray(l && l.documentos) ? l.documentos : [];
+      if (docs.some(x => x && x.path === r.doc.path)) return true;
+      const { error } = await sb.from('leads').update({ documentos: [...docs, r.doc] }).eq('id', leadId);
+      if (error) throw error;
+      return true;
+    } catch (e) {
+      erro = e;
+      console.error('Fatura (ficha do cliente), tentativa ' + tentativa + ':', e);
+      await new Promise(ok => setTimeout(ok, 1200 * tentativa));
+    }
+  }
+  statusFatura('⚠ A fatura foi enviada, mas não entrou na ficha do cliente: ' + ((erro && erro.message) || 'falha de conexão') + '. Anexe pela ficha do CRM.', 'erro');
+  return false;
 }
