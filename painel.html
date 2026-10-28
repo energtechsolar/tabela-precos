@@ -172,7 +172,7 @@
       <div class="kpi"><div class="kpi-val" id="k-total">—</div><div class="kpi-lbl">Valor total orçado</div></div>
       <div class="kpi"><div class="kpi-val" id="k-ticket">—</div><div class="kpi-lbl">Ticket médio</div></div>
       <div class="kpi"><div class="kpi-val" id="k-kwp">—</div><div class="kpi-lbl">Potência total orçada</div></div>
-      <div class="kpi"><div class="kpi-val" id="k-ganhos">—</div><div class="kpi-lbl">🏆 Negócios ganhos (vendas fechadas)</div></div>
+      <div class="kpi"><div class="kpi-val" id="k-ganhos">—</div><div class="kpi-lbl">🏆 Negócios ganhos (vendas fechadas) — pela data do fechamento</div></div>
       <div class="kpi so-admin"><div class="kpi-val" id="k-margem">—</div><div class="kpi-lbl">🔒 Margem dos negócios ganhos (após kit, comissão e imposto do repasse)</div></div>
       <div class="kpi so-admin"><div class="kpi-val" id="k-repasse">—</div><div class="kpi-lbl">🔒 Repasses a receber dos fornecedores — só ganhos, já sem o imposto</div></div>
       <div class="kpi" id="k-pend-box"><div class="kpi-val" id="k-pend">—</div><div class="kpi-lbl">Leads qualificados sem orçamento</div></div>
@@ -216,7 +216,7 @@ const SUPABASE_URL = 'https://cmrndntnaaooapbdmgip.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_wKf3jP-0lmaK07vMpxdRlA_UXqMJdBO';
 const sb = (window.supabase && window.supabase.createClient) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
-let perfil = null, orcamentos = [], leads = [], nomes = {}, custosOrc = {}, ganhos = new Set(), substituidas = new Set();
+let perfil = null, orcamentos = [], leads = [], nomes = {}, custosOrc = {}, ganhos = new Set(), substituidas = new Set(), dataGanho = {};
 
 const $ = id => document.getElementById(id);
 const fmtR = v => (+v || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
@@ -319,7 +319,7 @@ async function carregar() {
   try {
     const [o, l, v] = await Promise.all([
       buscarTudo('orcamentos', 'id, lead_id, cliente_nome, telefone, email, cidade, tipo, sistema, kwp, valor_final, vendedor_email, criado_em, modo_valor:dados->>modo_valor, valor_kit:dados->>valor_kit, repasse_pct:dados->>repasse_pct, revisao_de:dados->>revisao_de', 'criado_em'),
-      buscarTudo('leads', 'id, nome, telefone, email, status, recebido_em, etapa, orcamento_ganho_id', 'recebido_em'),
+      buscarTudo('leads', 'id, nome, telefone, email, status, recebido_em, etapa, etapa_em, orcamento_ganho_id', 'recebido_em'),
       sb.from('vendedores').select('email, nome')
     ]);
     orcamentos = o; leads = l;
@@ -327,6 +327,9 @@ async function carregar() {
     substituidas = new Set(orcamentos.map(x => +x.revisao_de).filter(Boolean));
     // orçamento ganho = a proposta marcada no CRM ao dar "Ganho" (ganhos antigos sem marcação: a última proposta do cliente)
     ganhos = new Set(leads.filter(x => x.etapa === 'ganho').map(x => x.orcamento_ganho_id || (orcamentos.find(oo => oo.lead_id === x.id) || {}).id).filter(Boolean));
+    // data do fechamento (quando o cliente virou "Ganho" no CRM): é por ela que os negócios ganhos entram no período
+    dataGanho = {};
+    leads.filter(x => x.etapa === 'ganho').forEach(x => { const id = x.orcamento_ganho_id || (orcamentos.find(oo => oo.lead_id === x.id) || {}).id; if (id) dataGanho[id] = x.etapa_em || null; });
     custosOrc = {};
     if (perfil && perfil.admin) {
       const c = await buscarTudo('orcamento_custos', 'orcamento_id, custo_kit, comissao', 'orcamento_id');
@@ -368,17 +371,19 @@ function intervalo() {
   return [null, null];
 }
 
-function filtrados() {
+// porGanho: negócios ganhos entram no período pela data do fechamento (não pela data da proposta)
+function filtrados(porGanho) {
   const [de, ate] = intervalo();
   const vend = $('f-vendedor').value, tipo = $('f-tipo').value;
   const busca = $('f-busca').value.trim().toLowerCase(), buscaNum = busca.replace(/\D/g, '');
   return orcamentos.filter(o => {
-    const t = new Date(o.criado_em);
+    const sit = $('f-situacao').value, pelaDataGanho = (porGanho || sit === 'ganho') && ganhos.has(o.id) && dataGanho[o.id];
+    if (porGanho && !ganhos.has(o.id)) return false;
+    const t = new Date(pelaDataGanho ? dataGanho[o.id] : o.criado_em);
     if (de && t < de) return false;
     if (ate && t >= ate) return false;
     if (vend && o.vendedor_email !== vend) return false;
     if (tipo && o.tipo !== tipo) return false;
-    const sit = $('f-situacao').value;
     if (sit === 'ganho' && !ganhos.has(o.id)) return false;
     if (sit !== 'todas' && substituidas.has(o.id) && !ganhos.has(o.id)) return false;
     if (busca) {
@@ -401,7 +406,7 @@ function render() {
   $('k-ticket').textContent = lista.length ? fmtR0(total / lista.length) : '—';
   $('k-kwp').textContent = fmtN(kwp, 1) + ' kWp';
   $('k-pend').textContent = pend.length.toLocaleString('pt-BR');
-  const listaG = lista.filter(o => ganhos.has(o.id));
+  const listaG = filtrados(true);   // ganhos no período pela data do fechamento
   $('k-ganhos').textContent = listaG.length + ' · ' + fmtR0(listaG.reduce((s, o) => s + (+o.valor_final || 0), 0));
   if (perfil && perfil.admin) {
     const comCusto = listaG.map(margemDe).filter(m => m !== null);
@@ -418,7 +423,7 @@ function render() {
   $('tb-orcamentos').innerHTML = lista.length ? lista.map(o => `
     <tr>
       <td class="muted">${o.id}${ganhos.has(o.id) ? ' <span class="tag dc" title="Negócio ganho">🏆</span>' : ''}${o.revisao_de ? ' <span class="tag" title="Revisão da proposta Nº ' + o.revisao_de + '">↻</span>' : ''}${substituidas.has(o.id) ? ' <span class="tag" title="Substituída por uma revisão">substituída</span>' : ''}</td>
-      <td>${fmtDataHora(o.criado_em)}</td>
+      <td>${fmtDataHora(o.criado_em)}${ganhos.has(o.id) && dataGanho[o.id] ? '<br><span class="muted" style="font-size:12px">🏆 fechado ' + new Date(dataGanho[o.id]).toLocaleDateString('pt-BR') + '</span>' : ''}</td>
       <td>${esc(o.cliente_nome)}</td>
       <td>${telLink(o.telefone)}</td>
       <td>${esc(o.cidade || '—')}</td>
