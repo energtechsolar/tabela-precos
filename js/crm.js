@@ -284,7 +284,7 @@ async function abrirFicha(id, recarregar) {
       <button class="btn btn-sec" onclick="arquivarLead(${id}, ${!l.arquivado})">${l.arquivado ? '↩ Desarquivar' : '🗄 Arquivar'}</button>
       ${perfil && perfil.admin ? `<button class="btn btn-sec" style="color:var(--vermelho)" onclick="excluirLead(${id})">🗑 Excluir</button>` : ''}
     </div>
-    ${l.etapa === 'ganho' ? blocoGanho(l) : ''}
+    ${l.etapa === 'ganho' ? blocoGanho(l) : blocoDocs(l)}
     ${blocoFormulario(l)}
     <h3>Negócio</h3>
     <div class="grade">
@@ -481,6 +481,17 @@ function blocoGanho(l) {
     ${DOCS_GANHO.map(linhaDoc).join('')}
     <div class="status-msg" id="doc-msg"></div>
     <div class="acoes"><button class="btn" onclick="enviarEmailEngenharia(${l.id}, 'dossie')">📧 Enviar dossiê à engenharia (e-mail)</button><button class="btn btn-verde" onclick="avisarEngenharia(${l.id})">📣 Avisar pelo WhatsApp</button></div>`;
+}
+// antes do ganho: documentos que já chegaram (ex.: fatura lida no precificador) e envio da fatura / CNH
+function blocoDocs(l) {
+  const docs = Array.isArray(l.documentos) ? l.documentos : [];
+  const rot = k => (DOCS_GANHO.find(d => d[0] === k) || [k, k])[1];
+  const lista = docs.map(d => `<div style="padding:5px 0;border-bottom:1px solid var(--borda)">${d.valor ? `<a href="https://www.google.com/maps?q=${encodeURIComponent(d.valor)}" target="_blank" rel="noopener">📍 ${esc(rot(d.tipo))}</a>` : `<a href="#" onclick="verDoc('${esc(d.path)}');return false">📄 ${esc(rot(d.tipo))}</a>`} <span class="muted">· ${fmtDH(d.em)} · ${esc(nomeDe(d.autor))}</span>${perfil && perfil.admin ? ` · <a href="#" style="color:var(--vermelho)" onclick="apagarDoc(${l.id}, '${esc(d.id)}');return false">apagar</a>` : ''}</div>`).join('');
+  const env = (k, t) => `<label class="btn btn-sec" style="padding:4px 10px;font-size:13px;cursor:pointer">📷 ${t}<input type="file" accept="image/*,application/pdf" style="display:none" onchange="enviarDoc(${l.id}, '${k}', this)"></label>`;
+  return `<h3>📎 Documentos</h3>
+    ${lista || '<div class="muted">Nenhum documento ainda. A fatura lida no precificador aparece aqui sozinha.</div>'}
+    <div class="acoes">${env('fatura', 'Enviar fatura')}${env('cnh', 'Enviar CNH / RG')}</div>
+    <div class="status-msg" id="doc-msg"></div>`;
 }
 // fotos ficam menores antes de subir (máx. 2000 px); PDF vai como está
 function reduzirFoto(arq) {
