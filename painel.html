@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Painel de Orçamentos — Energtech</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;900&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
   :root {
@@ -173,7 +173,7 @@
       <div class="kpi"><div class="kpi-val" id="k-ticket">—</div><div class="kpi-lbl">Ticket médio</div></div>
       <div class="kpi"><div class="kpi-val" id="k-kwp">—</div><div class="kpi-lbl">Potência total orçada</div></div>
       <div class="kpi"><div class="kpi-val" id="k-ganhos">—</div><div class="kpi-lbl">🏆 Negócios ganhos (vendas fechadas) — pela data do fechamento</div></div>
-      <div class="kpi so-admin"><div class="kpi-val" id="k-margem">—</div><div class="kpi-lbl">🔒 Margem dos negócios ganhos (após kit, comissão e imposto do repasse)</div></div>
+      <div class="kpi so-admin"><div class="kpi-val" id="k-margem">—</div><div class="kpi-lbl">🔒 Margem dos negócios ganhos (após kit, comissão, Simples sobre serviços e imposto do repasse)</div></div>
       <div class="kpi so-admin"><div class="kpi-val" id="k-repasse">—</div><div class="kpi-lbl">🔒 Repasses a receber dos fornecedores — só ganhos, já sem o imposto</div></div>
       <div class="kpi" id="k-pend-box"><div class="kpi-val" id="k-pend">—</div><div class="kpi-lbl">Leads qualificados sem orçamento</div></div>
     </div>
@@ -216,7 +216,7 @@ const SUPABASE_URL = 'https://cmrndntnaaooapbdmgip.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_wKf3jP-0lmaK07vMpxdRlA_UXqMJdBO';
 const sb = (window.supabase && window.supabase.createClient) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
-let perfil = null, orcamentos = [], leads = [], nomes = {}, custosOrc = {}, ganhos = new Set(), substituidas = new Set(), dataGanho = {};
+let perfil = null, orcamentos = [], leads = [], nomes = {}, custosOrc = {}, ganhos = new Set(), substituidas = new Set(), dataGanho = {}, comVend = {}, simplesPct = 6;
 
 const $ = id => document.getElementById(id);
 const fmtR = v => (+v || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
@@ -249,11 +249,22 @@ function repasseDe(o) {
   const imposto = Math.round(repasse * pct) / 100;
   return { repasse, imposto, volta: repasse - imposto, pct };
 }
+// comissão: vendedor da venda com % sobre o total (marcado no CRM) ou a calculada no orçamento
+function comissaoDe(o) {
+  const c = custosOrc[o.id] || {};
+  return comVend[o.id] != null ? Math.round((+o.valor_final || 0) * comVend[o.id]) / 100 : (+c.comissao || 0);
+}
+// Simples Nacional sobre os serviços (total − kit na proposta; sem kit separado: total − custo do kit)
+function simplesDe(o) {
+  const c = custosOrc[o.id]; if (!c || c.custo_kit == null) return 0;
+  const kit = o.modo_valor === 'separado' && +o.valor_kit ? +o.valor_kit : +c.custo_kit;
+  return Math.round(Math.max(0, (+o.valor_final || 0) - kit) * simplesPct) / 100;
+}
 function margemDe(o) {
   const c = custosOrc[o.id];
   if (!c || c.custo_kit === null || c.custo_kit === undefined) return null;
   const r = repasseDe(o);
-  return (+o.valor_final || 0) - (+c.custo_kit || 0) - (+c.comissao || 0) - (r ? r.imposto : 0);
+  return (+o.valor_final || 0) - (+c.custo_kit || 0) - comissaoDe(o) - (r ? r.imposto : 0) - simplesDe(o);
 }
 const fmtRepasse = o => { const r = repasseDe(o); return r && r.repasse > 0
   ? `<span title="Nota de repasse ${fmtR(r.repasse)} − imposto ${fmtN(r.pct, 1)}% (${fmtR(r.imposto)})">${fmtR(r.volta)}</span>` : '<span class="muted">—</span>'; };
@@ -269,7 +280,8 @@ function mostrar(qual, texto) {
 
 function renderHeader() {
   const el = $('header-links');
-  let h = '<a href="./">← Voltar ao precificador</a>';
+  let h = '<a href="./">← Voltar ao precificador</a> · <a href="crm.html">🗂 CRM</a>';
+  if (perfil && perfil.admin) h += ' · <a href="financeiro.html">💰 Financeiro</a> · <a href="equipe.html">👷 Equipe</a>';
   if (perfil) h += ` · 👤 ${esc(perfil.nome || perfil.email)} <span class="papel">(${perfil.admin ? 'admin' : (perfil.vendedor ? 'vendedor' : 'sem acesso')})</span> · <a href="#" onclick="sair();return false">Sair</a>`;
   el.innerHTML = h;
 }
@@ -319,7 +331,7 @@ async function carregar() {
   try {
     const [o, l, v] = await Promise.all([
       buscarTudo('orcamentos', 'id, lead_id, cliente_nome, telefone, email, cidade, tipo, sistema, kwp, valor_final, vendedor_email, criado_em, modo_valor:dados->>modo_valor, valor_kit:dados->>valor_kit, repasse_pct:dados->>repasse_pct, revisao_de:dados->>revisao_de', 'criado_em'),
-      buscarTudo('leads', 'id, nome, telefone, email, status, recebido_em, etapa, etapa_em, orcamento_ganho_id', 'recebido_em'),
+      buscarTudo('leads', 'id, nome, telefone, email, status, recebido_em, etapa, etapa_em, orcamento_ganho_id, vendedor_id', 'recebido_em'),
       sb.from('vendedores').select('email, nome')
     ]);
     orcamentos = o; leads = l;
@@ -332,8 +344,18 @@ async function carregar() {
     leads.filter(x => x.etapa === 'ganho').forEach(x => { const id = x.orcamento_ganho_id || (orcamentos.find(oo => oo.lead_id === x.id) || {}).id; if (id) dataGanho[id] = x.etapa_em || null; });
     custosOrc = {};
     if (perfil && perfil.admin) {
-      const c = await buscarTudo('orcamento_custos', 'orcamento_id, custo_kit, comissao', 'orcamento_id');
+      const [c, eq, fp] = await Promise.all([
+        buscarTudo('orcamento_custos', 'orcamento_id, custo_kit, comissao', 'orcamento_id'),
+        sb.from('equipe').select('id, comissao_pct'),
+        sb.from('fin_parametros').select('simples_pct').eq('id', 1).maybeSingle(),
+      ]);
       c.forEach(x => custosOrc[x.orcamento_id] = x);
+      simplesPct = fp && fp.data && fp.data.simples_pct != null ? +fp.data.simples_pct : 6;
+      const pct = {}; ((eq && eq.data) || []).forEach(x => { if (x.comissao_pct != null) pct[x.id] = +x.comissao_pct; });
+      comVend = {};
+      leads.filter(x => x.etapa === 'ganho' && x.vendedor_id && pct[x.vendedor_id] != null).forEach(x => {
+        const id = x.orcamento_ganho_id || (orcamentos.find(oo => oo.lead_id === x.id) || {}).id; if (id) comVend[id] = pct[x.vendedor_id];
+      });
     }
     nomes = {}; (v.data || []).forEach(x => nomes[x.email] = x.nome);
   } catch (e) {
@@ -485,6 +507,7 @@ async function exportarBackup() {
   const tabelas = [
     ['config', 'id'], ['config_historico', 'hist_id'], ['kit_custos', 'kit_uid'],
     ['vendedores', 'email'], ['leads', 'id'], ['orcamentos', 'id'], ['orcamento_custos', 'orcamento_id'],
+    ['equipe', 'id'], ['equipe_lancamentos', 'id'], ['recebimentos', 'id'], ['pagamentos', 'id'], ['custos_fixos', 'id'], ['fin_parametros', 'id'],
   ];
   const dados = {}, contagem = {}, erros = [];
   for (const [t, ordem] of tabelas) {
@@ -510,7 +533,7 @@ function exportarCSV() {
   const cel = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
   const adm = perfil && perfil.admin;
   const cab = ['Nº','Data','Cliente','Telefone','E-mail','Cidade','Kit','Sistema','kWp','Valor (R$)','Vendedor','Origem','Ganho'];
-  if (adm) cab.push('Custo kit (R$)','Comissão (R$)','Nota de repasse (R$)','Imposto do repasse (R$)','Repasse a receber (R$)','Margem (R$)');
+  if (adm) cab.push('Custo kit (R$)','Comissão (R$)','Simples s/ serviços (R$)','Nota de repasse (R$)','Imposto do repasse (R$)','Repasse a receber (R$)','Margem (R$)');
   const linhas = [cab];
   lista.forEach(o => {
     const l = [o.id, fmtDataHora(o.criado_em), o.cliente_nome, telBonito(o.telefone), o.email || '', o.cidade || '',
@@ -518,7 +541,7 @@ function exportarCSV() {
       nomeVendedor(o.vendedor_email), o.lead_id ? 'DataCrazy' : 'Manual', ganhos.has(o.id) ? 'sim' : ''];
     if (adm) { const c = custosOrc[o.id] || {}; const m = margemDe(o);
       const r = repasseDe(o);
-      l.push(c.custo_kit != null ? num(c.custo_kit) : '', c.comissao != null ? num(c.comissao) : '',
+      l.push(c.custo_kit != null ? num(c.custo_kit) : '', c.custo_kit != null || c.comissao != null ? num(comissaoDe(o)) : '', c.custo_kit != null ? num(simplesDe(o)) : '',
         r ? num(r.repasse) : '', r ? num(r.imposto) : '', r ? num(r.volta) : '', m !== null ? num(m) : ''); }
     linhas.push(l);
   });
