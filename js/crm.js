@@ -71,6 +71,7 @@ function mostrar(qual, texto) {
 function renderHeader() {
   let h = '<a href="./">📄 Precificador</a>';
   if (perfil && (perfil.admin || perfil.papel === 'interno')) h += ' · <a href="painel.html">📊 Orçamentos</a>';
+  if (perfil && perfil.admin) h += ' · <a href="financeiro.html">💰 Financeiro</a>';
   if (perfil) h += ` · 👤 ${esc(perfil.nome || perfil.email)} <span class="papel">(${esc(perfil.papel || (perfil.admin ? 'admin' : 'vendedor'))})</span> · <a href="#" onclick="sair();return false">Sair</a>`;
   $('header-links').innerHTML = h;
 }
@@ -539,11 +540,12 @@ async function carregarRecebimentos(id) {
     p ? Promise.all([
       sb.from('orcamento_custos').select('custo_kit, custo_kit_tabela, comissao, custo_ajustado_em').eq('orcamento_id', p.id).maybeSingle(),
       sb.from('orcamentos').select('modo_valor:dados->>modo_valor, valor_kit:dados->>valor_kit, repasse_pct:dados->>repasse_pct').eq('id', p.id).maybeSingle(),
+      sb.from('fin_parametros').select('simples_pct').eq('id', 1).maybeSingle(),
     ]) : Promise.resolve(null),
   ]);
   if (fichaId !== id) return;
   if (error) { $('fx-receb').innerHTML = '<div class="muted">⚠ Não foi possível carregar os recebimentos: ' + esc(error.message) + '</div>'; return; }
-  if (cu) recebCusto = { orc: p.id, ...((cu[0] && cu[0].data) || {}), ...((cu[1] && cu[1].data) || {}) };
+  if (cu) recebCusto = { orc: p.id, ...((cu[0] && cu[0].data) || {}), ...((cu[1] && cu[1].data) || {}), simples_pct: cu[2] && cu[2].data ? +cu[2].data.simples_pct : 6 };
   recebs = data || [];
   renderRecebimentos();
 }
@@ -594,7 +596,11 @@ function blocoCustoKit(total) {
   const pctR = c.repasse_pct != null && c.repasse_pct !== '' ? +c.repasse_pct : 4;
   const rep = separado ? Math.max(0, Math.round((+c.valor_kit - custo) * 100) / 100) : 0;
   const imp = Math.round(rep * pctR) / 100;
-  const margem = total - custo - (+c.comissao || 0) - imp;
+  // comissão do vendedor da venda (% sobre o total) ou a do orçamento; Simples sobre os serviços
+  const l = leads.find(x => x.id === recebLead) || {}, vend = pessoas.find(x => x.id === l.vendedor_id);
+  const com = vend && vend.comissao_pct != null ? Math.round(total * vend.comissao_pct) / 100 : (+c.comissao || 0);
+  const serv = Math.max(0, total - (separado ? +c.valor_kit : custo)), simples = Math.round(serv * (c.simples_pct ?? 6)) / 100;
+  const margem = total - custo - com - imp - simples;
   const bt = (pct) => `<button class="btn btn-sec" style="padding:3px 9px;font-size:12px" onclick="$('ck-valor').value=valBR(Math.round(${tabela} * ${100 - pct}) / 100)">−${pct}%</button>`;
   return `<div style="background:#151515;border:1px solid var(--borda);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:13px">
     <div><b>🔒 Custo do kit (fornecedor)</b> <span class="muted">· tabela ${fmtR(tabela)}${desc > 0.004 ? ' · desconto ' + fmtR(desc) + ' (' + pctD.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + '%)' : ''}${c.custo_ajustado_em ? ' · ajustado em ' + new Date(c.custo_ajustado_em).toLocaleDateString('pt-BR') : ''}</span></div>
@@ -603,7 +609,7 @@ function blocoCustoKit(total) {
       ${bt(1)}${bt(3)}
       <button class="btn" style="padding:4px 10px;font-size:13px" onclick="ajustarCustoKit($('ck-valor').value)">💾 Salvar custo</button>
     </div>
-    <div class="muted" style="margin-top:6px">Margem estimada: <b style="color:var(--verde)">${fmtR(margem)}</b> = venda ${fmtR(total)} − kit ${fmtR(custo)} − comissão ${fmtR(+c.comissao || 0)}${imp ? ' − imposto do repasse ' + fmtR(imp) : ''} <span>(sem diárias e impostos da nota)</span></div>
+    <div class="muted" style="margin-top:6px">Margem estimada: <b style="color:var(--verde)">${fmtR(margem)}</b> = venda ${fmtR(total)} − kit ${fmtR(custo)} − comissão${vend ? ' ' + esc(vend.nome.split(' ')[0]) : ''} ${fmtR(com)} − Simples ${String(c.simples_pct ?? 6).replace('.', ',')}% s/ serviços ${fmtR(simples)}${separado ? '' : ' (serviços estimados)'}${imp ? ' − imposto do repasse ' + fmtR(imp) : ''} <span>(sem diárias e custos fixos)</span></div>
   </div>`;
 }
 async function ajustarCustoKit(valor) {
