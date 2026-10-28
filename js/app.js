@@ -338,7 +338,7 @@ async function carregarLeads(manual) {
   const btn = document.getElementById('btn-leads-reload');
   if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
   const { data, error } = await sb.from('leads')
-    .select('id, nome, telefone, email, cidade, status, recebido_em, cpf_cnpj, endereco, cep, uc, concessionaria')
+    .select('id, nome, telefone, email, cidade, status, recebido_em, cpf_cnpj, endereco, cep, uc, concessionaria, titular_uc')
     .order('recebido_em', { ascending:false }).limit(300);
   if (btn) { btn.disabled = false; btn.textContent = '🔄'; }
   let lista = data;
@@ -398,7 +398,7 @@ function selecionarLead() {
   document.getElementById('prop-telefone').value = telBonito(l.telefone);
   if (l.cidade) { document.getElementById('prop-cidade').value = l.cidade; regiaoPelaCidade(); }
   const pre = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
-  pre('prop-cpf', l.cpf_cnpj); pre('prop-endereco', l.endereco); pre('prop-cep', l.cep); pre('prop-uc', l.uc); pre('prop-concessionaria', l.concessionaria);
+  pre('prop-cpf', l.cpf_cnpj); pre('prop-endereco', l.endereco); pre('prop-cep', l.cep); pre('prop-uc', l.uc); pre('prop-concessionaria', l.concessionaria); pre('prop-titular-uc', l.titular_uc);
   avisoCpf();
   validarProposta();
   calcularProducao();
@@ -408,7 +408,7 @@ function selecionarLead() {
 function dadosClienteTela() {
   const v = id => (document.getElementById(id) || {}).value ? document.getElementById(id).value.trim() : '';
   return { nome: v('prop-nome'), cpf: v('prop-cpf'), telefone: v('prop-telefone'), email: v('prop-email'), cidade: v('prop-cidade'),
-           endereco: v('prop-endereco'), cep: v('prop-cep'), uc: v('prop-uc'), concessionaria: v('prop-concessionaria') };
+           endereco: v('prop-endereco'), cep: v('prop-cep'), uc: v('prop-uc'), concessionaria: v('prop-concessionaria'), titular_uc: v('prop-titular-uc') };
 }
 // CPF não bloqueia nada, mas avisa quando a proposta é para financiamento (kit nacional / kit e mão de obra separados)
 function avisoCpf() {
@@ -438,7 +438,7 @@ async function garantirLeadDoOrcamento(registro) {
   const novo = {
     nome: registro.cliente_nome || 'Cliente', telefone: tel, email: registro.email || null, cidade: registro.cidade || null,
     cpf_cnpj: (registro.dados && registro.dados.cpf_cnpj) || null, endereco: c.endereco || null, cep: c.cep || null,
-    uc: c.uc || null, concessionaria: c.concessionaria || null,
+    uc: c.uc || null, concessionaria: c.concessionaria || null, titular_uc: c.titular_uc || null,
     etapa: 'proposta', status: 'orcamento_criado', origem: 'outro', responsavel_email: registro.vendedor_email || null,
   };
   const { data, error } = await sb.from('leads').insert(novo).select('id').single();
@@ -527,7 +527,7 @@ async function salvarOrcamentoAgora() {
   if (registro.lead_id) {
     // devolve à ficha do cliente o que foi preenchido na proposta (só campos com valor; não apaga nada)
     const c = dadosClienteTela(), mud = { status:'orcamento_criado', atualizado_em: new Date().toISOString() };
-    [['cpf_cnpj', c.cpf], ['endereco', c.endereco], ['cep', c.cep], ['uc', c.uc], ['concessionaria', c.concessionaria], ['email', c.email]].forEach(([k, v]) => { if (v) mud[k] = v; });
+    [['cpf_cnpj', c.cpf], ['endereco', c.endereco], ['cep', c.cep], ['uc', c.uc], ['concessionaria', c.concessionaria], ['email', c.email], ['titular_uc', c.titular_uc]].forEach(([k, v]) => { if (v) mud[k] = v; });
     if (c.telefone) mud.telefone = telDigitos(c.telefone);
     await sb.from('leads').update(mud).eq('id', registro.lead_id);
     const l = leadsCache.find(x => x.id === registro.lead_id); if (l) l.status = 'orcamento_criado';
@@ -577,7 +577,7 @@ async function carregarRevisao(id) {
   leadSelecionado = o.lead_id || null;
   const sl = document.getElementById('prop-lead'); if (sl && leadSelecionado) sl.value = leadSelecionado;
   pre('prop-nome', o.cliente_nome !== 'Cliente' ? o.cliente_nome : ''); pre('prop-email', o.email); pre('prop-telefone', telBonito(o.telefone || ''));
-  pre('prop-cidade', o.cidade); pre('prop-cpf', dd.cpf_cnpj || c.cpf); pre('prop-endereco', c.endereco); pre('prop-cep', c.cep); pre('prop-uc', c.uc); pre('prop-concessionaria', c.concessionaria);
+  pre('prop-cidade', o.cidade); pre('prop-cpf', dd.cpf_cnpj || c.cpf); pre('prop-endereco', c.endereco); pre('prop-cep', c.cep); pre('prop-uc', c.uc); pre('prop-concessionaria', c.concessionaria); pre('prop-titular-uc', c.titular_uc);
   if (dd.conta_atual) sincronizarConta(String(dd.conta_atual), null);
   pre('prop-conta-meta', dd.conta_meta); pre('prop-consumo', dd.consumo_kwh);
   pre('prop-orientacao', dd.orientacao); pre('prop-estrutura', dd.estrutura);

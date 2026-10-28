@@ -2,7 +2,7 @@
 // Páginas: tenta a internet primeiro e guarda uma cópia; sem internet usa a cópia.
 // Bibliotecas, fontes e fotos: usa a cópia guardada e atualiza em segundo plano.
 // Dados do banco (Supabase) nunca passam por aqui, exceto as fotos públicas da proposta.
-const VERSAO = 'energtech-20261028f';
+const VERSAO = 'energtech-20261028g';
 const CASCA = ['./', 'index.html', 'crm.html', 'manifest.webmanifest',
   'css/precificador.css?v=20261019a', 'js/comum.js?v=20261019a', 'js/precificador.js?v=20261028d', 'js/logo.js?v=20261019a', 'js/pdf.js?v=20261028d', 'js/proposta.js?v=20261028d', 'js/admin.js?v=20261028d', 'js/app.js?v=20261028e', 'js/kit.js?v=20261028e', 'js/fatura.js?v=20261028e', 'js/crm.js?v=20261028a', 'js/projetos.js?v=20261028a', 'js/contrato.js?v=20261019a', 'icone-192.png', 'icone-512.png', 'apple-touch-icon.png', 'proposta-capa.jpg',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',

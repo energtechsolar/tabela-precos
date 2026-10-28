@@ -83,9 +83,19 @@ function mostrarFatura(d) {
   if (d.tem_geracao_propria) avisos.push('A fatura mostra geração própria/créditos: o consumo da fatura pode estar menor que o real.');
   if (d.observacoes) avisos.push('Observação da leitura: ' + escHtml(d.observacoes));
   const hist = (d.historico || []).slice().sort((a, b) => MESES_ORDEM(a.mes) - MESES_ORDEM(b.mes));
+  // nome na proposta: se já há um nome (ex.: cliente do CRM) diferente do titular, a proposta fica no nome dessa pessoa
+  const normNome = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+  const nomeAtual = (document.getElementById('prop-nome') || {}).value ? document.getElementById('prop-nome').value.trim() : '';
+  const outro = !!nomeAtual && !!d.titular && normNome(nomeAtual) !== normNome(d.titular);
   document.getElementById('fat-result').innerHTML = `
     <div class="fat-grade">
-      ${campo('fat-titular', 'Titular', d.titular, true)}
+      ${campo('fat-titular', 'Titular da fatura (UC)', d.titular, true)}
+      <div class="fat-largo" style="font-size:14px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:3px">Nome na proposta</div>
+        <label style="display:flex;gap:8px;align-items:center;margin:4px 0;cursor:pointer"><input type="radio" name="fat-nome-op" value="titular" ${outro ? '' : 'checked'}> Titular da fatura</label>
+        <label style="display:flex;gap:8px;align-items:center;margin:4px 0;cursor:pointer"><input type="radio" name="fat-nome-op" value="outro" ${outro ? 'checked' : ''}> Outra pessoa (quem está negociando, ex.: quem chamou pelo anúncio)</label>
+        <input id="fat-nome-outro" class="proposta-input" style="width:100%;box-sizing:border-box" value="${v(nomeAtual)}" placeholder="Nome de quem está negociando" oninput="document.querySelector('input[name=fat-nome-op][value=outro]').checked = true">
+      </div>
       ${campo('fat-cpf', 'CPF / CNPJ', d.cpf_cnpj && !d.cpf_cnpj.includes('*') ? d.cpf_cnpj : null)}
       ${campo('fat-uc', 'Unidade consumidora (UC)', d.uc)}
       ${campo('fat-endereco', 'Endereço da instalação', d.endereco, true)}
@@ -104,32 +114,57 @@ function mostrarFatura(d) {
     </div>
     ${avisos.length || vazios.length ? `<div class="fat-avisos">${avisos.map(a => '⚠ ' + a).join('<br>')}${vazios.length ? (avisos.length ? '<br>' : '') + 'Não lido: ' + vazios.map(escHtml).join(', ') + '.' : ''}</div>` : ''}
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
-      <button class="campo-btn" style="width:auto;margin:0;padding:10px 18px;font-size:16px" onclick="aplicarFatura()">✅ Usar estes dados na proposta</button>
+      <button class="campo-btn" style="width:auto;margin:0;padding:10px 18px;font-size:16px" onclick="aplicarFatura()">✅ Usar dados do cliente</button>
       <button class="link-mini" onclick="descartarFatura()">Descartar</button>
     </div>`;
-  statusFatura(vazios.length ? 'Leitura concluída. Confira os campos e complete o que faltou.' : 'Leitura concluída. Confira os dados antes de usar.', 'ok');
+  // editar a média refaz a conta estimada (média × tarifa); editar a conta vale como está
+  const elMedia = document.getElementById('fat-media'), elConta = document.getElementById('fat-conta');
+  if (elMedia) elMedia.addEventListener('input', () => { const m = Math.round(+String(elMedia.value).replace(/\./g, '').replace(',', '.') || 0); if (m > 0 && elConta) elConta.value = Math.round(m * tarifa); aplicarConsumoFatura(); });
+  if (elConta) elConta.addEventListener('input', aplicarConsumoFatura);
+  aplicarConsumoFatura();   // consumo e conta já vão para a Proposta rápida e o kit é sugerido na hora
+  statusFatura((vazios.length ? 'Leitura concluída. Consumo aplicado e kit sugerido abaixo. Confira os campos e complete o que faltou.' : 'Leitura concluída. Consumo aplicado e kit sugerido abaixo. Confira os dados do cliente.') + ' Depois clique em "Usar dados do cliente".', 'ok');
+}
+
+// consumo médio e conta estimada: vão direto para a proposta e para a Proposta rápida, e o kit é sugerido
+// (só números de cálculo, o vendedor ajusta à vontade). Se já há kit escolhido, a sugestão aparece sem trocá-lo.
+function aplicarConsumoFatura() {
+  const v = id => (document.getElementById(id) || {}).value ? document.getElementById(id).value.trim() : '';
+  const media = Math.round(+String(v('fat-media')).replace(/\./g, '').replace(',', '.') || 0);
+  const conta = lerReais(v('fat-conta'));
+  if (media > 0) { document.getElementById('prop-consumo').value = media; const cc = document.getElementById('campo-consumo'); if (cc) cc.value = media; }
+  if (conta > 0) sincronizarConta(String(Math.round(conta)), null);
+  if (!(media > 0 || conta > 0)) return;
+  if (typeof sugerirKit === 'function') sugerirKit();
+  if (propostaItem) calcularProducao();
 }
 
 function descartarFatura() { _faturaTela = null; document.getElementById('fat-result').innerHTML = ''; statusFatura(''); }
 
-// leva os dados conferidos para a proposta. Campos já preenchidos (ex.: cliente vindo do CRM) não são trocados,
-// exceto consumo e conta, que vêm da fatura.
+// leva os dados conferidos para a proposta:
+// - nome na proposta: titular da fatura ou outra pessoa (quem está negociando), conforme a escolha;
+// - titular da UC fica guardado à parte (homologação, contrato, financiamento);
+// - dados da instalação (UC, endereço, CEP, cidade, concessionária) vêm da fatura;
+// - CPF só entra se não estiver mascarado e se a proposta for no nome do titular.
 function aplicarFatura() {
   if (!_faturaTela) return;
   const val = id => (document.getElementById(id) || {}).value ? document.getElementById(id).value.trim() : '';
-  const preencher = (id, v) => { const el = document.getElementById(id); if (el && v && !el.value.trim()) el.value = v; };
-  preencher('prop-nome', val('fat-titular'));
-  if (!val('fat-cpf').includes('*')) preencher('prop-cpf', val('fat-cpf'));
-  preencher('prop-uc', val('fat-uc'));
-  preencher('prop-endereco', val('fat-endereco'));
-  preencher('prop-cep', val('fat-cep'));
-  preencher('prop-concessionaria', val('fat-conc'));
+  const por = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
+  const op = (document.querySelector('input[name="fat-nome-op"]:checked') || {}).value || 'titular';
+  const titular = val('fat-titular');
+  const nomeProp = op === 'outro' ? val('fat-nome-outro') : titular;
+  if (op === 'outro' && !nomeProp) { statusFatura('⚠ Informe o nome de quem está negociando (ou escolha "Titular da fatura").', 'erro'); return; }
+  por('prop-nome', nomeProp);
+  const tit = document.getElementById('prop-titular-uc'); if (tit) tit.value = val('fat-titular');
+  const cpf = document.getElementById('prop-cpf');
+  if (cpf && op === 'titular' && val('fat-cpf') && !val('fat-cpf').includes('*') && !cpf.value.trim()) cpf.value = val('fat-cpf');
+  por('prop-uc', val('fat-uc'));
+  por('prop-endereco', val('fat-endereco'));
+  por('prop-cep', val('fat-cep'));
+  por('prop-concessionaria', val('fat-conc'));
   const cid = document.getElementById('prop-cidade');
-  if (cid && val('fat-cidade') && !cid.value.trim()) { cid.value = val('fat-cidade'); if (typeof regiaoPelaCidade === 'function') regiaoPelaCidade(); }
+  if (cid && val('fat-cidade') && cid.value.trim() !== val('fat-cidade')) { cid.value = val('fat-cidade'); if (typeof regiaoPelaCidade === 'function') regiaoPelaCidade(); }
+  aplicarConsumoFatura();
   const media = Math.round(+String(val('fat-media')).replace(/\./g, '').replace(',', '.') || 0);
-  const conta = lerReais(val('fat-conta'));
-  if (media > 0) { document.getElementById('prop-consumo').value = media; const cc = document.getElementById('campo-consumo'); if (cc) cc.value = media; }
-  if (conta > 0) sincronizarConta(String(Math.round(conta)), null);
   const { meses } = mediaConsumo(_faturaTela);
   const d = _faturaTela;
   _arquivoFatura = _arquivoLido ? { ..._arquivoLido } : null;
@@ -137,15 +172,14 @@ function aplicarFatura() {
     concessionaria: val('fat-conc') || d.concessionaria, classificacao: d.classificacao, fornecimento: d.fornecimento,
     mes_referencia: d.mes_referencia, consumo_mes_kwh: d.consumo_mes_kwh, valor_total: d.valor_total,
     historico: d.historico, media_kwh: media || null, meses_media: meses, tem_geracao_propria: d.tem_geracao_propria,
+    titular: val('fat-titular') || null,
     lida_em: new Date().toISOString(),
     nome_proposta: val('prop-nome') || '',   // só vai para o orçamento deste cliente
   };
   if (typeof validarProposta === 'function') validarProposta();
   if (typeof avisoCpf === 'function') avisoCpf();
-  if (propostaItem) calcularProducao();
   document.getElementById('fat-result').innerHTML = '';
-  statusFatura('✅ Dados da fatura aplicados' + (media > 0 ? ' (consumo médio ' + media.toLocaleString('pt-BR') + ' kWh/mês)' : '') + (propostaItem ? '.' : '. Agora escolha o kit — use "⚡ Sugerir kit" ou a tabela.'), 'ok');
-  if (!propostaItem && media > 0 && typeof sugerirKit === 'function') sugerirKit();
+  statusFatura('✅ Dados da fatura aplicados' + (media > 0 ? ' (consumo médio ' + media.toLocaleString('pt-BR') + ' kWh/mês)' : '') + (op === 'outro' ? ' · proposta em nome de ' + nomeProp + ', titular da UC: ' + titular : '') + (propostaItem ? '.' : '. Agora escolha o kit: "✅ Usar este kit" na sugestão abaixo ou a tabela.'), 'ok');
 }
 
 // ── guardar o arquivo da fatura no cliente (pasta privada "documentos", a mesma da ficha do CRM) ──
