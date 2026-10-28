@@ -108,6 +108,8 @@
   .grade { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .grade label, .campo label { display:block; font-size:11px; color:var(--muted); margin-bottom:4px; text-transform:uppercase; letter-spacing:.05em; }
   .grade .largo { grid-column:1/-1; }
+  .copiar { background:none; border:1px solid var(--borda); border-radius:6px; color:var(--texto); font-size:12px; line-height:1; padding:2px 5px; margin-left:4px; cursor:pointer; vertical-align:middle; text-transform:none; }
+  .copiar:hover { border-color:var(--amarelo); }
   .acoes { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
   .fechar { background:none; border:1px solid var(--borda); color:var(--texto); border-radius:8px; width:34px; height:34px; cursor:pointer; font-size:18px; }
   .ficha-topo { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
@@ -276,7 +278,7 @@
 
 <script src="js/comum.js?v=20261019a"></script>
 <div class="toast-lead" id="toast-lead"></div>
-<script src="js/crm.js?v=20261028d"></script>
+<script src="js/crm.js?v=20261029a"></script>
 <script src="js/projetos.js?v=20261028a"></script>
 <script src="js/contrato.js?v=20261019a"></script>
 <script>

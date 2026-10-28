@@ -71,7 +71,7 @@ function mostrar(qual, texto) {
 function renderHeader() {
   let h = '<a href="./">📄 Precificador</a>';
   if (perfil && (perfil.admin || perfil.papel === 'interno')) h += ' · <a href="painel.html">📊 Orçamentos</a>';
-  if (perfil && perfil.admin) h += ' · <a href="financeiro.html">💰 Financeiro</a>';
+  if (perfil && perfil.admin) h += ' · <a href="financeiro.html">💰 Financeiro</a> · <a href="equipe.html">👷 Equipe</a>';
   if (perfil) h += ` · 👤 ${esc(perfil.nome || perfil.email)} <span class="papel">(${esc(perfil.papel || (perfil.admin ? 'admin' : 'vendedor'))})</span> · <a href="#" onclick="sair();return false">Sair</a>`;
   $('header-links').innerHTML = h;
 }
@@ -302,7 +302,7 @@ async function abrirFicha(id, recarregar) {
     ${l.etapa !== 'ganho' && l.etapa !== 'perdido' ? blocoFollowFeito(l) : ''}
     <h3>Dados do cliente</h3>
     <div class="grade">${camposCliente('fx', l)}</div>
-    <div class="acoes"><button class="btn" onclick="salvarFicha(${id})">💾 Salvar</button><span class="status-msg" id="fx-msg"></span></div>
+    <div class="acoes"><button class="btn" onclick="salvarFicha(${id})">💾 Salvar</button><button class="btn btn-sec" onclick="copiarDadosCliente(this)">📋 Copiar todos os dados</button><span class="status-msg" id="fx-msg"></span></div>
     <h3>Propostas (${props.length})</h3>
     ${props.length ? props.map(p => { const sub = revisoesDe(p.id)[0];
       return `<div class="prop prop-click" onclick="verProposta(${p.id})" style="${sub ? 'opacity:.6' : ''}"><span>Nº ${String(p.id).padStart(5, '0')} · ${esc(p.sistema || '')} · ${String(p.kwp).replace('.', ',')} kWp${p.revisao_de ? ' <span class="tag resp">↻ revisão da Nº ' + String(p.revisao_de).padStart(5, '0') + '</span>' : ''}${sub ? ' <span class="tag">substituída pela Nº ' + String(sub.id).padStart(5, '0') + '</span>' : ''}<br><span class="muted">${fmtDH(p.criado_em)} · ${esc(nomeDe(p.vendedor_email))}</span></span><span style="text-align:right"><b style="color:var(--amarelo)">${fmtR(p.valor_final)} ▾</b><br><a class="btn btn-sec" style="padding:3px 9px;font-size:12px;margin-top:4px" href="./?revisar=${p.id}" onclick="event.stopPropagation()">✏ Revisar</a></span></div><div class="prop-det" id="pdet-${p.id}"></div>`; }).join('')
@@ -358,7 +358,9 @@ async function anotar(id) {
 // campos de cliente (mesmos na ficha e no novo lead) — nenhum é obrigatório
 function camposCliente(pre, l) {
   l = l || {};
-  const c = (id, rot, val, extra, largo) => `<div${largo ? ' class="largo"' : ''}><label>${rot}</label><input class="input" id="${pre}-${id}" value="${esc(val || '')}" ${extra || ''}></div>`;
+  // na ficha: botão 📋 ao lado de cada dado, para colar no portal da Celesc / pedidos
+  const cp = id => pre === 'fx' ? ` <button type="button" class="copiar" title="Copiar" onclick="copiarCampo('${pre}-${id}', this)">📋</button>` : '';
+  const c = (id, rot, val, extra, largo) => `<div${largo ? ' class="largo"' : ''}><label>${rot}${cp(id)}</label><input class="input" id="${pre}-${id}" value="${esc(val || '')}" ${extra || ''}></div>`;
   return c('nome', 'Nome / Razão social', l.nome, '', true)
     + c('cpf', 'CPF / CNPJ', l.cpf_cnpj, 'placeholder="000.000.000-00"')
     + c('rg', 'RG', l.rg, 'placeholder="Nº do RG"')
@@ -372,6 +374,33 @@ function camposCliente(pre, l) {
     + c('uc', 'Unidade consumidora (UC)', l.uc, 'inputmode="numeric"')
     + c('conc', 'Concessionária', l.concessionaria, 'list="lista-conc" placeholder="Celesc, Copel…"')
     + c('titular', 'Titular da UC (nome na fatura, se for outra pessoa)', l.titular_uc, 'placeholder="Ex.: marido, empresa"', true);
+}
+// copia o valor do campo (data vai como DD/MM/AAAA); mostra ✅ por um instante
+async function copiarTexto(t) {
+  try { await navigator.clipboard.writeText(t); return true; }
+  catch (_) {
+    const ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    ta.remove(); return ok;
+  }
+}
+async function copiarCampo(id, btn) {
+  const el = $(id); if (!el) return;
+  let v = (el.value || '').trim();
+  if (el.type === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(v)) v = v.split('-').reverse().join('/');
+  if (!v) { btn.textContent = '∅'; setTimeout(() => btn.textContent = '📋', 1000); return; }
+  const ok = await copiarTexto(v);
+  btn.textContent = ok ? '✅' : '⚠'; setTimeout(() => btn.textContent = '📋', 1200);
+}
+// todos os dados de uma vez (para mandar ao engenheiro ou colar num pedido)
+async function copiarDadosCliente(btn) {
+  const v = id => (($('fx-' + id) || {}).value || '').trim();
+  const nasc = v('nasc') ? v('nasc').split('-').reverse().join('/') : '';
+  const linhas = [['Nome', v('nome')], ['CPF/CNPJ', v('cpf')], ['RG', [v('rg'), v('rgorg')].filter(Boolean).join(' · ')], ['Nascimento', nasc],
+    ['Telefone', v('tel')], ['E-mail', v('email')], ['Endereço', v('end')], ['CEP', v('cep')], ['Município/UF', v('cidade')],
+    ['UC', v('uc')], ['Concessionária', v('conc')], ['Titular da UC', v('titular')]].filter(x => x[1]).map(x => x[0] + ': ' + x[1]);
+  const ok = await copiarTexto(linhas.join('\n'));
+  const t = btn.textContent; btn.textContent = ok ? '✅ Copiado' : '⚠ Não copiou'; setTimeout(() => btn.textContent = t, 1500);
 }
 function lerCamposCliente(pre) {
   const v = id => ($(pre + '-' + id).value || '').trim() || null;
