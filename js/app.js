@@ -514,6 +514,9 @@ async function salvarOrcamentoAgora() {
     const idLead = _leadsAuto[k] || await garantirLeadDoOrcamento(registro);
     if (idLead) { registro.lead_id = idLead; _leadsAuto[k] = idLead; }
   }
+  // fatura lida neste aparelho: o arquivo vai para a pasta privada do cliente (documentos do CRM)
+  const arqFatura = registro.dados.fatura && registro.lead_id && typeof guardarArquivoFatura === 'function' ? await guardarArquivoFatura(registro.lead_id) : null;
+  if (arqFatura) registro.dados.fatura.arquivo = arqFatura.doc.path;
   const { data, error } = await sb.from('orcamentos').insert(registro).select('id').single();
   if (error && ehFalhaDeRede(error)) { guardarNaFila(registro, leadSelecionado); return; }
   if (error) {
@@ -531,14 +534,15 @@ async function salvarOrcamentoAgora() {
     carregarLeads();
   }
   // admin: custo do kit personalizado vai para os custos do orçamento (vendedores não veem)
-  let avisoCusto = '';
+  let avisoExtra = '';
+  if (registro.dados.fatura && registro.lead_id && !(arqFatura && await anexarFaturaAoLead(registro.lead_id, arqFatura))) avisoExtra += ' (⚠ o arquivo da fatura não foi guardado na ficha do cliente)';
   if (adminLogado && propostaItem.personalizado && typeof custoDoKit === 'function' && custoDoKit(propostaItem) != null) {
     const { error: eC } = await sb.rpc('registrar_custo_kit_personalizado', { p_orcamento: data.id, p_custo: custoDoKit(propostaItem) });
-    if (eC) { console.error('Custo do kit:', eC); avisoCusto = ' (⚠ custo do kit não foi gravado: ' + eC.message + ')'; }
+    if (eC) { console.error('Custo do kit:', eC); avisoExtra = ' (⚠ custo do kit não foi gravado: ' + eC.message + ')'; }
   }
   ultimoOrcamentoId = data.id;
   _ultimoSalvoOrc = { chave: chaveOrc, em: Date.now(), id: data.id };
-  statusProposta(`✅ Orçamento nº ${data.id} salvo — ${fmt(registro.valor_final)}` + avisoCusto, avisoCusto ? 'aviso' : 'ok');
+  statusProposta(`✅ Orçamento nº ${data.id} salvo — ${fmt(registro.valor_final)}` + avisoExtra, avisoExtra ? 'aviso' : 'ok');
 }
 
 // ── REVISAR UMA PROPOSTA (CRM → index.html?revisar=Nº) ──────────────────────

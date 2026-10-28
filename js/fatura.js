@@ -1,10 +1,13 @@
 // Energtech — ler a fatura de energia (foto da câmera, foto da galeria ou PDF) e preencher a proposta.
 // A leitura é feita no servidor (função ler-fatura). Campo que não foi lido fica vazio: nada é inventado.
-// O vendedor confere e corrige tudo antes de usar. O arquivo não é guardado.
+// O vendedor confere e corrige tudo antes de usar. Ao salvar o orçamento, o arquivo vai para a pasta privada
+// "documentos" do cliente e aparece na ficha do CRM como "Fatura de energia" (só a equipe logada abre).
 // (carregado pelo index.html depois de js/app.js)
 
 let faturaLida = null;   // dados da última fatura aplicada (vão para o orçamento salvo, em dados.fatura)
 let _faturaTela = null;  // dados da última leitura, mostrados para conferência
+let _arquivoLido = null;    // arquivo da última leitura (em memória)
+let _arquivoFatura = null;  // arquivo da fatura aplicada: guardado no cliente quando o orçamento é salvo
 
 const FORNECIMENTO_TXT = { monofasico: 'Monofásico', bifasico: 'Bifásico', trifasico: 'Trifásico' };
 const MESES_ORDEM = m => { const [mm, aa] = String(m).split('/'); return +aa * 12 + +mm; };
@@ -33,6 +36,7 @@ async function lerFatura(input) {
     statusFatura('⏳ Preparando o arquivo…');
     const blob = ehPdf ? arq : await reduzirImagem(arq, 2000);   // foto: reduz no aparelho (mais rápido de enviar)
     const arquivo = await arquivoParaBase64(blob);
+    _arquivoLido = { blob, ext: ehPdf ? 'pdf' : 'jpg', nome: arq.name || (ehPdf ? 'fatura.pdf' : 'fatura.jpg') };
     statusFatura('⏳ Lendo a fatura… (leva alguns segundos)');
     const { data, error } = await sb.functions.invoke('ler-fatura', { body: { arquivo, tipo: ehPdf ? 'application/pdf' : 'image/jpeg' } });
     let resp = data;
@@ -128,6 +132,7 @@ function aplicarFatura() {
   if (conta > 0) sincronizarConta(String(Math.round(conta)), null);
   const { meses } = mediaConsumo(_faturaTela);
   const d = _faturaTela;
+  _arquivoFatura = _arquivoLido ? { ..._arquivoLido } : null;
   faturaLida = {
     concessionaria: val('fat-conc') || d.concessionaria, classificacao: d.classificacao, fornecimento: d.fornecimento,
     mes_referencia: d.mes_referencia, consumo_mes_kwh: d.consumo_mes_kwh, valor_total: d.valor_total,
@@ -141,4 +146,28 @@ function aplicarFatura() {
   document.getElementById('fat-result').innerHTML = '';
   statusFatura('✅ Dados da fatura aplicados' + (media > 0 ? ' (consumo médio ' + media.toLocaleString('pt-BR') + ' kWh/mês)' : '') + (propostaItem ? '.' : '. Agora escolha o kit — use "⚡ Sugerir kit" ou a tabela.'), 'ok');
   if (!propostaItem && media > 0 && typeof sugerirKit === 'function') sugerirKit();
+}
+
+// ── guardar o arquivo da fatura no cliente (pasta privada "documentos", a mesma da ficha do CRM) ──
+// Envia uma vez por cliente: salvar o orçamento de novo não duplica o arquivo.
+async function guardarArquivoFatura(leadId) {
+  const a = _arquivoFatura;
+  if (!a || !sb || !leadId) return null;
+  if (a.doc && a.leadId === leadId) return { doc: a.doc, novo: false };
+  try {
+    const path = 'lead-' + leadId + '/fatura-' + Date.now() + '.' + a.ext;
+    const { error } = await sb.storage.from('documentos').upload(path, a.blob, { contentType: a.ext === 'pdf' ? 'application/pdf' : 'image/jpeg', upsert: false });
+    if (error) throw error;
+    a.leadId = leadId;
+    a.doc = { id: String(Date.now()), tipo: 'fatura', nome: a.nome, path, em: new Date().toISOString(), autor: perfil.email };
+    return { doc: a.doc, novo: true };
+  } catch (e) { console.error('Fatura (arquivo):', e); return null; }
+}
+async function anexarFaturaAoLead(leadId, r) {
+  if (!r || !r.novo) return true;
+  const { data: l } = await sb.from('leads').select('documentos').eq('id', leadId).maybeSingle();
+  const docs = Array.isArray(l && l.documentos) ? l.documentos : [];
+  const { error } = await sb.from('leads').update({ documentos: [...docs, r.doc] }).eq('id', leadId);
+  if (error) console.error('Fatura (ficha do cliente):', error);
+  return !error;
 }
