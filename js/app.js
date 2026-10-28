@@ -1,7 +1,7 @@
 // Energtech — app: offline, modo simples, Supabase, usuário logado
 // (arquivo carregado pelo index.html; a ordem dos <script> importa)
 
-// ── APP / OFFLINE ─────────────────────────────────────────────────────────────
+// ── APP / OFFLINE ───────────────────────────────────────────────────────────────
 function lerLocal(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
 function gravarLocal(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 function marcarOffline(off) { const el = document.getElementById('offline-aviso'); if (el) el.style.display = off ? 'block' : 'none'; }
@@ -586,6 +586,7 @@ async function carregarRevisao(id) {
   pre('prop-servico', dd.servico_desc); pre('prop-fornecedor', dd.fornecedor_id); pre('prop-conta-pag', dd.conta_id);
   // valores: total da proposta salva e divisão kit / mão de obra
   document.querySelectorAll('input[name="modo-valor"]').forEach(r => r.checked = r.value === (dd.modo_valor || 'global'));
+  const pf = document.getElementById('prop-preco-fechado'); if (pf) pf.checked = !!(dd.calculo && dd.calculo.precoFechado);
   if (o.tipo === 'importado') { const b = dd.boleto || { parcelas: 10, juros_mes: 0 }; definirBoleto(b.parcelas, b.juros_mes); atualizar(); }
   if (Math.abs(+o.valor_final - propostaCalc.valorFinal) > 0.009) definirTotalProposta(+o.valor_final);
   document.getElementById('prop-kit-txt').value = dd.valor_kit ? fmtReais(dd.valor_kit) : '';

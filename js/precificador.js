@@ -138,6 +138,7 @@ function calcLinha(item, adicional, descPct) {
 }
 // desconto só no à vista: entrada + parcelas e financiamentos usam o valor cheio (tabela + adicional, sem o desconto)
 function valorCheioDe(item, c) {
+  if (c && c.precoFechado) return Math.round((+c.valorFinal || 0) * 100) / 100;   // preço fechado (admin): sem desconto só no à vista
   const v = +c.valorFinal || 0, cheio = (+item.inv_r || 0) + (+c.addVendedor || 0) + (+c.addEmpresa || 0);
   return Math.max(v, Math.round(cheio * 100) / 100 || 0);
 }
