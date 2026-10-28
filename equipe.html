@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://cmrndntnaaooapbdmgip.supabase.co;">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Equipe — Energtech</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  :root {
+    --amarelo:#FFC107; --amarelo-dim:#e6ac00; --preto:#111; --bg:#0f0f0f; --card:#1a1a1a; --card2:#222;
+    --borda:#2e2e2e; --texto:#e0e0e0; --muted:#8a8a8a; --verde:#4ade80; --vermelho:#f87171; --azul:#60a5fa;
+  }
+  body { background:var(--bg); font-family:'Barlow',sans-serif; color:var(--texto); min-height:100vh; padding-bottom:60px; }
+  a { color:var(--azul); }
+  .header { background:var(--amarelo); padding:16px 24px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+  .logo-area { display:flex; align-items:center; gap:12px; }
+  .logo-icon { width:42px; height:42px; background:var(--preto); border-radius:50%; display:flex; align-items:center; justify-content:center; }
+  .brand-name { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:900; color:var(--preto); line-height:1; }
+  .brand-sub { font-size:10px; font-weight:600; color:var(--preto); letter-spacing:.2em; text-transform:uppercase; opacity:.6; }
+  .header-title { text-align:right; }
+  .header-title h1 { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:700; color:var(--preto); text-transform:uppercase; letter-spacing:.05em; }
+  .header-links { font-size:12px; color:var(--preto); margin-top:3px; }
+  .header-links a { color:var(--preto); font-weight:700; }
+  .page { max-width:1200px; margin:0 auto; padding:20px 16px; }
+  .card { background:var(--card); border:1px solid var(--borda); border-radius:14px; padding:18px; margin-bottom:16px; }
+  .card h2 { font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:900; letter-spacing:.1em; text-transform:uppercase; color:var(--amarelo); margin-bottom:12px; }
+  .muted { color:var(--muted); font-size:13px; }
+  .login { max-width:360px; margin:40px auto; text-align:center; }
+  .input, .select { background:var(--card2); border:1px solid var(--borda); color:var(--texto); font-family:'Barlow',sans-serif; font-size:14px; padding:8px 10px; border-radius:8px; outline:none; width:100%; }
+  .input:focus, .select:focus { border-color:var(--amarelo); }
+  .login .input { margin-bottom:10px; }
+  .btn { background:var(--amarelo); color:var(--preto); font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:900; letter-spacing:.05em; padding:8px 14px; border:none; border-radius:8px; cursor:pointer; white-space:nowrap; }
+  .btn:hover { background:var(--amarelo-dim); }
+  .btn-sec { background:var(--card2); color:var(--texto); border:1px solid var(--borda); }
+  .btn-p { padding:3px 9px; font-size:12px; }
+  .erro { color:var(--vermelho); font-size:13px; margin-top:8px; min-height:16px; }
+  #conteudo { display:none; }
+  .barra { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; align-items:center; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:10px; margin-bottom:16px; }
+  .kpi { background:var(--card); border:1px solid var(--borda); border-radius:12px; padding:14px; }
+  .kpi-val { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:900; color:var(--amarelo); line-height:1.1; }
+  .kpi-lbl { font-size:12px; color:var(--muted); margin-top:3px; }
+  .tabela-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); font-weight:600; padding:7px 8px; border-bottom:1px solid var(--borda); white-space:nowrap; }
+  td { padding:8px; border-bottom:1px solid #242424; vertical-align:middle; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .vazio { text-align:center; color:var(--muted); padding:18px 0; font-size:13px; }
+  .tag { display:inline-block; font-size:11px; padding:1px 7px; border-radius:20px; background:#1a1a1a; border:1px solid var(--borda); color:var(--muted); white-space:nowrap; }
+  .form-lanc { display:grid; grid-template-columns:1.4fr 1fr 1fr 1.6fr 0.9fr auto; gap:8px; align-items:end; }
+  .form-lanc label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; display:flex; flex-direction:column; gap:3px; }
+  .pessoas { display:grid; grid-template-columns:repeat(auto-fill, minmax(270px, 1fr)); gap:10px; }
+  .pessoa { background:var(--card2); border:1px solid var(--borda); border-radius:10px; padding:12px; font-size:13px; }
+  .pessoa.inativa { opacity:.5; }
+  .pessoa b { color:#fff; font-size:15px; }
+  .copiar { background:none; border:1px solid var(--borda); border-radius:6px; color:var(--texto); font-size:12px; padding:1px 5px; margin-left:4px; cursor:pointer; }
+  .status-msg { font-size:12px; min-height:16px; color:var(--verde); } .status-msg.erro { color:var(--vermelho); }
+  @media (max-width:760px) { .form-lanc { grid-template-columns:1fr 1fr; } .header-title { text-align:left; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo-area">
+    <div class="logo-icon"><svg width="26" height="26" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="13" fill="#FFC107"/><path d="M16 3L8 15h7l-3 10 10-13h-7l1-9z" fill="#111"/></svg></div>
+    <div><div class="brand-name">Energtech</div><div class="brand-sub">Engenharia Solar</div></div>
+  </div>
+  <div class="header-title"><h1>Equipe</h1><div class="header-links" id="header-links"><a href="crm.html">CRM</a></div></div>
+</div>
+
+<div class="page">
+  <div class="card login" id="login" style="display:none">
+    <h2 style="font-family:'Barlow Condensed',sans-serif;color:var(--amarelo)">🔑 Entrar</h2>
+    <p class="muted" style="margin-bottom:16px">Use o mesmo login do CRM.</p>
+    <input class="input" type="email" id="login-email" placeholder="E-mail" autocomplete="username">
+    <input class="input" type="password" id="login-senha" placeholder="Senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')entrar()">
+    <button class="btn" id="login-btn" style="width:100%" onclick="entrar()">Entrar</button>
+    <div class="erro" id="login-erro"></div>
+  </div>
+  <div class="card" id="aviso" style="display:none"><p id="aviso-txt" class="muted"></p></div>
+
+  <div id="conteudo">
+    <div class="barra">
+      <label class="muted">Mês <input class="input" type="month" id="f-mes" style="width:auto;display:inline-block" onchange="carregar()"></label>
+      <button class="btn btn-sec" onclick="carregar()" title="Atualizar">🔄</button>
+      <span class="status-msg" id="msg"></span>
+    </div>
+    <div class="kpis" id="kpis"></div>
+
+    <div class="card"><h2>➕ Lançar dia trabalhado / instalação</h2>
+      <div class="form-lanc">
+        <label>Pessoa<select class="select" id="l-pessoa" onchange="sugerirValor()"></select></label>
+        <label>Data<input class="input" type="date" id="l-data"></label>
+        <label>Tipo<select class="select" id="l-tipo" onchange="sugerirValor()">
+          <option value="dia">Dia inteiro</option><option value="meio">Meio dia</option><option value="instalacao">Instalação (valor da obra)</option><option value="outro">Outro (ajuda de custo, extra…)</option></select></label>
+        <label>Obra (cliente)<select class="select" id="l-obra"></select></label>
+        <label>Valor (R$)<input class="input" id="l-valor" inputmode="decimal"></label>
+        <button class="btn" onclick="lancar()">Lançar</button>
+      </div>
+      <input class="input" id="l-obs" placeholder="Observação (opcional)" style="margin-top:8px">
+      <p class="muted" style="margin-top:8px">O total do mês de cada pessoa entra sozinho no Financeiro como conta a pagar (pagamento no mês seguinte). Valores já pagos não mudam.</p>
+    </div>
+
+    <div class="card"><h2>📒 Lançamentos do mês</h2><div id="lancamentos"></div></div>
+    <div class="card"><h2>🏗 Custo de equipe por obra (no mês)</h2><div id="por-obra"></div></div>
+    <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">👷 Cadastro da equipe</h2><button class="btn btn-sec" onclick="novaPessoa()">+ Pessoa</button></div><div class="pessoas" id="pessoas"></div></div>
+  </div>
+</div>
+
+<script src="js/comum.js?v=20261019a"></script>
+<script>
+// Energtech — Equipe (só admin): cadastro, dias trabalhados, instalações e custo de mão de obra por obra.
+// Tabelas: equipe e equipe_lancamentos. O Financeiro soma o mês de cada pessoa em "a pagar" (financeiro_sincronizar).
+const $ = id => document.getElementById(id);
+const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtR = v => (+v || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+const dBR = iso => iso ? iso.slice(0, 10).split('-').reverse().join('/') : '—';
+const hojeISO = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+const ultimoDia = ym => { const [a, m] = ym.split('-').map(Number); return ym + '-' + String(new Date(a, m, 0).getDate()).padStart(2, '0'); };
+function numBR(t) { let s = String(t ?? '').replace(/[R$\s]/g, ''); if (!s) return null; if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return isFinite(n) ? Math.round(n * 100) / 100 : null; }
+const valBR = v => (+v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const TIPOS_P = { fixo:'Fixo (salário)', diarista:'Diarista', vendedor:'Vendedor (comissão)', comissionado:'Comissão + instalação' };
+const TIPOS_L = { dia:'Dia', instalacao:'Instalação', comissao:'Comissão', outro:'Outro' };
+let perfil = null, PES = [], LAN = [], OBRAS = [];
+
+function msg(t, erro) { const m = $('msg'); m.textContent = t || ''; m.classList.toggle('erro', !!erro); }
+function mostrar(qual, texto) {
+  $('login').style.display = qual === 'login' ? '' : 'none';
+  $('aviso').style.display = qual === 'aviso' ? '' : 'none';
+  $('conteudo').style.display = qual === 'conteudo' ? 'block' : 'none';
+  if (texto) $('aviso-txt').innerHTML = texto;
+}
+function renderHeader() {
+  let h = '<a href="crm.html">🗂 CRM</a> · <a href="financeiro.html">💰 Financeiro</a> · <a href="painel.html">📊 Orçamentos</a>';
+  if (perfil) h += ` · 👤 ${esc(perfil.nome || perfil.email)} · <a href="#" onclick="sair();return false">Sair</a>`;
+  $('header-links').innerHTML = h;
+}
+async function iniciar() {
+  if (!sb) { mostrar('aviso', '⚠ Sem conexão com o servidor.'); return; }
+  const { data } = await sb.auth.getSession();
+  if (!data || !data.session) { perfil = null; renderHeader(); mostrar('login'); return; }
+  const r = await sb.rpc('meu_perfil'); perfil = r.data || {};
+  renderHeader();
+  if (!perfil.admin) { mostrar('aviso', 'A tela Equipe é só para o administrador.'); return; }
+  mostrar('conteudo');
+  if (!$('f-mes').value) $('f-mes').value = hojeISO().slice(0, 7);
+  $('l-data').value = hojeISO();
+  await carregar();
+}
+async function entrar() {
+  const { error } = await sb.auth.signInWithPassword({ email: $('login-email').value.trim(), password: $('login-senha').value });
+  if (error) { $('login-erro').textContent = 'E-mail ou senha incorretos.'; return; }
+  await iniciar();
+}
+async function sair() { await sb.auth.signOut(); perfil = null; await iniciar(); }
+
+async function carregar() {
+  const ym = $('f-mes').value, ini = ym + '-01', fim = ultimoDia(ym);
+  msg('⏳ Carregando…');
+  const desde = new Date(); desde.setMonth(desde.getMonth() - 6);
+  const [p, l, o] = await Promise.all([
+    sb.from('equipe').select('*').order('nome'),
+    sb.from('equipe_lancamentos').select('*, leads(nome)').gte('data', ini).lte('data', fim).order('data', { ascending: false }).order('id', { ascending: false }),
+    sb.from('leads').select('id, nome, cidade, etapa, etapa_em').eq('etapa', 'ganho').gte('etapa_em', desde.toISOString()).order('etapa_em', { ascending: false }).limit(300),
+  ]);
+  const err = [p, l, o].find(x => x.error); if (err) { msg('⚠ ' + err.error.message, true); return; }
+  PES = p.data || []; LAN = l.data || []; OBRAS = o.data || [];
+  msg(''); render();
+}
+function render() {
+  const ativos = PES.filter(x => x.ativo);
+  const opP = $('l-pessoa').value;
+  $('l-pessoa').innerHTML = ativos.filter(x => x.tipo !== 'vendedor').map(x => `<option value="${x.id}">${esc(x.nome)}</option>`).join('');
+  if (opP && ativos.some(x => String(x.id) === opP)) $('l-pessoa').value = opP;
+  const opO = $('l-obra').value;
+  $('l-obra').innerHTML = '<option value="">— sem obra específica —</option>' + OBRAS.map(x => `<option value="${x.id}">${esc(x.nome)}${x.cidade ? ' · ' + esc(x.cidade) : ''}</option>`).join('');
+  if (opO) $('l-obra').value = opO;
+  if (!$('l-valor').value) sugerirValor();
+  // resumo por pessoa
+  const porPessoa = {};
+  LAN.forEach(x => { const k = x.pessoa_id; porPessoa[k] = porPessoa[k] || { dias: 0, inst: 0, valor: 0 }; if (x.tipo === 'dia') porPessoa[k].dias += +x.quantidade; if (x.tipo === 'instalacao') porPessoa[k].inst += 1; porPessoa[k].valor += +x.valor; });
+  const total = LAN.reduce((a, x) => a + +x.valor, 0), dias = LAN.filter(x => x.tipo === 'dia').reduce((a, x) => a + +x.quantidade, 0);
+  const salarios = ativos.filter(x => x.tipo === 'fixo').reduce((a, x) => a + (+x.salario || 0), 0);
+  $('kpis').innerHTML = [
+    [fmtR(total), 'Diárias e instalações do mês (a pagar no mês seguinte)'],
+    [String(dias).replace('.', ','), 'Dias trabalhados lançados'],
+    [fmtR(salarios), 'Salários da equipe fixa por mês'],
+    [fmtR(total + salarios), 'Custo total de equipe no mês'],
+  ].map(([v, t]) => `<div class="kpi"><div class="kpi-val">${v}</div><div class="kpi-lbl">${t}</div></div>`).join('');
+  const nomeP = id => (PES.find(x => x.id === id) || {}).nome || '—';
+  // lançamentos agrupados por pessoa
+  const grupos = Object.keys(porPessoa).map(Number).sort((a, b) => nomeP(a).localeCompare(nomeP(b)));
+  $('lancamentos').innerHTML = grupos.length ? grupos.map(pid => {
+    const r = porPessoa[pid], ls = LAN.filter(x => x.pessoa_id === pid);
+    return `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${esc(nomeP(pid))}</b><span class="muted">${r.dias ? String(r.dias).replace('.', ',') + ' dia(s)' : ''}${r.dias && r.inst ? ' · ' : ''}${r.inst ? r.inst + ' instalação(ões)' : ''} · <b style="color:var(--amarelo)">${fmtR(r.valor)}</b></span></div>
+      <div class="tabela-wrap"><table><tbody>${ls.map(x => `<tr><td>${dBR(x.data)}</td><td>${x.tipo === 'dia' && +x.quantidade === 0.5 ? 'Meio dia' : esc(TIPOS_L[x.tipo] || x.tipo)}</td><td>${x.lead_id ? `<a href="crm.html?lead=${x.lead_id}">${esc((x.leads || {}).nome || 'obra')}</a>` : '<span class="muted">—</span>'}${x.obs ? '<br><span class="muted">' + esc(x.obs) + '</span>' : ''}</td><td class="num">${fmtR(x.valor)}</td><td class="num">${x.pago_em ? '<span class="tag">pago</span>' : `<button class="btn btn-sec btn-p" style="color:var(--vermelho)" onclick="apagarLanc(${x.id})">🗑</button>`}</td></tr>`).join('')}</tbody></table></div></div>`;
+  }).join('') : '<div class="vazio">Nenhum lançamento neste mês.</div>';
+  // custo por obra
+  const porObra = {};
+  LAN.filter(x => x.lead_id).forEach(x => { porObra[x.lead_id] = porObra[x.lead_id] || { nome: (x.leads || {}).nome, dias: 0, valor: 0 }; if (x.tipo === 'dia') porObra[x.lead_id].dias += +x.quantidade; porObra[x.lead_id].valor += +x.valor; });
+  const semObra = LAN.filter(x => !x.lead_id).reduce((a, x) => a + +x.valor, 0);
+  const lo = Object.entries(porObra).sort((a, b) => b[1].valor - a[1].valor);
+  $('por-obra').innerHTML = lo.length || semObra ? `<div class="tabela-wrap"><table><thead><tr><th>Obra</th><th class="num">Dias</th><th class="num">Custo de equipe</th></tr></thead><tbody>
+    ${lo.map(([id, o]) => `<tr><td><a href="crm.html?lead=${id}">${esc(o.nome || 'obra')}</a></td><td class="num">${String(o.dias).replace('.', ',')}</td><td class="num">${fmtR(o.valor)}</td></tr>`).join('')}
+    ${semObra ? `<tr><td class="muted">Sem obra informada</td><td></td><td class="num">${fmtR(semObra)}</td></tr>` : ''}</tbody></table></div>
+    <p class="muted" style="margin-top:8px">Informe a obra em cada lançamento para saber quanto de mão de obra cada instalação custou.</p>` : '<div class="vazio">Nenhum lançamento com obra neste mês.</div>';
+  // cadastro
+  const cp = (v) => v ? `${esc(v)}<button class="copiar" title="Copiar" onclick="copiar('${esc(String(v).replace(/'/g, ''))}', this)">📋</button>` : '<span class="muted">—</span>';
+  $('pessoas').innerHTML = PES.map(x => `<div class="pessoa ${x.ativo ? '' : 'inativa'}">
+      <div style="display:flex;justify-content:space-between;gap:6px"><b>${esc(x.nome)}</b><span class="tag">${esc(TIPOS_P[x.tipo] || x.tipo)}</span></div>
+      <div style="margin-top:6px;line-height:1.8">
+        ${x.tipo === 'fixo' ? 'Salário: <b>' + fmtR(x.salario) + '</b><br>' : ''}${x.tipo === 'diarista' ? 'Diária: <b>' + fmtR(x.diaria) + '</b><br>' : ''}${x.recebe_comissao ? 'Comissão: <b>' + (x.comissao_pct != null ? String(x.comissao_pct).replace('.', ',') + '% do total' : 'cálculo do orçamento') + '</b><br>' : ''}
+        CPF: ${cp(x.cpf)}<br>PIX: ${cp(x.pix)}${x.obs ? '<br><span class="muted">' + esc(x.obs) + '</span>' : ''}
+      </div>
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-sec btn-p" onclick="editarPessoa(${x.id})">✏ Editar</button><button class="btn btn-sec btn-p" onclick="ativarPessoa(${x.id}, ${!x.ativo})">${x.ativo ? 'Desativar' : 'Reativar'}</button></div>
+    </div>`).join('');
+}
+function sugerirValor() {
+  const p = PES.find(x => String(x.id) === $('l-pessoa').value) || {}, t = $('l-tipo').value;
+  $('l-valor').value = t === 'dia' && p.diaria ? valBR(p.diaria) : t === 'meio' && p.diaria ? valBR(p.diaria / 2) : '';
+  $('l-valor').placeholder = t === 'instalacao' ? 'valor desta instalação' : '';
+}
+async function lancar() {
+  const pessoa = +$('l-pessoa').value, data = $('l-data').value, t = $('l-tipo').value, v = numBR($('l-valor').value);
+  if (!pessoa) { msg('⚠ Escolha a pessoa.', true); return; }
+  if (!data) { msg('⚠ Informe a data.', true); return; }
+  if (v === null || v < 0) { msg('⚠ Informe o valor.', true); return; }
+  const meio = t === 'meio';
+  const reg = { pessoa_id: pessoa, data, tipo: meio ? 'dia' : t, quantidade: meio ? 0.5 : 1, valor_unit: meio ? Math.round(v * 200) / 100 : v, lead_id: +$('l-obra').value || null, obs: $('l-obs').value.trim() || null };
+  // mesmo dia, mesma pessoa e mesma obra: confirma (evita lançar duas vezes)
+  if (LAN.some(x => x.pessoa_id === pessoa && x.data === data && x.tipo === reg.tipo && (x.lead_id || null) === reg.lead_id) && !confirm('Já existe um lançamento igual neste dia para essa pessoa. Lançar mesmo assim?')) return;
+  const { error } = await sb.from('equipe_lancamentos').insert(reg);
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  $('l-obs').value = '';
+  msg('✅ Lançado.');
+  if (data.slice(0, 7) !== $('f-mes').value) $('f-mes').value = data.slice(0, 7);
+  await carregar();
+}
+async function apagarLanc(id) {
+  const x = LAN.find(l => l.id === id); if (!x || !confirm('Apagar o lançamento de ' + fmtR(x.valor) + ' em ' + dBR(x.data) + '?')) return;
+  const { error } = await sb.from('equipe_lancamentos').delete().eq('id', id);
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  await carregar();
+}
+async function copiar(t, btn) {
+  let ok = false;
+  try { await navigator.clipboard.writeText(t); ok = true; } catch (_) {
+    const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try { ok = document.execCommand('copy'); } catch (e) {} ta.remove();
+  }
+  btn.textContent = ok ? '✅' : '⚠'; setTimeout(() => btn.textContent = '📋', 1200);
+}
+async function editarPessoa(id) {
+  const x = PES.find(p => p.id === id); if (!x) return;
+  const nome = prompt('Nome:', x.nome); if (nome === null) return;
+  const mud = { nome: nome.trim() || x.nome };
+  if (x.tipo === 'fixo') { const s = numBR(prompt('Salário mensal (R$):', valBR(x.salario))); if (s !== null) mud.salario = s; }
+  if (x.tipo === 'diarista') { const d = numBR(prompt('Valor da diária (R$):', valBR(x.diaria))); if (d !== null) mud.diaria = d; }
+  if (x.recebe_comissao) { const c = prompt('Comissão em % do valor total (vazio = cálculo do orçamento):', x.comissao_pct != null ? String(x.comissao_pct).replace('.', ',') : ''); if (c !== null) mud.comissao_pct = c.trim() ? numBR(c) : null; }
+  const cpf = prompt('CPF:', x.cpf || ''); if (cpf !== null) mud.cpf = cpf.trim() || null;
+  const pix = prompt('Chave PIX:', x.pix || ''); if (pix !== null) mud.pix = pix.trim() || null;
+  const { error } = await sb.from('equipe').update(mud).eq('id', id);
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  Object.assign(x, mud); msg('✅ Salvo. A diária nova vale para os próximos lançamentos.'); render();
+}
+async function ativarPessoa(id, ativo) {
+  const { error } = await sb.from('equipe').update({ ativo }).eq('id', id);
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  PES.find(p => p.id === id).ativo = ativo; render();
+}
+async function novaPessoa() {
+  const nome = prompt('Nome completo:'); if (!nome) return;
+  const t = prompt('Tipo: 1 = fixo (salário) · 2 = diarista · 3 = vendedor (comissão) · 4 = comissão + instalação', '2'); if (!t) return;
+  const tipo = { 1: 'fixo', 2: 'diarista', 3: 'vendedor', 4: 'comissionado' }[t.trim()]; if (!tipo) { msg('⚠ Tipo inválido.', true); return; }
+  const reg = { nome: nome.trim(), tipo, recebe_comissao: tipo === 'vendedor' || tipo === 'comissionado' };
+  if (tipo === 'fixo') reg.salario = numBR(prompt('Salário mensal (R$):'));
+  if (tipo === 'diarista') reg.diaria = numBR(prompt('Valor da diária (R$):'));
+  if (reg.recebe_comissao) { const c = prompt('Comissão em % do valor total (vazio = cálculo do orçamento):', ''); reg.comissao_pct = c && c.trim() ? numBR(c) : null; }
+  reg.cpf = (prompt('CPF (opcional):') || '').trim() || null;
+  reg.pix = (prompt('Chave PIX (opcional):') || '').trim() || null;
+  const { error } = await sb.from('equipe').insert(reg);
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  msg('✅ Cadastrado.'); await carregar();
+}
+iniciar();
+</script>
+</body>
+</html>
