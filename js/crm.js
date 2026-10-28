@@ -27,7 +27,7 @@ function blocoFormulario(l) {
   return `<h3>Respostas do formulário do anúncio</h3><div class="grade">${itens.map(([k, v]) =>
     `<div class="largo"><label>${esc(String(k).replace(/_/g, ' ').replace(/\?$/, ''))}</label><div>${esc(v)}</div></div>`).join('')}</div>`;
 }
-const COLUNAS_LEAD = 'id, nome, telefone, email, cidade, etapa, etapa_em, responsavel_email, proximo_contato, motivo_perda, origem, recebido_em, cpf_cnpj, endereco, cep, uc, concessionaria, titular_uc, forma_pagamento, arquivado, orcamento_ganho_id, documentos, form_meta:dados_brutos->campos, form_meta2:dados_brutos->meta->campos';
+const COLUNAS_LEAD = 'id, nome, telefone, email, cidade, etapa, etapa_em, responsavel_email, proximo_contato, motivo_perda, origem, recebido_em, cpf_cnpj, endereco, cep, uc, concessionaria, titular_uc, rg, rg_orgao, data_nascimento, forma_pagamento, arquivado, orcamento_ganho_id, documentos, form_meta:dados_brutos->campos, form_meta2:dados_brutos->meta->campos';
 let perfil = null, leads = [], orcs = [], equipe = [], filtroFollow = false, filtroAlerta = false, CRM_CFG = {}, mostrarAntigos = false, verArquivados = false, arrastando = null, fichaId = null, perdaId = null, ganhoId = null;
 // documentos do negócio ganho (pasta privada "documentos"; nenhum é obrigatório, a ficha mostra o que falta)
 const DOCS_GANHO = [
@@ -354,6 +354,9 @@ function camposCliente(pre, l) {
   const c = (id, rot, val, extra, largo) => `<div${largo ? ' class="largo"' : ''}><label>${rot}</label><input class="input" id="${pre}-${id}" value="${esc(val || '')}" ${extra || ''}></div>`;
   return c('nome', 'Nome / Razão social', l.nome, '', true)
     + c('cpf', 'CPF / CNPJ', l.cpf_cnpj, 'placeholder="000.000.000-00"')
+    + c('rg', 'RG', l.rg, 'placeholder="Nº do RG"')
+    + c('rgorg', 'Órgão emissor do RG', l.rg_orgao, 'placeholder="SSP/SC"')
+    + c('nasc', 'Data de nascimento', l.data_nascimento, 'type="date"')
     + c('tel', 'Telefone / WhatsApp', telBonito(l.telefone), 'inputmode="tel" placeholder="(49) 99999-9999"')
     + c('email', 'E-mail', l.email, 'type="email"', true)
     + c('end', 'Endereço da instalação (rua, nº, complemento, bairro)', l.endereco, '', true)
@@ -368,7 +371,8 @@ function lerCamposCliente(pre) {
   let tel = ($(pre + '-tel').value || '').replace(/\D/g, '') || null;
   if (tel && (tel.length === 10 || tel.length === 11)) tel = '55' + tel;
   return { nome: v('nome'), cpf_cnpj: v('cpf'), telefone: tel, email: v('email'), endereco: v('end'), cep: v('cep'),
-           cidade: v('cidade'), uc: v('uc'), concessionaria: v('conc'), titular_uc: v('titular') };
+           cidade: v('cidade'), uc: v('uc'), concessionaria: v('conc'), titular_uc: v('titular'),
+           rg: v('rg'), rg_orgao: v('rgorg'), data_nascimento: v('nasc') };
 }
 
 function novoLead() {
@@ -465,7 +469,7 @@ function blocoGanho(l) {
   const p = propostaDoLead(l), st = docsStatus(l);
   const linhaDoc = ([k, rot, tipo, extra]) => {
     const itens = st.docs.filter(d => d.tipo === k);
-    const lista = itens.map(d => `<div class="muted" style="margin-left:22px">${d.valor ? `<a href="https://www.google.com/maps?q=${encodeURIComponent(d.valor)}" target="_blank" rel="noopener">📍 ${esc(d.valor)}</a>` : `<a href="#" onclick="verDoc('${esc(d.path)}');return false">📄 ${esc(d.nome || 'arquivo')}</a>`} · ${fmtDH(d.em)} · ${esc(nomeDe(d.autor))}${perfil && perfil.admin ? ` · <a href="#" style="color:var(--vermelho)" onclick="apagarDoc(${l.id}, '${esc(d.id)}');return false">apagar</a>` : ''}</div>`).join('');
+    const lista = itens.map(d => `<div class="muted" style="margin-left:22px">${d.valor ? `<a href="https://www.google.com/maps?q=${encodeURIComponent(d.valor)}" target="_blank" rel="noopener">📍 ${esc(d.valor)}</a>` : `<a href="#" onclick="verDoc('${esc(d.path)}');return false">📄 ${esc(d.nome || 'arquivo')}</a>`} · ${fmtDH(d.em)} · ${esc(nomeDe(d.autor))}${linkLerDoc(l, d)}${perfil && perfil.admin ? ` · <a href="#" style="color:var(--vermelho)" onclick="apagarDoc(${l.id}, '${esc(d.id)}');return false">apagar</a>` : ''}</div>`).join('');
     const botao = tipo === 'local'
       ? `<button class="btn btn-sec" style="padding:4px 10px;font-size:13px" onclick="salvarLocalizacao(${l.id})">📍 Marcar</button>`
       : `<label class="btn btn-sec" style="padding:4px 10px;font-size:13px;cursor:pointer">📷 Enviar<input type="file" accept="image/*,application/pdf" style="display:none" onchange="enviarDoc(${l.id}, '${k}', this)"></label>`;
@@ -486,12 +490,60 @@ function blocoGanho(l) {
 function blocoDocs(l) {
   const docs = Array.isArray(l.documentos) ? l.documentos : [];
   const rot = k => (DOCS_GANHO.find(d => d[0] === k) || [k, k])[1];
-  const lista = docs.map(d => `<div style="padding:5px 0;border-bottom:1px solid var(--borda)">${d.valor ? `<a href="https://www.google.com/maps?q=${encodeURIComponent(d.valor)}" target="_blank" rel="noopener">📍 ${esc(rot(d.tipo))}</a>` : `<a href="#" onclick="verDoc('${esc(d.path)}');return false">📄 ${esc(rot(d.tipo))}</a>`} <span class="muted">· ${fmtDH(d.em)} · ${esc(nomeDe(d.autor))}</span>${perfil && perfil.admin ? ` · <a href="#" style="color:var(--vermelho)" onclick="apagarDoc(${l.id}, '${esc(d.id)}');return false">apagar</a>` : ''}</div>`).join('');
+  const lista = docs.map(d => `<div style="padding:5px 0;border-bottom:1px solid var(--borda)">${d.valor ? `<a href="https://www.google.com/maps?q=${encodeURIComponent(d.valor)}" target="_blank" rel="noopener">📍 ${esc(rot(d.tipo))}</a>` : `<a href="#" onclick="verDoc('${esc(d.path)}');return false">📄 ${esc(rot(d.tipo))}</a>`} <span class="muted">· ${fmtDH(d.em)} · ${esc(nomeDe(d.autor))}</span>${linkLerDoc(l, d)}${perfil && perfil.admin ? ` · <a href="#" style="color:var(--vermelho)" onclick="apagarDoc(${l.id}, '${esc(d.id)}');return false">apagar</a>` : ''}</div>`).join('');
   const env = (k, t) => `<label class="btn btn-sec" style="padding:4px 10px;font-size:13px;cursor:pointer">📷 ${t}<input type="file" accept="image/*,application/pdf" style="display:none" onchange="enviarDoc(${l.id}, '${k}', this)"></label>`;
   return `<h3>📎 Documentos</h3>
     ${lista || '<div class="muted">Nenhum documento ainda. A fatura lida no precificador aparece aqui sozinha.</div>'}
     <div class="acoes">${env('fatura', 'Enviar fatura')}${env('cnh', 'Enviar CNH / RG')}</div>
     <div class="status-msg" id="doc-msg"></div>`;
+}
+// ── leitura de CNH / RG já anexado (função "ler-documento"): CPF, RG, órgão emissor e nascimento ──
+// O resultado aparece para conferir; "Preencher na ficha" coloca nos campos e o vendedor clica em Salvar.
+function linkLerDoc(l, d) {
+  return d && d.path && d.tipo === 'cnh' ? ` · <a href="#" onclick="lerDocumento(${l.id}, '${esc(d.path)}');return false">🔎 Ler dados</a>` : '';
+}
+let _docLido = null;
+const soDig = t => String(t || '').replace(/\D/g, '');
+const normNomeCrm = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+async function lerDocumento(id, path) {
+  const msg = $('doc-msg'); if (!msg) return;
+  msg.classList.remove('erro'); msg.textContent = '⏳ Lendo o documento… (leva alguns segundos)';
+  try {
+    const { data, error } = await sb.functions.invoke('ler-documento', { body: { lead_id: id, path } });
+    let r = data;
+    if (error) { try { r = await error.context.json(); } catch (_) { r = null; } if (!r) throw new Error(/fetch|network/i.test(error.message || '') ? 'sem conexão com o servidor' : (error.message || 'falha na leitura')); }
+    if (!r || !r.ok) throw new Error((r && r.erro) || 'não foi possível ler o documento');
+    _docLido = { id, ...r.dados };
+    mostrarDocLido();
+  } catch (e) { msg.textContent = '⚠ ' + (e.message || e) + '. Preencha os dados à mão.'; msg.classList.add('erro'); }
+}
+function mostrarDocLido() {
+  const d = _docLido, msg = $('doc-msg'); if (!d || !msg) return;
+  const l = leads.find(x => x.id === d.id) || {};
+  const dataBR = iso => iso ? iso.split('-').reverse().join('/') : '';
+  const val = v => v ? `<b>${esc(v)}</b>` : '<span style="color:var(--amarelo)">não lido</span>';
+  const avisos = [];
+  if (d.legibilidade !== 'boa') avisos.push('Leitura ' + (d.legibilidade === 'parcial' ? 'parcial' : 'ruim') + ': confira com o documento.');
+  if (d.cpf_descartado) avisos.push('O CPF lido não passou na conferência dos dígitos e foi descartado — digite à mão.');
+  if (d.nome && normNomeCrm(d.nome) !== normNomeCrm(l.nome) && normNomeCrm(d.nome) !== normNomeCrm(l.titular_uc)) avisos.push('O nome do documento (' + esc(d.nome) + ') é diferente do cliente e do titular da UC — confira se é a pessoa certa.');
+  if (d.cpf && l.cpf_cnpj && soDig(l.cpf_cnpj) !== soDig(d.cpf)) avisos.push('O CPF do documento é diferente do CPF que está na ficha (' + esc(l.cpf_cnpj) + ').');
+  if (d.observacoes) avisos.push('Observação: ' + esc(d.observacoes));
+  msg.classList.remove('erro');
+  msg.innerHTML = `<div style="background:var(--bg);border:1px solid var(--borda);border-radius:10px;padding:10px 12px;margin-top:6px;line-height:1.7">
+      <div style="font-weight:700;color:var(--amarelo)">🔎 Dados lidos do documento${d.tipo ? ' (' + esc(d.tipo.toUpperCase()) + ')' : ''}</div>
+      Nome: ${val(d.nome)}<br>CPF: ${val(d.cpf)}<br>RG: ${val(d.rg)}${d.rg_orgao ? ' · ' + esc(d.rg_orgao) : ''}<br>Nascimento: ${val(dataBR(d.data_nascimento))}
+      ${avisos.length ? '<div style="color:var(--amarelo);margin-top:4px">' + avisos.map(a => '⚠ ' + a).join('<br>') + '</div>' : ''}
+      <div class="acoes" style="margin-top:6px"><button class="btn" onclick="usarDocLido()">✅ Preencher na ficha</button><button class="btn btn-sec" onclick="_docLido=null;$('doc-msg').innerHTML=''">Descartar</button></div>
+    </div>`;
+}
+function usarDocLido() {
+  const d = _docLido; if (!d) return;
+  const por = (campo, v) => { const el = $('fx-' + campo); if (el && v) { el.value = v; el.style.borderColor = 'var(--amarelo)'; } };
+  por('cpf', d.cpf); por('rg', d.rg); por('rgorg', d.rg_orgao); por('nasc', d.data_nascimento);
+  const m = $('fx-msg'); if (m) { m.classList.remove('erro'); m.textContent = '⬆ Dados do documento colocados nos campos destacados. Confira e clique em Salvar.'; }
+  $('doc-msg').innerHTML = '';
+  const alvo = $('fx-rg') || $('fx-cpf'); if (alvo) alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  _docLido = null;
 }
 // fotos ficam menores antes de subir (máx. 2000 px); PDF vai como está
 function reduzirFoto(arq) {
