@@ -513,7 +513,7 @@ function opVendedorVenda(l) {
 // Cada linha é uma parcela: entrada, boleto, banco (financiamento), repasse do fornecedor ou outro.
 // Edita direto na linha (salva ao sair do campo). "Recebido em" preenchido = recebido.
 const TIPOS_REC = { entrada:'Entrada', boleto:'Boleto', banco:'Banco / financiamento', repasse:'Repasse do fornecedor', outro:'Outro' };
-let recebs = [], recebLead = null;
+let recebs = [], recebLead = null, recebCusto = null;
 const hojeISO = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
 const somaDias = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
 const somaMeses = (iso, n) => { const d = new Date(iso + 'T12:00:00'); const dia = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() + n); d.setDate(Math.min(dia, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); return d.toISOString().slice(0, 10); };
@@ -532,10 +532,18 @@ function situacaoReceb(r) {
   return ['', 'A receber'];
 }
 async function carregarRecebimentos(id) {
-  recebLead = id;
-  const { data, error } = await sb.from('recebimentos').select('*').eq('lead_id', id).order('vencimento', { ascending: true, nullsFirst: false }).order('id');
+  recebLead = id; recebCusto = null;
+  const l = leads.find(x => x.id === id), p = l && propostaDoLead(l);
+  const [{ data, error }, cu] = await Promise.all([
+    sb.from('recebimentos').select('*').eq('lead_id', id).order('vencimento', { ascending: true, nullsFirst: false }).order('id'),
+    p ? Promise.all([
+      sb.from('orcamento_custos').select('custo_kit, custo_kit_tabela, comissao, custo_ajustado_em').eq('orcamento_id', p.id).maybeSingle(),
+      sb.from('orcamentos').select('modo_valor:dados->>modo_valor, valor_kit:dados->>valor_kit, repasse_pct:dados->>repasse_pct').eq('id', p.id).maybeSingle(),
+    ]) : Promise.resolve(null),
+  ]);
   if (fichaId !== id) return;
   if (error) { $('fx-receb').innerHTML = '<div class="muted">⚠ Não foi possível carregar os recebimentos: ' + esc(error.message) + '</div>'; return; }
+  if (cu) recebCusto = { orc: p.id, ...((cu[0] && cu[0].data) || {}), ...((cu[1] && cu[1].data) || {}) };
   recebs = data || [];
   renderRecebimentos();
 }
@@ -563,7 +571,7 @@ function renderRecebimentos() {
   const comBanco = recebs.some(r => r.tipo === 'banco'), dif = Math.round((total - lancado) * 100) / 100;
   const aviso = recebs.length && total && !comBanco && Math.abs(dif) > 0.5
     ? `<div style="color:var(--amarelo);font-size:13px;margin:6px 0">⚠ As parcelas do cliente somam ${fmtR(lancado)} e a proposta fechada é de ${fmtR(total)}: ${dif > 0 ? 'faltam ' + fmtR(dif) : 'sobram ' + fmtR(-dif)} nas parcelas.</div>` : '';
-  box.innerHTML = `
+  box.innerHTML = blocoCustoKit(total) + `
     <div class="muted" style="margin-bottom:6px">Proposta fechada: <b>${fmtR(total)}</b> · Recebido: <b style="color:var(--verde)">${fmtR(recebido)}</b> · Falta receber: <b style="color:var(--amarelo)">${fmtR(falta)}</b></div>
     ${aviso}
     ${recebs.map(linha).join('') || '<div class="muted">Nenhuma parcela lançada. Use "⚡ Sugerir parcelas" (pela forma de pagamento) ou "+ Parcela".</div>'}
@@ -572,6 +580,44 @@ function renderRecebimentos() {
       <button class="btn btn-sec" onclick="novaParcela(${recebLead})">+ Parcela</button>
       <span class="status-msg" id="receb-msg"></span>
     </div>`;
+}
+// custo do kit no fechamento: vem da tabela da semana; no fechamento o fornecedor costuma dar desconto (1%, 3%…)
+// O admin ajusta aqui; a margem do painel e o repasse passam a usar o custo fechado. O custo de tabela fica guardado.
+function blocoCustoKit(total) {
+  const c = recebCusto; if (!c) return '';
+  const custo = c.custo_kit != null ? +c.custo_kit : null;
+  const tabela = c.custo_kit_tabela != null ? +c.custo_kit_tabela : custo;
+  if (tabela == null) return `<div class="muted" style="margin-bottom:8px">🔒 Custo do kit: não registrado nesta proposta. <a href="#" onclick="ajustarCustoKit(null);return false">informar</a></div>`;
+  const desc = Math.round((tabela - custo) * 100) / 100;
+  const pctD = tabela ? desc / tabela * 100 : 0;
+  const separado = c.modo_valor === 'separado' && +c.valor_kit;
+  const pctR = c.repasse_pct != null && c.repasse_pct !== '' ? +c.repasse_pct : 4;
+  const rep = separado ? Math.max(0, Math.round((+c.valor_kit - custo) * 100) / 100) : 0;
+  const imp = Math.round(rep * pctR) / 100;
+  const margem = total - custo - (+c.comissao || 0) - imp;
+  const bt = (pct) => `<button class="btn btn-sec" style="padding:3px 9px;font-size:12px" onclick="$('ck-valor').value=valBR(Math.round(${tabela} * ${100 - pct}) / 100)">−${pct}%</button>`;
+  return `<div style="background:#151515;border:1px solid var(--borda);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:13px">
+    <div><b>🔒 Custo do kit (fornecedor)</b> <span class="muted">· tabela ${fmtR(tabela)}${desc > 0.004 ? ' · desconto ' + fmtR(desc) + ' (' + pctD.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + '%)' : ''}${c.custo_ajustado_em ? ' · ajustado em ' + new Date(c.custo_ajustado_em).toLocaleDateString('pt-BR') : ''}</span></div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px">
+      <span class="muted">Fechado com o fornecedor R$</span><input class="input" id="ck-valor" inputmode="decimal" value="${valBR(custo)}" style="width:120px;padding:5px 7px">
+      ${bt(1)}${bt(3)}
+      <button class="btn" style="padding:4px 10px;font-size:13px" onclick="ajustarCustoKit($('ck-valor').value)">💾 Salvar custo</button>
+    </div>
+    <div class="muted" style="margin-top:6px">Margem estimada: <b style="color:var(--verde)">${fmtR(margem)}</b> = venda ${fmtR(total)} − kit ${fmtR(custo)} − comissão ${fmtR(+c.comissao || 0)}${imp ? ' − imposto do repasse ' + fmtR(imp) : ''} <span>(sem diárias e impostos da nota)</span></div>
+  </div>`;
+}
+async function ajustarCustoKit(valor) {
+  const c = recebCusto; if (!c) return;
+  if (valor === null) valor = prompt('Custo do kit pago ao fornecedor (R$):', '');
+  const n = numBR(valor);
+  if (n === null || n <= 0) { msgReceb('⚠ Informe o custo do kit em reais.', true); return; }
+  const tabela = c.custo_kit_tabela != null ? +c.custo_kit_tabela : (c.custo_kit != null ? +c.custo_kit : null);
+  if (tabela && Math.abs(n - tabela) / tabela > 0.15 && !confirm('O custo informado (' + fmtR(n) + ') está mais de 15% diferente do custo de tabela (' + fmtR(tabela) + '). Confirmar?')) return;
+  const { error } = await sb.rpc('ajustar_custo_kit', { p_orcamento: c.orc, p_custo: n });
+  if (error) { msgReceb('⚠ Não salvou o custo: ' + error.message, true); return; }
+  if (c.custo_kit_tabela == null && c.custo_kit != null) c.custo_kit_tabela = c.custo_kit;
+  c.custo_kit = n; c.custo_ajustado_em = new Date().toISOString();
+  renderRecebimentos(); msgReceb('✅ Custo do kit salvo: a margem do painel já usa esse valor.');
 }
 function msgReceb(t, erro) { const m = $('receb-msg'); if (m) { m.textContent = t; m.classList.toggle('erro', !!erro); } }
 async function salvarReceb(id, campo, valor) {
