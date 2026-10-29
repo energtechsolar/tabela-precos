@@ -95,7 +95,7 @@
         <label>Data<input class="input" type="date" id="l-data"></label>
         <label>Tipo<select class="select" id="l-tipo" onchange="sugerirValor()">
           <option value="dia">Dia inteiro</option><option value="meio">Meio dia</option><option value="instalacao">Instalação (valor da obra)</option><option value="outro">Outro (ajuda de custo, extra…)</option></select></label>
-        <label>Obra (cliente)<select class="select" id="l-obra"></select></label>
+        <label>Obra (cliente)<select class="select" id="l-obra" onchange="mudouObra()"></select><input class="input" id="l-obra-txt" list="obras-txt" placeholder="Nome do cliente / obra" style="display:none;margin-top:4px"><datalist id="obras-txt"></datalist></label>
         <label>Valor (R$)<input class="input" id="l-valor" inputmode="decimal"></label>
         <button class="btn" onclick="lancar()">Lançar</button>
       </div>
@@ -123,7 +123,7 @@ function numBR(t) { let s = String(t ?? '').replace(/[R$\s]/g, ''); if (!s) retu
 const valBR = v => (+v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const TIPOS_P = { fixo:'Fixo (salário)', diarista:'Diarista', vendedor:'Vendedor (comissão)', comissionado:'Comissão + instalação' };
 const TIPOS_L = { dia:'Dia', instalacao:'Instalação', comissao:'Comissão', outro:'Outro' };
-let perfil = null, PES = [], LAN = [], OBRAS = [];
+let perfil = null, PES = [], LAN = [], OBRAS = [], OBRAS_TXT = [];
 
 function msg(t, erro) { const m = $('msg'); m.textContent = t || ''; m.classList.toggle('erro', !!erro); }
 function mostrar(qual, texto) {
@@ -159,14 +159,16 @@ async function sair() { await sb.auth.signOut(); perfil = null; await iniciar();
 async function carregar() {
   const ym = $('f-mes').value, ini = ym + '-01', fim = ultimoDia(ym);
   msg('⏳ Carregando…');
-  const desde = new Date(); desde.setMonth(desde.getMonth() - 6);
-  const [p, l, o] = await Promise.all([
+  const desde = new Date(); desde.setMonth(desde.getMonth() - 12);
+  const [p, l, o, t] = await Promise.all([
     sb.from('equipe').select('*').order('nome'),
     sb.from('equipe_lancamentos').select('*, leads(nome)').gte('data', ini).lte('data', fim).order('data', { ascending: false }).order('id', { ascending: false }),
     sb.from('leads').select('id, nome, cidade, etapa, etapa_em').eq('etapa', 'ganho').gte('etapa_em', desde.toISOString()).order('etapa_em', { ascending: false }).limit(300),
+    sb.from('equipe_lancamentos').select('obra_nome').not('obra_nome', 'is', null).order('id', { ascending: false }).limit(500),
   ]);
   const err = [p, l, o].find(x => x.error); if (err) { msg('⚠ ' + err.error.message, true); return; }
   PES = p.data || []; LAN = l.data || []; OBRAS = o.data || [];
+  OBRAS_TXT = [...new Set(((t && t.data) || []).map(x => x.obra_nome).filter(Boolean))];
   msg(''); render();
 }
 function render() {
@@ -175,8 +177,10 @@ function render() {
   $('l-pessoa').innerHTML = ativos.filter(x => x.tipo !== 'vendedor').map(x => `<option value="${x.id}">${esc(x.nome)}</option>`).join('');
   if (opP && ativos.some(x => String(x.id) === opP)) $('l-pessoa').value = opP;
   const opO = $('l-obra').value;
-  $('l-obra').innerHTML = '<option value="">— sem obra específica —</option>' + OBRAS.map(x => `<option value="${x.id}">${esc(x.nome)}${x.cidade ? ' · ' + esc(x.cidade) : ''}</option>`).join('');
+  $('l-obra').innerHTML = '<option value="">— sem obra específica —</option><option value="txt">✏ Outra obra (não está no CRM)…</option>' + OBRAS.map(x => `<option value="${x.id}">${esc(x.nome)}${x.cidade ? ' · ' + esc(x.cidade) : ''}</option>`).join('');
   if (opO) $('l-obra').value = opO;
+  $('obras-txt').innerHTML = OBRAS_TXT.map(n => `<option value="${esc(n)}">`).join('');
+  mudouObra();
   if (!$('l-valor').value) sugerirValor();
   // resumo por pessoa
   const porPessoa = {};
@@ -195,15 +199,19 @@ function render() {
   $('lancamentos').innerHTML = grupos.length ? grupos.map(pid => {
     const r = porPessoa[pid], ls = LAN.filter(x => x.pessoa_id === pid);
     return `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${esc(nomeP(pid))}</b><span class="muted">${r.dias ? String(r.dias).replace('.', ',') + ' dia(s)' : ''}${r.dias && r.inst ? ' · ' : ''}${r.inst ? r.inst + ' instalação(ões)' : ''} · <b style="color:var(--amarelo)">${fmtR(r.valor)}</b></span></div>
-      <div class="tabela-wrap"><table><tbody>${ls.map(x => `<tr><td>${dBR(x.data)}</td><td>${x.tipo === 'dia' && +x.quantidade === 0.5 ? 'Meio dia' : esc(TIPOS_L[x.tipo] || x.tipo)}</td><td>${x.lead_id ? `<a href="crm.html?lead=${x.lead_id}">${esc((x.leads || {}).nome || 'obra')}</a>` : '<span class="muted">—</span>'}${x.obs ? '<br><span class="muted">' + esc(x.obs) + '</span>' : ''}</td><td class="num">${fmtR(x.valor)}</td><td class="num">${x.pago_em ? '<span class="tag">pago</span>' : `<button class="btn btn-sec btn-p" style="color:var(--vermelho)" onclick="apagarLanc(${x.id})">🗑</button>`}</td></tr>`).join('')}</tbody></table></div></div>`;
+      <div class="tabela-wrap"><table><tbody>${ls.map(x => `<tr><td>${dBR(x.data)}</td><td>${x.tipo === 'dia' && +x.quantidade === 0.5 ? 'Meio dia' : esc(TIPOS_L[x.tipo] || x.tipo)}</td><td>${x.lead_id ? `<a href="crm.html?lead=${x.lead_id}">${esc((x.leads || {}).nome || 'obra')}</a>` : x.obra_nome ? esc(x.obra_nome) + ' <span class="tag">fora do CRM</span>' : '<span class="muted">—</span>'}${x.obs ? '<br><span class="muted">' + esc(x.obs) + '</span>' : ''}</td><td class="num">${fmtR(x.valor)}</td><td class="num">${x.pago_em ? '<span class="tag">pago</span>' : `<button class="btn btn-sec btn-p" style="color:var(--vermelho)" onclick="apagarLanc(${x.id})">🗑</button>`}</td></tr>`).join('')}</tbody></table></div></div>`;
   }).join('') : '<div class="vazio">Nenhum lançamento neste mês.</div>';
   // custo por obra
   const porObra = {};
-  LAN.filter(x => x.lead_id).forEach(x => { porObra[x.lead_id] = porObra[x.lead_id] || { nome: (x.leads || {}).nome, dias: 0, valor: 0 }; if (x.tipo === 'dia') porObra[x.lead_id].dias += +x.quantidade; porObra[x.lead_id].valor += +x.valor; });
-  const semObra = LAN.filter(x => !x.lead_id).reduce((a, x) => a + +x.valor, 0);
+  LAN.filter(x => x.lead_id || x.obra_nome).forEach(x => {
+    const k = x.lead_id ? 'L' + x.lead_id : 'T' + x.obra_nome.trim().toLowerCase();
+    porObra[k] = porObra[k] || { lead: x.lead_id, nome: x.lead_id ? (x.leads || {}).nome : x.obra_nome.trim(), dias: 0, valor: 0 };
+    if (x.tipo === 'dia') porObra[k].dias += +x.quantidade; porObra[k].valor += +x.valor;
+  });
+  const semObra = LAN.filter(x => !x.lead_id && !x.obra_nome).reduce((a, x) => a + +x.valor, 0);
   const lo = Object.entries(porObra).sort((a, b) => b[1].valor - a[1].valor);
   $('por-obra').innerHTML = lo.length || semObra ? `<div class="tabela-wrap"><table><thead><tr><th>Obra</th><th class="num">Dias</th><th class="num">Custo de equipe</th></tr></thead><tbody>
-    ${lo.map(([id, o]) => `<tr><td><a href="crm.html?lead=${id}">${esc(o.nome || 'obra')}</a></td><td class="num">${String(o.dias).replace('.', ',')}</td><td class="num">${fmtR(o.valor)}</td></tr>`).join('')}
+    ${lo.map(([k, o]) => `<tr><td>${o.lead ? `<a href="crm.html?lead=${o.lead}">${esc(o.nome || 'obra')}</a>` : esc(o.nome) + ' <span class="tag">fora do CRM</span>'}</td><td class="num">${String(o.dias).replace('.', ',')}</td><td class="num">${fmtR(o.valor)}</td></tr>`).join('')}
     ${semObra ? `<tr><td class="muted">Sem obra informada</td><td></td><td class="num">${fmtR(semObra)}</td></tr>` : ''}</tbody></table></div>
     <p class="muted" style="margin-top:8px">Informe a obra em cada lançamento para saber quanto de mão de obra cada instalação custou.</p>` : '<div class="vazio">Nenhum lançamento com obra neste mês.</div>';
   // cadastro
@@ -217,6 +225,11 @@ function render() {
       <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-sec btn-p" onclick="editarPessoa(${x.id})">✏ Editar</button><button class="btn btn-sec btn-p" onclick="ativarPessoa(${x.id}, ${!x.ativo})">${x.ativo ? 'Desativar' : 'Reativar'}</button></div>
     </div>`).join('');
 }
+function mudouObra() {
+  const txt = $('l-obra').value === 'txt';
+  $('l-obra-txt').style.display = txt ? '' : 'none';
+  if (txt && document.activeElement === $('l-obra')) setTimeout(() => $('l-obra-txt').focus(), 30);
+}
 function sugerirValor() {
   const p = PES.find(x => String(x.id) === $('l-pessoa').value) || {}, t = $('l-tipo').value;
   $('l-valor').value = t === 'dia' && p.diaria ? valBR(p.diaria) : t === 'meio' && p.diaria ? valBR(p.diaria / 2) : '';
@@ -227,10 +240,11 @@ async function lancar() {
   if (!pessoa) { msg('⚠ Escolha a pessoa.', true); return; }
   if (!data) { msg('⚠ Informe a data.', true); return; }
   if (v === null || v < 0) { msg('⚠ Informe o valor.', true); return; }
-  const meio = t === 'meio';
-  const reg = { pessoa_id: pessoa, data, tipo: meio ? 'dia' : t, quantidade: meio ? 0.5 : 1, valor_unit: meio ? Math.round(v * 200) / 100 : v, lead_id: +$('l-obra').value || null, obs: $('l-obs').value.trim() || null };
+  const meio = t === 'meio', obraTxt = $('l-obra').value === 'txt' ? $('l-obra-txt').value.trim() : '';
+  if ($('l-obra').value === 'txt' && !obraTxt) { msg('⚠ Digite o nome do cliente / obra.', true); return; }
+  const reg = { pessoa_id: pessoa, data, tipo: meio ? 'dia' : t, quantidade: meio ? 0.5 : 1, valor_unit: meio ? Math.round(v * 200) / 100 : v, lead_id: +$('l-obra').value || null, obra_nome: obraTxt || null, obs: $('l-obs').value.trim() || null };
   // mesmo dia, mesma pessoa e mesma obra: confirma (evita lançar duas vezes)
-  if (LAN.some(x => x.pessoa_id === pessoa && x.data === data && x.tipo === reg.tipo && (x.lead_id || null) === reg.lead_id) && !confirm('Já existe um lançamento igual neste dia para essa pessoa. Lançar mesmo assim?')) return;
+  if (LAN.some(x => x.pessoa_id === pessoa && x.data === data && x.tipo === reg.tipo && (x.lead_id || null) === reg.lead_id && (x.obra_nome || '').toLowerCase() === (reg.obra_nome || '').toLowerCase()) && !confirm('Já existe um lançamento igual neste dia para essa pessoa. Lançar mesmo assim?')) return;
   const { error } = await sb.from('equipe_lancamentos').insert(reg);
   if (error) { msg('⚠ ' + error.message, true); return; }
   $('l-obs').value = '';
