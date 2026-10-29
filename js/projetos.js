@@ -8,7 +8,7 @@ const ETAPAS_PROJ = [
   ['documentacao', 'Documentação'], ['elaboracao', 'Projeto em elaboração'], ['protocolado', 'Protocolado'],
   ['aprovado', 'Aprovado / Instalação'], ['vistoria', 'Vistoria solicitada'], ['conectado', 'Conectado'],
 ];
-let projetos = [], feriados = [], modoProjetos = false, projFichaId = null, arrastandoProj = null, filtroPrazos = false, verCancelados = false;
+let projetos = [], feriados = [], bancoPend = [], modoProjetos = false, projFichaId = null, arrastandoProj = null, filtroPrazos = false, verCancelados = false;
 const podeVerProjetos = () => !!perfil && (perfil.admin || ['interno', 'engenheiro'].includes(perfil.papel));
 const podeEditarProjetos = () => !!perfil && (perfil.admin || perfil.papel === 'engenheiro');
 const nomeEtapaProj = id => id === 'cancelado' ? 'Cancelado' : ((ETAPAS_PROJ.find(e => e[0] === id) || [id, id])[1]);
@@ -61,12 +61,14 @@ function prazoDe(p) {
 // ── carregar / alternar tela ──
 async function carregarProjetos() {
   if (!podeVerProjetos()) return;
-  const [p, f] = await Promise.all([
+  const [p, f, b] = await Promise.all([
     sb.from('projetos').select('*').order('etapa_em', { ascending: false }).limit(2000),
     sb.from('feriados').select('id, data, nome, abrangencia, cidade').order('data'),
+    // admin: parcelas do banco ainda não recebidas (para lembrar de cobrar)
+    perfil && perfil.admin ? sb.from('recebimentos').select('id, lead_id, valor, vencimento').eq('tipo', 'banco').is('recebido_em', null) : Promise.resolve({ data: [] }),
   ]);
   if (p.error) { $('kanban-proj').innerHTML = '<div class="muted">⚠ Erro ao carregar os projetos: ' + esc(p.error.message) + '</div>'; return; }
-  projetos = p.data || []; feriados = f.data || [];
+  projetos = p.data || []; feriados = f.data || []; bancoPend = (b && b.data) || [];
   renderProjetos();
   if (projFichaId && $('ov-ficha').classList.contains('visivel')) abrirProjeto(projFichaId);
 }
@@ -102,6 +104,7 @@ function renderProjetos() {
     [ativos.filter(p => p.etapa === 'vistoria').length, 'aguardando vistoria'],
     [amarelos + ' · ' + vermelhos, '⚠ vencendo · 🔴 vencidos'],
     [ativos.filter(p => p.etapa === 'conectado' && p.conectado_data && deIso(p.conectado_data) >= mes).length, 'conectados no mês'],
+    [ativos.filter(p => (p.instalacao_data || p.etapa === 'conectado') && !p.nf_enviada_em).length, '🧾 obras sem NF enviada'],
   ].map(([v, t]) => `<div class="kpi"><div class="kpi-val">${v}</div><div class="kpi-lbl">${t}</div></div>`).join('');
   const nPrazos = amarelos + vermelhos;
   $('chip-prazos').textContent = '⚠ Prazos (' + nPrazos + ')' + (filtroPrazos ? ' ✕' : '');
@@ -136,7 +139,10 @@ function cardProjeto(p) {
   if (p.protocolo_numero) tags.push(`<span class="tag">📄 ${esc(p.protocolo_numero)}</span>`);
   if (p.etapa === 'protocolado' && !p.protocolo_data) tags.push('<span class="tag hoje">sem data do protocolo</span>');
   if (p.etapa === 'vistoria' && !p.vistoria_data) tags.push('<span class="tag hoje">sem data da vistoria</span>');
+  if (p.instalacao_data) tags.push(`<span class="tag">🔧 instalado ${fmtD(p.instalacao_data)}</span>`);
   if (p.etapa === 'conectado' && p.conectado_data) tags.push(`<span class="tag resp">⚡ ${fmtD(p.conectado_data)}</span>`);
+  if (p.nf_enviada_em && p.etapa === 'conectado') tags.push('<span class="tag resp">✅ obra concluída</span>');
+  else if ((p.instalacao_data || p.etapa === 'conectado') && !p.nf_enviada_em) tags.push(`<span class="tag hoje" title="Obra só é concluída com a nota fiscal enviada ao cliente">🧾 ${p.nf_numero ? 'NF não enviada' : 'falta NF'}</span>`);
   if (p.responsavel_email) tags.push(`<span class="tag resp">${esc(nomeDe(p.responsavel_email).split(' ')[0])}</span>`);
   if (l.id) { const dc = docsStatus(l); if (dc.falta) tags.push(`<span class="tag hoje">📎 ${dc.ok}/${dc.total} docs</span>`); }
   const borda = z && z.nivel === 'vermelho' ? ' com-vermelho' : z && z.nivel === 'amarelo' ? ' com-alerta' : '';
@@ -178,6 +184,7 @@ async function abrirProjeto(id) {
   const opEtapa = ETAPAS_PROJ.concat([['cancelado', 'Cancelado']]).map(([k, n]) => `<option value="${k}" ${k === p.etapa ? 'selected' : ''}>${n}</option>`).join('');
   const opResp = '<option value="">— Sem responsável —</option>' + equipe.filter(e => ['engenheiro', 'admin'].includes(e.papel)).map(e => `<option value="${esc(e.email)}" ${e.email === p.responsavel_email ? 'selected' : ''}>${esc(e.nome || e.email)}</option>`).join('');
   const st = l.id ? docsStatus(l) : { docs: [], ok: 0, total: 0 };
+  const nfDocs = st.docs.filter(d => d.tipo === 'nf');
   const wa = telWa(l.telefone);
   const caixaPrazo = z ? `<div style="background:${z.nivel === 'vermelho' ? '#2a0f0f' : z.nivel === 'amarelo' ? '#2a230a' : '#151515'};border:1px solid ${z.nivel === 'vermelho' ? '#7f1d1d' : z.nivel === 'amarelo' ? '#a16207' : 'var(--borda)'};border-radius:10px;padding:10px 12px;margin-top:12px">
       <b>${z.nivel === 'vermelho' ? '🔴 Prazo vencido' : z.nivel === 'amarelo' ? '⚠ Prazo vencendo' : '⏳ Prazo em andamento'}</b> — ${esc(z.rot)}<br>
@@ -204,6 +211,19 @@ async function abrirProjeto(id) {
       <div><label>Data da conexão</label><input class="input" type="date" id="pj-con" value="${p.conectado_data || ''}" ${dis}></div>
       <div class="largo"><label>Observações</label><textarea class="input" id="pj-obs" rows="3" ${dis} placeholder="Ex.: distribuidora pediu ajuste no diagrama unifilar.">${esc(p.obs || '')}</textarea></div>
     </div>
+    <h3>🔧 Obra e nota fiscal</h3>
+    <div class="grade">
+      <div><label>Instalação concluída em</label><input class="input" type="date" id="pj-inst" value="${p.instalacao_data || ''}" ${dis}></div>
+      <div style="display:flex;align-items:flex-end">${ed && !p.instalacao_data ? `<button class="btn btn-verde" style="width:100%" onclick="instalacaoConcluida(${p.id})">✅ Instalação concluída hoje</button>` : p.instalacao_data ? '<span class="muted">' + (perfil && perfil.admin ? 'A parcela do banco (financiamento) ganhou o vencimento sozinha, contado desta data (veja 💰 Recebimentos).' : 'O financeiro já foi avisado.') + '</span>' : ''}</div>
+      <div><label>Nº da NFS-e de serviço</label><input class="input" id="pj-nf" value="${esc(p.nf_numero || '')}" ${dis} placeholder="Ex.: 123"></div>
+      <div><label>NF enviada ao cliente em</label><input class="input" type="date" id="pj-nfenv" value="${p.nf_enviada_em || ''}" ${dis}></div>
+      <div class="largo"><label>Chave de acesso da NFS-e</label><input class="input" id="pj-chave" value="${esc(p.nf_chave || '')}" ${dis} inputmode="numeric" placeholder="Os números da chave (está no PDF da nota)"></div>
+      <div class="largo">${nfDocs.length ? nfDocs.map(d => `<a href="#" onclick="verDoc('${esc(d.path)}');return false">📄 ${esc(d.nome || 'NFS-e.pdf')}</a> <span class="muted">· ${fmtDH(d.em)}</span>`).join('<br>') : '<span class="muted">PDF da nota ainda não anexado.</span>'}
+        ${ed && l.id ? `<label class="btn btn-sec" style="padding:4px 10px;font-size:13px;cursor:pointer;margin-left:6px">📎 Anexar PDF da NF<input type="file" accept="application/pdf,image/*" style="display:none" onchange="enviarNF(${p.id}, this)"></label>` : ''}
+        ${ed && l.email && (p.nf_numero || nfDocs.length) ? `<a class="btn btn-sec" style="padding:4px 10px;font-size:13px;margin-left:6px" href="${mailNF(l, p)}" onclick="setTimeout(() => marcarNFEnviada(${p.id}), 800)">📧 E-mail ao cliente</a>` : ''}
+      </div>
+      <div class="largo muted" style="font-size:12px">A obra só fica <b>concluída</b> com a NF enviada ao cliente. O PDF fica guardado aqui (o cliente pode pedir depois). No e-mail, anexe o PDF baixado acima.</div>
+    </div>
     ${ed ? `<div class="acoes"><button class="btn" onclick="salvarProjeto(${p.id})">💾 Salvar</button><span class="status-msg" id="pj-msg"></span></div>` : '<p class="muted" style="margin-top:8px">Somente leitura: quem altera é a engenharia ou o admin.</p>'}
     <h3>Sistema</h3>
     <div class="muted">${pr ? 'Proposta Nº ' + String(pr.id).padStart(5, '0') + ' · ' + esc(pr.sistema || '') + ' · ' + String(pr.kwp).replace('.', ',') + ' kWp · ' + (pr.tipo === 'nacional' ? 'kit nacional' : 'kit importado') : 'Sem proposta vinculada.'}${l.forma_pagamento ? ' · ' + esc(l.forma_pagamento) : ''}</div>
@@ -221,7 +241,8 @@ async function salvarProjeto(id) {
   const p = projetos.find(x => x.id === id); if (!p) return;
   const v = k => ($(k).value || '').trim() || null;
   const mud = { etapa: $('pj-etapa').value, responsavel_email: v('pj-resp'), protocolo_numero: v('pj-num'), protocolo_data: v('pj-prot'),
-                vistoria_data: v('pj-vist'), conectado_data: v('pj-con'), obs: v('pj-obs'), atualizado_em: new Date().toISOString() };
+                vistoria_data: v('pj-vist'), conectado_data: v('pj-con'), obs: v('pj-obs'), atualizado_em: new Date().toISOString(),
+                instalacao_data: v('pj-inst'), nf_numero: v('pj-nf'), nf_chave: ($('pj-chave').value || '').replace(/\s+/g, '') || null, nf_enviada_em: v('pj-nfenv') };
   const hoje = isoLocal(new Date());
   if (mud.etapa === 'protocolado' && !mud.protocolo_data) mud.protocolo_data = hoje;
   if (mud.etapa === 'vistoria' && !mud.vistoria_data) mud.vistoria_data = hoje;
@@ -233,6 +254,9 @@ async function salvarProjeto(id) {
   if (mud.protocolo_data !== (p.protocolo_data || null)) mudou.push('data do protocolo ' + (fmtD(mud.protocolo_data) || '—'));
   if (mud.vistoria_data !== (p.vistoria_data || null)) mudou.push('vistoria solicitada em ' + (fmtD(mud.vistoria_data) || '—'));
   if (mud.conectado_data !== (p.conectado_data || null)) mudou.push('conectado em ' + (fmtD(mud.conectado_data) || '—'));
+  if (mud.instalacao_data !== (p.instalacao_data || null)) mudou.push('instalação concluída em ' + (fmtD(mud.instalacao_data) || '—'));
+  if (mud.nf_numero !== (p.nf_numero || null)) mudou.push('NFS-e nº ' + (mud.nf_numero || '—'));
+  if (mud.nf_enviada_em !== (p.nf_enviada_em || null)) mudou.push('NF enviada ao cliente em ' + (fmtD(mud.nf_enviada_em) || '—'));
   const { error } = await sb.from('projetos').update(mud).eq('id', id);
   const msg = $('pj-msg');
   if (error) { msg.textContent = '⚠ ' + error.message; msg.classList.add('erro'); return; }
@@ -241,6 +265,51 @@ async function salvarProjeto(id) {
   if (mudou.length) await registrarProj(p, 'Projeto: ' + mudou.join(' · ') + (z ? ' · prazo da ' + z.rot + ': ' + z.fim.toLocaleDateString('pt-BR') : ''));
   renderProjetos(); await abrirProjeto(id);
   const m2 = $('pj-msg'); if (m2) { m2.classList.remove('erro'); m2.textContent = '✅ Salvo'; }
+}
+// ── instalação concluída e nota fiscal ──
+async function instalacaoConcluida(id) {
+  const p = projetos.find(x => x.id === id); if (!p) return;
+  if (!confirm('Marcar a instalação como concluída hoje (' + new Date().toLocaleDateString('pt-BR') + ')?')) return;
+  const mud = { instalacao_data: isoLocal(new Date()), atualizado_em: new Date().toISOString() };
+  const { error } = await sb.from('projetos').update(mud).eq('id', id);
+  if (error) { alert('Não foi possível salvar: ' + error.message); return; }
+  Object.assign(p, mud);
+  await registrarProj(p, 'Instalação concluída em ' + fmtD(mud.instalacao_data));
+  await carregarProjetos(); abrirProjeto(id);
+}
+function mailNF(l, p) {
+  const pn = String(l.nome || '').trim().split(' ')[0].toLowerCase();
+  const corpo = 'Olá, ' + pn.charAt(0).toUpperCase() + pn.slice(1) + '!\n\nSegue em anexo a nota fiscal de serviço da instalação do seu sistema de energia solar.'
+    + (p.nf_numero ? '\n\nNFS-e nº ' + p.nf_numero : '') + (p.nf_chave ? '\nChave de acesso: ' + p.nf_chave : '')
+    + '\n\nGuarde este e-mail: a nota pode ser pedida para garantia e financiamento.\nQualquer dúvida, estamos à disposição.\n\nEnergtech Engenharia Solar';
+  return 'mailto:' + encodeURIComponent(l.email) + '?subject=' + encodeURIComponent('Nota fiscal de serviço — Energtech Engenharia Solar') + '&body=' + encodeURIComponent(corpo);
+}
+async function marcarNFEnviada(id) {
+  const p = projetos.find(x => x.id === id); if (!p || p.nf_enviada_em) return;
+  if (!confirm('Você enviou o e-mail com a nota fiscal ao cliente? (OK marca a NF como enviada hoje)')) return;
+  const mud = { nf_enviada_em: isoLocal(new Date()), atualizado_em: new Date().toISOString() };
+  const { error } = await sb.from('projetos').update(mud).eq('id', id);
+  if (error) { alert('Não foi possível salvar: ' + error.message); return; }
+  Object.assign(p, mud);
+  await registrarProj(p, 'NF de serviço' + (p.nf_numero ? ' nº ' + p.nf_numero : '') + ' enviada ao cliente');
+  renderProjetos(); abrirProjeto(id);
+}
+async function enviarNF(id, input) {
+  const p = projetos.find(x => x.id === id), arq = input.files && input.files[0]; input.value = '';
+  if (!p || !arq) return;
+  const l = leadDoProj(p); if (!l) return;
+  const msg = $('pj-msg'); if (msg) { msg.classList.remove('erro'); msg.textContent = '⏳ Enviando a nota…'; }
+  try {
+    const blob = await reduzirFoto(arq);
+    const ext = blob.type === 'application/pdf' ? 'pdf' : 'jpg';
+    const path = 'lead-' + l.id + '/nf-' + Date.now() + '.' + ext;
+    const { error } = await sb.storage.from('documentos').upload(path, blob, { contentType: blob.type || arq.type, upsert: false });
+    if (error) throw error;
+    const docs = [...(l.documentos || []), { id: String(Date.now()), tipo: 'nf', nome: arq.name, path, em: new Date().toISOString(), autor: perfil.email }];
+    await gravarDocs(l.id, docs);
+    await registrarProj(p, 'PDF da NF de serviço anexado');
+    abrirProjeto(id);
+  } catch (e) { const m = $('pj-msg'); if (m) { m.textContent = '⚠ Não foi possível enviar: ' + (e.message || e); m.classList.add('erro'); } }
 }
 async function reprotocolar(id) {
   const p = projetos.find(x => x.id === id); if (!p) return;
@@ -271,7 +340,15 @@ function linhaProjeto(l) {
 function agendaProjetos() {
   if (!podeVerProjetos()) return '';
   const lista = projetos.filter(p => p.etapa !== 'cancelado').map(p => [p, prazoDe(p)]).filter(([, z]) => z && z.nivel !== 'ok').sort((a, b) => a[1].fim - b[1].fim);
-  return `<h3>🛠 Prazos de projetos <span class="muted">(${lista.length})</span></h3>
+  const hoje = isoLocal(new Date()), em3 = isoLocal(new Date(Date.now() + 3 * 86400000));
+  const cobrar = bancoPend.filter(r => r.vencimento && r.vencimento <= em3).sort((a, b) => a.vencimento.localeCompare(b.vencimento));
+  const semNF = projetos.filter(p => p.etapa !== 'cancelado' && (p.instalacao_data || p.etapa === 'conectado') && !p.nf_enviada_em);
+  const nomeL = id => ((leads.find(x => x.id === id) || {}).nome) || 'Cliente #' + id;
+  const blocoBanco = perfil && perfil.admin ? `<h3>💰 Cobrar o banco (parcela do financiamento) <span class="muted">(${cobrar.length})</span></h3>
+    ${cobrar.length ? cobrar.map(r => `<div class="prop prop-click" onclick="fecharAgenda(); abrirFicha(${r.lead_id})"><span><b>${esc(nomeL(r.lead_id))}</b><br><span class="muted">liberação do banco · ${fmtR(r.valor)}</span></span><span class="muted" style="text-align:right;white-space:nowrap;${r.vencimento < hoje ? 'color:var(--vermelho)' : ''}">${r.vencimento < hoje ? 'atrasada desde' : 'prevista'}<br>${fmtD(r.vencimento)}</span></div>`).join('') : '<div class="muted" style="margin-bottom:6px">Nenhuma parcela do banco para cobrar agora. ✅</div>'}` : '';
+  const blocoNF = `<h3>🧾 Obras sem NF enviada ao cliente <span class="muted">(${semNF.length})</span></h3>
+    ${semNF.length ? semNF.map(p => `<div class="prop prop-click" onclick="fecharAgenda(); alternarModo(true); abrirProjeto(${p.id})"><span><b>${esc(nomeL(p.lead_id))}</b><br><span class="muted">${p.instalacao_data ? 'instalado em ' + fmtD(p.instalacao_data) : nomeEtapaProj(p.etapa)}${p.nf_numero ? ' · NF nº ' + esc(p.nf_numero) + ' ainda não enviada' : ''}</span></span><span class="muted">abrir</span></div>`).join('') : '<div class="muted" style="margin-bottom:6px">Todas as obras instaladas estão com a NF enviada. ✅</div>'}`;
+  return blocoBanco + blocoNF + `<h3>🛠 Prazos de projetos <span class="muted">(${lista.length})</span></h3>
     ${lista.length ? lista.map(([p, z]) => { const l = leadDoProj(p) || {};
       return `<div class="prop prop-click" onclick="fecharAgenda(); alternarModo(true); abrirProjeto(${p.id})"><span><b>${esc(l.nome || 'Cliente #' + p.lead_id)}</b><br><span class="muted">${esc([l.cidade, nomeEtapaProj(p.etapa), p.protocolo_numero ? 'protocolo ' + p.protocolo_numero : ''].filter(Boolean).join(' · '))}</span></span><span class="muted" style="text-align:right;white-space:nowrap">${esc(z.curto)}<br>vence ${z.fim.toLocaleDateString('pt-BR')}</span></div>`; }).join('')
       : '<div class="muted" style="margin-bottom:6px">Nenhum prazo vencendo. ✅</div>'}`;
