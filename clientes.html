@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://cmrndntnaaooapbdmgip.supabase.co;">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clientes — Energtech</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  :root {
+    --amarelo:#FFC107; --amarelo-dim:#e6ac00; --preto:#111; --bg:#0f0f0f; --card:#1a1a1a; --card2:#222;
+    --borda:#2e2e2e; --texto:#e0e0e0; --muted:#8a8a8a; --verde:#4ade80; --vermelho:#f87171; --azul:#60a5fa; --laranja:#fb923c;
+  }
+  body { background:var(--bg); font-family:'Barlow',sans-serif; color:var(--texto); min-height:100vh; padding-bottom:60px; }
+  a { color:var(--azul); }
+  .header { background:var(--amarelo); padding:16px 24px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+  .logo-area { display:flex; align-items:center; gap:12px; }
+  .logo-icon { width:42px; height:42px; background:var(--preto); border-radius:50%; display:flex; align-items:center; justify-content:center; }
+  .brand-name { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:900; color:var(--preto); line-height:1; }
+  .brand-sub { font-size:10px; font-weight:600; color:var(--preto); letter-spacing:.2em; text-transform:uppercase; opacity:.6; }
+  .header-title { text-align:right; }
+  .header-title h1 { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:700; color:var(--preto); text-transform:uppercase; letter-spacing:.05em; }
+  .header-links { font-size:12px; color:var(--preto); margin-top:3px; }
+  .header-links a { color:var(--preto); font-weight:700; }
+  .page { max-width:1200px; margin:0 auto; padding:20px 16px; }
+  .card { background:var(--card); border:1px solid var(--borda); border-radius:14px; padding:18px; margin-bottom:16px; }
+  .card h2 { font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:900; letter-spacing:.1em; text-transform:uppercase; color:var(--amarelo); margin-bottom:12px; }
+  .muted { color:var(--muted); font-size:13px; }
+  .login { max-width:360px; margin:40px auto; text-align:center; }
+  .input, .select, textarea.input { background:var(--card2); border:1px solid var(--borda); color:var(--texto); font-family:'Barlow',sans-serif; font-size:14px; padding:8px 10px; border-radius:8px; outline:none; width:100%; }
+  .input:focus, .select:focus { border-color:var(--amarelo); }
+  .login .input { margin-bottom:10px; }
+  .btn { background:var(--amarelo); color:var(--preto); font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:900; letter-spacing:.05em; padding:8px 14px; border:none; border-radius:8px; cursor:pointer; white-space:nowrap; }
+  .btn:hover { background:var(--amarelo-dim); }
+  .btn-sec { background:var(--card2); color:var(--texto); border:1px solid var(--borda); }
+  .btn-verde { background:#166534; color:#fff; }
+  .btn-p { padding:3px 9px; font-size:12px; }
+  .erro { color:var(--vermelho); font-size:13px; margin-top:8px; min-height:16px; }
+  #conteudo { display:none; }
+  .abas { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; align-items:center; }
+  .aba { background:var(--card2); border:1px solid var(--borda); color:var(--texto); border-radius:20px; padding:8px 14px; font-size:14px; cursor:pointer; }
+  .aba.ativa { border-color:var(--amarelo); color:var(--amarelo); }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:10px; margin-bottom:16px; }
+  .kpi { background:var(--card); border:1px solid var(--borda); border-radius:12px; padding:14px; }
+  .kpi-val { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:900; color:var(--amarelo); line-height:1.1; }
+  .kpi-lbl { font-size:12px; color:var(--muted); margin-top:3px; }
+  .tabela-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); font-weight:600; padding:7px 8px; border-bottom:1px solid var(--borda); white-space:nowrap; }
+  td { padding:8px; border-bottom:1px solid #242424; vertical-align:middle; }
+  td.num, th.num { text-align:right; white-space:nowrap; }
+  .vazio { text-align:center; color:var(--muted); padding:18px 0; font-size:13px; }
+  .tag { display:inline-block; font-size:11px; padding:1px 7px; border-radius:20px; background:#1a1a1a; border:1px solid var(--borda); color:var(--muted); white-space:nowrap; }
+  .tag.atraso { color:var(--vermelho); border-color:#7f1d1d; } .tag.ok { color:var(--verde); border-color:#1f4d33; } .tag.azul { color:var(--azul); border-color:#1e3a5f; } .tag.lar { color:var(--laranja); border-color:#7c2d12; }
+  .linha-topo { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+  .linha-topo h2 { margin-bottom:0; }
+  .acoes-l { display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end; }
+  .grade { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .grade label { display:block; font-size:11px; color:var(--muted); margin-bottom:3px; text-transform:uppercase; letter-spacing:.05em; }
+  .grade .largo { grid-column:1/-1; }
+  .overlay { position:fixed; inset:0; background:rgba(0,0,0,.7); display:none; justify-content:flex-end; z-index:50; }
+  .overlay.visivel { display:flex; }
+  .ficha { background:var(--card); width:min(560px, 100%); height:100%; overflow-y:auto; border-left:1px solid var(--borda); padding:18px; }
+  .ficha h3 { font-family:'Barlow Condensed',sans-serif; font-size:14px; letter-spacing:.1em; text-transform:uppercase; color:var(--amarelo); margin:16px 0 8px; }
+  .fechar { background:none; border:1px solid var(--borda); color:var(--texto); border-radius:8px; width:34px; height:34px; cursor:pointer; font-size:18px; }
+  .evento { border-left:2px solid var(--borda); padding:4px 0 8px 10px; font-size:13px; }
+  .evento .quando { font-size:11px; color:var(--muted); }
+  .status-msg { font-size:12px; min-height:16px; color:var(--verde); } .status-msg.erro { color:var(--vermelho); }
+  @media (max-width:640px) { .grade { grid-template-columns:1fr; } .header-title { text-align:left; } td, th { padding:6px 5px; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo-area">
+    <div class="logo-icon"><svg width="26" height="26" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="13" fill="#FFC107"/><path d="M16 3L8 15h7l-3 10 10-13h-7l1-9z" fill="#111"/></svg></div>
+    <div><div class="brand-name">Energtech</div><div class="brand-sub">Engenharia Solar</div></div>
+  </div>
+  <div class="header-title"><h1>Clientes e pós-venda</h1><div class="header-links" id="header-links"><a href="crm.html">CRM</a></div></div>
+</div>
+
+<div class="page">
+  <div class="card login" id="login" style="display:none">
+    <h2 style="font-family:'Barlow Condensed',sans-serif;color:var(--amarelo)">🔑 Entrar</h2>
+    <p class="muted" style="margin-bottom:16px">Use o mesmo login do CRM.</p>
+    <input class="input" type="email" id="login-email" placeholder="E-mail" autocomplete="username">
+    <input class="input" type="password" id="login-senha" placeholder="Senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')entrar()">
+    <button class="btn" id="login-btn" style="width:100%" onclick="entrar()">Entrar</button>
+    <div class="erro" id="login-erro"></div>
+  </div>
+  <div class="card" id="aviso" style="display:none"><p id="aviso-txt" class="muted"></p></div>
+
+  <div id="conteudo">
+    <div class="abas">
+      <button class="aba ativa" data-aba="limpezas" onclick="trocarAba('limpezas')">🧽 Limpezas</button>
+      <button class="aba" data-aba="base" onclick="trocarAba('base')">👥 Base de clientes</button>
+      <button class="aba" data-aba="importar" onclick="trocarAba('importar')">⬆ Importar planilha</button>
+      <span style="flex:1"></span>
+      <button class="btn btn-sec" onclick="carregar()" title="Atualizar">🔄</button>
+    </div>
+    <div class="status-msg" id="msg"></div>
+    <div id="aba-limpezas"></div>
+    <div id="aba-base" style="display:none"></div>
+    <div id="aba-importar" style="display:none"></div>
+  </div>
+</div>
+
+<div class="overlay" id="ov-cli" onclick="if(event.target===this)fecharCliente()"><div class="ficha" id="ficha-cli"></div></div>
+
+<script src="js/comum.js?v=20261019a"></script>
+<script>
+// Energtech — Clientes e pós-venda (admin, vendas internas e engenharia)
+// Base de clientes (os do CRM entram sozinhos quando a obra é conectada; os antigos entram por cadastro ou planilha)
+// e o ciclo de limpeza: a contatar → mensagem enviada → agendada → limpeza feita (volta para a fila daqui a N meses).
+// Envio em LOTES pequenos pelo WhatsApp (um clique por cliente), para não bloquear o número.
+const $ = id => document.getElementById(id);
+const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const hojeISO = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+const dBR = iso => iso ? iso.slice(0, 10).split('-').reverse().join('/') : '—';
+const fmtDH = iso => iso ? new Date(iso).toLocaleDateString('pt-BR') + ' ' + new Date(iso).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) : '';
+const somaMeses = (iso, n) => { const d = new Date(iso + 'T12:00:00'), dia = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() + n); d.setDate(Math.min(dia, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); return d.toISOString().slice(0, 10); };
+const somaDias = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+function telBonito(t) { let d = String(t || '').replace(/\D/g, ''); if (d.startsWith('55') && d.length >= 12) d = d.slice(2); if (d.length === 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`; if (d.length === 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`; return t || ''; }
+function telWa(t) { let d = String(t || '').replace(/\D/g, ''); if (d.length === 10 || d.length === 11) d = '55' + d; return d.length >= 12 ? d : ''; }
+const soDig = t => String(t || '').replace(/\D/g, '');
+const normNome = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+const STATUS = { a_contatar: ['A contatar', ''], enviada: ['Mensagem enviada', 'azul'], agendada: ['Limpeza agendada', 'ok'], nao_quis: ['Não quis', 'lar'] };
+const MSG_PADRAO = 'Olá, {nome}! Aqui é da Energtech Engenharia Solar ☀️\n\nJá se passaram {tempo} desde {desde} do seu sistema de energia solar. Poeira e sujeira nos módulos reduzem a geração e a sua economia na conta de luz.\n\nQuer agendar uma limpeza e revisão? É só responder esta mensagem que combinamos o melhor dia.';
+let perfil = null, aba = 'limpezas', CLI = [], CFG = {}, LOTE = [], tamLote = 20, fichaCli = null, IMPORT = [];
+
+function msg(t, erro) { const m = $('msg'); m.textContent = t || ''; m.classList.toggle('erro', !!erro); }
+function mostrar(qual, texto) {
+  $('login').style.display = qual === 'login' ? '' : 'none';
+  $('aviso').style.display = qual === 'aviso' ? '' : 'none';
+  $('conteudo').style.display = qual === 'conteudo' ? 'block' : 'none';
+  if (texto) $('aviso-txt').innerHTML = texto;
+}
+function renderHeader() {
+  let h = '<a href="crm.html">🗂 CRM</a>';
+  if (perfil && perfil.admin) h += ' · <a href="financeiro.html">💰 Financeiro</a> · <a href="equipe.html">👷 Equipe</a>';
+  if (perfil) h += ` · 👤 ${esc(perfil.nome || perfil.email)} · <a href="#" onclick="sair();return false">Sair</a>`;
+  $('header-links').innerHTML = h;
+}
+async function iniciar() {
+  if (!sb) { mostrar('aviso', '⚠ Sem conexão com o servidor.'); return; }
+  const { data } = await sb.auth.getSession();
+  if (!data || !data.session) { perfil = null; renderHeader(); mostrar('login'); return; }
+  const r = await sb.rpc('meu_perfil'); perfil = r.data || {};
+  renderHeader();
+  if (!(perfil.admin || ['interno', 'engenheiro'].includes(perfil.papel))) { mostrar('aviso', 'Esta tela é da equipe interna (admin, vendas internas e engenharia).'); return; }
+  mostrar('conteudo');
+  await carregar();
+}
+async function entrar() {
+  const { error } = await sb.auth.signInWithPassword({ email: $('login-email').value.trim(), password: $('login-senha').value });
+  if (error) { $('login-erro').textContent = 'E-mail ou senha incorretos.'; return; }
+  await iniciar();
+}
+async function sair() { await sb.auth.signOut(); perfil = null; await iniciar(); }
+function trocarAba(a) {
+  aba = a;
+  document.querySelectorAll('.aba').forEach(b => b.classList.toggle('ativa', b.dataset.aba === a));
+  ['limpezas', 'base', 'importar'].forEach(k => $('aba-' + k).style.display = k === a ? '' : 'none');
+  render();
+}
+async function carregar() {
+  msg('⏳ Carregando…');
+  const [c, cfg] = await Promise.all([
+    sb.from('clientes').select('*').order('nome').limit(5000),
+    sb.from('config').select('dados').eq('id', 'crm').maybeSingle(),
+  ]);
+  if (c.error) { msg('⚠ ' + c.error.message, true); return; }
+  CLI = c.data || []; CFG = (cfg.data && cfg.data.dados) || {};
+  LOTE = LOTE.filter(id => CLI.some(x => x.id === id));
+  msg(''); render();
+}
+function render() { if (aba === 'limpezas') renderLimpezas(); else if (aba === 'base') renderBase(); else renderImportar(); }
+
+// ── mensagem ──
+function textoMsg(c) {
+  const pn = String(c.nome || '').trim().split(' ')[0].toLowerCase(), nome = pn.charAt(0).toUpperCase() + pn.slice(1);
+  const base = c.manut_ultima_limpeza || c.data_instalacao;
+  let tempo = (c.manut_meses || 6) + ' meses';
+  if (base) { const m = Math.round((new Date(hojeISO()) - new Date(base)) / (30.44 * 86400000)); if (m >= 12) tempo = Math.floor(m / 12) === 1 && m < 18 ? 'mais de 1 ano' : 'mais de ' + Math.floor(m / 12) + ' anos'; else if (m > 1) tempo = m + ' meses'; }
+  const desde = c.manut_ultima_limpeza ? 'a última limpeza' : 'a instalação';
+  return String(CFG.posvenda_msg || MSG_PADRAO).replace(/\{nome\}/g, nome).replace(/\{tempo\}/g, tempo).replace(/\{desde\}/g, desde);
+}
+async function evento(id, texto) { await sb.from('cliente_eventos').insert({ cliente_id: id, texto }); }
+async function atualizar(id, mud, texto) {
+  const { error } = await sb.from('clientes').update(mud).eq('id', id);
+  if (error) { msg('⚠ ' + error.message, true); return false; }
+  Object.assign(CLI.find(x => x.id === id), mud);
+  if (texto) await evento(id, texto);
+  return true;
+}
+
+// ── limpezas ──
+function renderLimpezas() {
+  const hoje = hojeISO(), em7 = somaDias(hoje, 7), ini = hoje.slice(0, 8) + '01';
+  const ativos = CLI.filter(c => c.ativo);
+  const fila = ativos.filter(c => c.manut_status === 'a_contatar' && c.manut_proxima && c.manut_proxima <= em7 && telWa(c.telefone)).sort((a, b) => a.manut_proxima.localeCompare(b.manut_proxima));
+  const semTel = ativos.filter(c => c.manut_status === 'a_contatar' && c.manut_proxima && c.manut_proxima <= em7 && !telWa(c.telefone));
+  const enviadas = ativos.filter(c => c.manut_status === 'enviada').sort((a, b) => (a.manut_contato_em || '').localeCompare(b.manut_contato_em || ''));
+  const agendadas = ativos.filter(c => c.manut_status === 'agendada').sort((a, b) => (a.manut_agendada_para || '9').localeCompare(b.manut_agendada_para || '9'));
+  const feitasMes = ativos.filter(c => c.manut_ultima_limpeza && c.manut_ultima_limpeza >= ini).length;
+  const lote = LOTE.map(id => CLI.find(x => x.id === id)).filter(Boolean);
+  const nome = c => `<a href="#" onclick="abrirCliente(${c.id});return false">${esc(c.nome)}</a>`;
+  const linhaFila = c => `<tr><td>${nome(c)}<br><span class="muted">${esc(c.cidade || '')}${c.data_instalacao ? ' · instalado ' + dBR(c.data_instalacao) : ''}</span></td><td>${telBonito(c.telefone)}</td><td>${dBR(c.manut_proxima)}${c.manut_proxima < hoje ? ' <span class="tag atraso">atrasada</span>' : ''}</td>
+    <td class="num"><div class="acoes-l">${c.manut_status === 'a_contatar' ? `<button class="btn btn-verde btn-p" onclick="enviar(${c.id})">💬 Enviar</button>` : `<span class="tag ${STATUS[c.manut_status][1]}">${STATUS[c.manut_status][0]}</span>`}<button class="btn btn-sec btn-p" title="Tirar do lote" onclick="tirarDoLote(${c.id})">✕</button></div></td></tr>`;
+  const linhaEnv = c => { const dias = c.manut_contato_em ? Math.round((new Date(hoje) - new Date(c.manut_contato_em)) / 86400000) : 0;
+    return `<tr><td>${nome(c)}<br><span class="muted">${esc(c.cidade || '')}</span></td><td>enviada ${dBR(c.manut_contato_em)}${dias >= 5 ? ` <span class="tag lar">${dias} dias sem resposta</span>` : ''}</td>
+    <td class="num"><div class="acoes-l"><button class="btn btn-verde btn-p" onclick="agendar(${c.id})">📅 Agendou</button><button class="btn btn-sec btn-p" onclick="naoQuis(${c.id})">🙅 Não quis</button><button class="btn btn-sec btn-p" onclick="semResposta(${c.id})">⏳ Sem resposta</button><button class="btn btn-sec btn-p" title="Mandar de novo" onclick="enviar(${c.id}, true)">💬</button></div></td></tr>`; };
+  const linhaAg = c => `<tr><td>${nome(c)}<br><span class="muted">${esc(c.cidade || '')} · ${telBonito(c.telefone)}</span></td><td><b>${dBR(c.manut_agendada_para)}</b>${c.manut_agendada_para && c.manut_agendada_para < hoje ? ' <span class="tag atraso">passou</span>' : ''}</td>
+    <td class="num"><div class="acoes-l"><button class="btn btn-verde btn-p" onclick="limpezaFeita(${c.id})">✔ Limpeza feita</button><button class="btn btn-sec btn-p" onclick="agendar(${c.id})">✏ Remarcar</button><button class="btn btn-sec btn-p" onclick="desmarcar(${c.id})">Desmarcar</button></div></td></tr>`;
+  const tab = (cab, linhas, vazio) => `<div class="tabela-wrap"><table><thead><tr>${cab}</tr></thead><tbody>${linhas || `<tr><td colspan="5" class="vazio">${vazio}</td></tr>`}</tbody></table></div>`;
+  $('aba-limpezas').innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><div class="kpi-val">${fila.length}</div><div class="kpi-lbl">Na fila para contatar (vencidos e próximos 7 dias)</div></div>
+      <div class="kpi"><div class="kpi-val">${enviadas.length}</div><div class="kpi-lbl">Mensagem enviada, aguardando resposta</div></div>
+      <div class="kpi"><div class="kpi-val">${agendadas.length}</div><div class="kpi-lbl">Limpezas agendadas</div></div>
+      <div class="kpi"><div class="kpi-val">${feitasMes}</div><div class="kpi-lbl">Limpezas feitas no mês</div></div>
+    </div>
+    <div class="card"><div class="linha-topo"><h2>📦 Lote de mensagens</h2>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="muted">Tamanho</span><input class="input" type="number" min="1" max="50" id="tam-lote" value="${tamLote}" style="width:70px"><button class="btn" onclick="montarLote()">Montar lote com os próximos da fila</button></div></div>
+      ${lote.length ? tab('<th>Cliente</th><th>Telefone</th><th>Previsto</th><th></th>', lote.map(linhaFila).join(''), '') + `<p class="muted" style="margin-top:8px">Clique em 💬 Enviar em cada um: abre o WhatsApp com a mensagem pronta; depois volte aqui e passe para o próximo. Enviados ${lote.filter(c => c.manut_status !== 'a_contatar').length} de ${lote.length}.</p>`
+        : `<div class="vazio">Nenhum lote montado. ${fila.length ? 'Há ' + fila.length + ' cliente(s) na fila: monte um lote de 15 a 30.' : 'A fila está vazia. ✅'}</div>`}
+      ${semTel.length ? `<p class="muted" style="margin-top:8px;color:var(--laranja)">⚠ ${semTel.length} cliente(s) na fila sem telefone válido: complete na Base de clientes.</p>` : ''}
+    </div>
+    <div class="card"><h2>⏳ Aguardando resposta (${enviadas.length})</h2>${tab('<th>Cliente</th><th>Envio</th><th></th>', enviadas.map(linhaEnv).join(''), 'Ninguém aguardando resposta.')}</div>
+    <div class="card"><h2>📅 Limpezas agendadas (${agendadas.length})</h2>${tab('<th>Cliente</th><th>Data</th><th></th>', agendadas.map(linhaAg).join(''), 'Nenhuma limpeza agendada.')}</div>
+    <div class="card"><h2>✉ Mensagem padrão</h2>
+      <textarea class="input" id="msg-modelo" rows="6" ${perfil && perfil.admin ? '' : 'disabled'}>${esc(CFG.posvenda_msg || MSG_PADRAO)}</textarea>
+      <p class="muted" style="margin-top:6px">Use {nome} (primeiro nome), {tempo} (ex.: 8 meses, mais de 2 anos) e {desde} (a instalação / a última limpeza). Sem percentuais: fale em reais e benefícios.</p>
+      ${perfil && perfil.admin ? '<div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-sec" onclick="salvarModelo()">💾 Salvar mensagem</button><button class="btn btn-sec" onclick="$(\'msg-modelo\').value=MSG_PADRAO">↺ Padrão</button></div>' : ''}
+    </div>`;
+}
+function montarLote() {
+  tamLote = Math.max(1, Math.min(50, +$('tam-lote').value || 20));
+  const hoje = hojeISO(), em7 = somaDias(hoje, 7);
+  const ja = new Set(LOTE);
+  const fila = CLI.filter(c => c.ativo && c.manut_status === 'a_contatar' && c.manut_proxima && c.manut_proxima <= em7 && telWa(c.telefone) && !ja.has(c.id)).sort((a, b) => a.manut_proxima.localeCompare(b.manut_proxima));
+  // tira do lote os que já foram tratados e completa até o tamanho
+  LOTE = LOTE.filter(id => { const c = CLI.find(x => x.id === id); return c && c.manut_status === 'a_contatar'; });
+  LOTE = LOTE.concat(fila.slice(0, Math.max(0, tamLote - LOTE.length)).map(c => c.id));
+  renderLimpezas();
+}
+function tirarDoLote(id) { LOTE = LOTE.filter(x => x !== id); renderLimpezas(); }
+async function enviar(id, denovo) {
+  const c = CLI.find(x => x.id === id); if (!c) return;
+  const tel = telWa(c.telefone); if (!tel) { alert('Telefone inválido. Corrija na ficha do cliente.'); return; }
+  window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(textoMsg(c)), '_blank', 'noopener');
+  await atualizar(id, { manut_status: 'enviada', manut_contato_em: hojeISO() }, denovo ? '💬 Mensagem de limpeza reenviada' : '💬 Mensagem de limpeza enviada');
+  render();
+}
+async function agendar(id) {
+  const c = CLI.find(x => x.id === id); if (!c) return;
+  const d = prompt('Data da limpeza (DD/MM/AAAA):', c.manut_agendada_para ? dBR(c.manut_agendada_para) : ''); if (!d) return;
+  const m = d.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if (!m) { msg('⚠ Data inválida.', true); return; }
+  const iso = m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+  await atualizar(id, { manut_status: 'agendada', manut_agendada_para: iso }, '📅 Limpeza agendada para ' + dBR(iso));
+  msg('✅ Agendado.'); render();
+}
+async function naoQuis(id) {
+  const c = CLI.find(x => x.id === id); if (!c) return;
+  const obs = prompt('Não quis agora. Motivo (opcional). Volta para a fila em ' + (c.manut_meses || 6) + ' meses:', ''); if (obs === null) return;
+  await atualizar(id, { manut_status: 'a_contatar', manut_proxima: somaMeses(hojeISO(), c.manut_meses || 6), manut_agendada_para: null }, '🙅 Não quis a limpeza agora' + (obs.trim() ? ' · ' + obs.trim() : ''));
+  render();
+}
+async function semResposta(id) {
+  if (!confirm('Sem resposta: o cliente volta para a fila daqui a 30 dias. Confirmar?')) return;
+  await atualizar(id, { manut_status: 'a_contatar', manut_proxima: somaDias(hojeISO(), 30) }, '⏳ Sem resposta · tentar de novo em 30 dias');
+  render();
+}
+async function limpezaFeita(id) {
+  const c = CLI.find(x => x.id === id); if (!c) return;
+  const d = prompt('Data em que a limpeza foi feita (DD/MM/AAAA):', dBR(c.manut_agendada_para && c.manut_agendada_para <= hojeISO() ? c.manut_agendada_para : hojeISO())); if (!d) return;
+  const m = d.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if (!m) { msg('⚠ Data inválida.', true); return; }
+  const iso = m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+  await atualizar(id, { manut_status: 'a_contatar', manut_ultima_limpeza: iso, manut_agendada_para: null, manut_proxima: somaMeses(iso, c.manut_meses || 6) }, '✔ Limpeza feita em ' + dBR(iso) + ' · próxima em ' + dBR(somaMeses(iso, c.manut_meses || 6)));
+  msg('✅ Limpeza registrada.'); render();
+}
+async function desmarcar(id) {
+  if (!confirm('Desmarcar a limpeza? O cliente volta para "aguardando resposta".')) return;
+  await atualizar(id, { manut_status: 'enviada', manut_agendada_para: null }, 'Limpeza desmarcada');
+  render();
+}
+async function salvarModelo() {
+  const txt = $('msg-modelo').value.trim(); if (!txt) return;
+  const novo = { ...CFG, posvenda_msg: txt };
+  const { error } = await sb.from('config').upsert({ id: 'crm', dados: novo }, { onConflict: 'id' });
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  CFG = novo; msg('✅ Mensagem salva para toda a equipe.');
+}
+
+// ── base de clientes ──
+function renderBase() {
+  const q = ($('b-busca') || {}).value || '', qn = normNome(q), qd = soDig(q);
+  const lista = CLI.filter(c => !q || normNome(c.nome + ' ' + (c.cidade || '')).includes(qn) || (qd.length >= 4 && soDig(c.telefone).includes(qd)));
+  const sit = c => !c.ativo ? '<span class="tag">inativo</span>' : `<span class="tag ${STATUS[c.manut_status][1]}">${STATUS[c.manut_status][0]}</span>`;
+  $('aba-base').innerHTML = `
+    <div class="card"><div class="linha-topo"><h2>👥 Base de clientes (${CLI.length})</h2>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><input class="input" id="b-busca" placeholder="🔎 Nome, cidade ou telefone" value="${esc(q)}" oninput="renderBase();$('b-busca').focus();$('b-busca').setSelectionRange(9999,9999)" style="width:240px"><button class="btn" onclick="abrirCliente(null)">+ Cliente</button></div></div>
+      <div class="tabela-wrap"><table><thead><tr><th>Cliente</th><th>Telefone</th><th>Instalação</th><th class="num">kWp</th><th>Próxima limpeza</th><th>Situação</th></tr></thead><tbody>
+      ${lista.slice(0, 500).map(c => `<tr><td><a href="#" onclick="abrirCliente(${c.id});return false">${esc(c.nome)}</a><br><span class="muted">${esc(c.cidade || '')} ${c.origem === 'crm' ? '<span class="tag azul">CRM</span>' : c.origem === 'planilha' ? '<span class="tag">planilha</span>' : c.origem === 'art' ? '<span class="tag">ART</span>' : ''}</span></td>
+        <td>${telBonito(c.telefone) || '<span class="muted">—</span>'}</td><td>${dBR(c.data_instalacao)}</td><td class="num">${c.kwp ? String(c.kwp).replace('.', ',') : ''}</td><td>${dBR(c.manut_proxima)}</td><td>${sit(c)}</td></tr>`).join('') || '<tr><td colspan="6" class="vazio">Nenhum cliente. Cadastre ou importe uma planilha.</td></tr>'}
+      </tbody></table></div>
+      <p class="muted" style="margin-top:8px">Clientes do CRM entram aqui sozinhos quando a obra fica "Conectado". Os antigos você cadastra ou importa.</p></div>`;
+}
+async function abrirCliente(id) {
+  const c = id ? CLI.find(x => x.id === id) : { nome: '', manut_meses: 6, ativo: true, origem: 'manual', manut_status: 'a_contatar' };
+  if (!c) return;
+  fichaCli = id;
+  const f = (k, rot, v, extra, largo) => `<div${largo ? ' class="largo"' : ''}><label>${rot}</label><input class="input" id="fc-${k}" value="${esc(v ?? '')}" ${extra || ''}></div>`;
+  $('ficha-cli').innerHTML = `
+    <div style="display:flex;justify-content:space-between;gap:10px"><h2 style="font-family:'Barlow Condensed',sans-serif;font-size:22px">${id ? esc(c.nome) : 'Novo cliente'}</h2><button class="fechar" onclick="fecharCliente()">×</button></div>
+    ${c.lead_id ? `<p class="muted">Cliente do CRM · <a href="crm.html?lead=${c.lead_id}">abrir ficha no CRM</a></p>` : ''}
+    <h3>Dados</h3>
+    <div class="grade">
+      ${f('nome', 'Nome', c.nome, '', true)}${f('tel', 'Telefone / WhatsApp', telBonito(c.telefone), 'inputmode="tel" placeholder="(49) 99999-9999"')}${f('email', 'E-mail', c.email, 'type="email"')}
+      ${f('cidade', 'Município / UF', c.cidade, 'placeholder="Quilombo / SC"')}${f('cpf', 'CPF / CNPJ', c.cpf_cnpj)}${f('end', 'Endereço', c.endereco, '', true)}
+      ${f('uc', 'UC', c.uc)}${f('kwp', 'Potência (kWp)', c.kwp != null ? String(c.kwp).replace('.', ',') : '', 'inputmode="decimal"')}
+      ${f('inst', 'Data da instalação', c.data_instalacao, 'type="date"')}${f('meses', 'Limpeza a cada (meses)', c.manut_meses || 6, 'type="number" min="1" max="36"')}
+      ${f('prox', 'Próxima limpeza (entra na fila)', c.manut_proxima, 'type="date"')}${f('ult', 'Última limpeza', c.manut_ultima_limpeza, 'type="date"')}
+      <div class="largo"><label>Observações</label><textarea class="input" id="fc-obs" rows="2">${esc(c.obs || '')}</textarea></div>
+      ${id ? `<div class="largo"><label><input type="checkbox" id="fc-ativo" ${c.ativo ? 'checked' : ''}> Ativo (desmarque para não entrar mais na fila)</label></div>` : ''}
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn" onclick="salvarCliente()">💾 Salvar</button>${id && telWa(c.telefone) ? `<button class="btn btn-verde" onclick="window.open('https://wa.me/${telWa(c.telefone)}','_blank','noopener')">💬 WhatsApp</button>` : ''}<span class="status-msg" id="fc-msg"></span></div>
+    <p class="muted" style="margin-top:6px">Sem "próxima limpeza", o sistema calcula: instalação (ou última limpeza) + meses; se já passou, entra na fila hoje.</p>
+    ${id ? '<h3>Histórico</h3><div id="fc-hist"><div class="muted">Carregando…</div></div>' : ''}`;
+  $('ov-cli').classList.add('visivel');
+  if (id) {
+    const { data } = await sb.from('cliente_eventos').select('texto, autor_email, criado_em').eq('cliente_id', id).order('criado_em', { ascending: false }).limit(100);
+    if (fichaCli === id && $('fc-hist')) $('fc-hist').innerHTML = (data || []).map(e => `<div class="evento"><div class="quando">${fmtDH(e.criado_em)} · ${esc((e.autor_email || 'sistema').split('@')[0])}</div>${esc(e.texto)}</div>`).join('') || '<div class="muted">Sem registros.</div>';
+  }
+}
+function fecharCliente() { fichaCli = null; $('ov-cli').classList.remove('visivel'); }
+function proximaAuto(inst, ult, meses) {
+  const base = ult || inst; if (!base) return hojeISO();
+  const p = somaMeses(base, meses); return p < hojeISO() ? hojeISO() : p;
+}
+function telGravar(t) { let d = soDig(t); if (d.length === 10 || d.length === 11) d = '55' + d; return d || null; }
+async function salvarCliente() {
+  const v = k => ($('fc-' + k).value || '').trim();
+  if (!v('nome')) { $('fc-msg').textContent = '⚠ Informe o nome.'; $('fc-msg').classList.add('erro'); return; }
+  const meses = Math.max(1, Math.min(36, +v('meses') || 6));
+  const reg = { nome: v('nome'), telefone: telGravar(v('tel')), email: v('email') || null, cidade: v('cidade') || null, cpf_cnpj: v('cpf') || null, endereco: v('end') || null,
+    uc: v('uc') || null, kwp: v('kwp') ? +v('kwp').replace(',', '.') || null : null, data_instalacao: v('inst') || null, manut_meses: meses,
+    manut_ultima_limpeza: v('ult') || null, obs: v('obs') || null };
+  reg.manut_proxima = v('prox') || proximaAuto(reg.data_instalacao, reg.manut_ultima_limpeza, meses);
+  if (fichaCli) {
+    reg.ativo = $('fc-ativo').checked;
+    if (!(await atualizar(fichaCli, reg, null))) return;
+  } else {
+    const dup = CLI.find(c => (reg.telefone && soDig(c.telefone) === reg.telefone) || normNome(c.nome) === normNome(reg.nome));
+    if (dup && !confirm('Já existe "' + dup.nome + '" com esse nome ou telefone. Cadastrar mesmo assim?')) return;
+    reg.origem = 'manual';
+    const { data, error } = await sb.from('clientes').insert(reg).select('*').single();
+    if (error) { $('fc-msg').textContent = '⚠ ' + error.message; $('fc-msg').classList.add('erro'); return; }
+    CLI.push(data); await evento(data.id, 'Cliente cadastrado'); fichaCli = data.id;
+  }
+  CLI.sort((a, b) => a.nome.localeCompare(b.nome));
+  render(); await abrirCliente(fichaCli);
+  const m = $('fc-msg'); if (m) { m.classList.remove('erro'); m.textContent = '✅ Salvo'; }
+}
+
+// ── importar planilha (CSV) ──
+function renderImportar() {
+  $('aba-importar').innerHTML = `<div class="card"><h2>⬆ Importar clientes de planilha</h2>
+    <p class="muted">No Excel ou Google Planilhas: <b>Arquivo → Salvar/Baixar como CSV</b>. A primeira linha deve ter os títulos. Colunas reconhecidas: <b>nome</b>, <b>telefone</b> (ou celular/whatsapp), <b>email</b>, <b>cidade</b>, <b>instalação</b> (data), <b>kwp</b> (ou potência), <b>cpf</b>, <b>endereço</b>, <b>uc</b>. Também dá para colar direto do Excel na caixa abaixo.</p>
+    <div style="margin:10px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><label class="btn btn-sec" style="cursor:pointer">📄 Escolher arquivo CSV<input type="file" accept=".csv,text/csv,text/plain" style="display:none" onchange="lerArquivo(this)"></label><span class="muted">ou cole abaixo</span></div>
+    <textarea class="input" id="imp-txt" rows="6" placeholder="nome;telefone;cidade;instalação;kwp&#10;João da Silva;49 99999-0000;Quilombo / SC;15/03/2023;5,5"></textarea>
+    <div style="margin-top:8px"><button class="btn" onclick="analisar()">🔎 Conferir antes de importar</button></div>
+    <div id="imp-prev" style="margin-top:12px"></div></div>`;
+}
+function lerArquivo(inp) {
+  const f = inp.files && inp.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => { let t = String(r.result || ''); if (t.includes('�')) { const r2 = new FileReader(); r2.onload = () => { $('imp-txt').value = r2.result; analisar(); }; r2.readAsText(f, 'windows-1252'); return; } $('imp-txt').value = t; analisar(); };
+  r.readAsText(f, 'utf-8');
+}
+function dividir(linha, sep) {
+  const out = []; let cur = '', q = false;
+  for (let i = 0; i < linha.length; i++) { const ch = linha[i];
+    if (ch === '"') { if (q && linha[i + 1] === '"') { cur += '"'; i++; } else q = !q; }
+    else if (ch === sep && !q) { out.push(cur); cur = ''; } else cur += ch; }
+  out.push(cur); return out.map(s => s.trim());
+}
+function dataISO(t) {
+  t = String(t || '').trim(); let m = t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if (m) { let a = +m[3]; if (a < 100) a += 2000; return a + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[1]).padStart(2, '0'); }
+  m = t.match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[0] : null;
+}
+function analisar() {
+  const txt = $('imp-txt').value.replace(/\r/g, '').split('\n').filter(l => l.trim());
+  if (txt.length < 2) { $('imp-prev').innerHTML = '<div class="muted">Cole ao menos o título e uma linha.</div>'; return; }
+  const sep = txt[0].includes('\t') ? '\t' : (txt[0].split(';').length >= txt[0].split(',').length ? ';' : ',');
+  const cab = dividir(txt[0], sep).map(normNome);
+  const col = (...nomes) => cab.findIndex(h => nomes.some(n => h.includes(n)));
+  const ix = { nome: col('nome', 'cliente', 'contratante'), tel: col('telefone', 'celular', 'whats', 'fone'), email: col('email', 'e-mail'), cidade: col('cidade', 'municipio'),
+    inst: col('instala', 'data'), kwp: col('kwp', 'potencia'), cpf: col('cpf', 'cnpj', 'documento'), end: col('endereco', 'rua'), uc: col('uc', 'unidade') };
+  if (ix.nome < 0) { $('imp-prev').innerHTML = '<div class="muted" style="color:var(--vermelho)">Não achei a coluna "nome" no título.</div>'; return; }
+  const existentes = CLI.map(c => ({ t: soDig(c.telefone).slice(-9), n: normNome(c.nome) }));
+  IMPORT = txt.slice(1).map(l => dividir(l, sep)).map(c => {
+    const g = k => ix[k] >= 0 ? (c[ix[k]] || '').trim() : '';
+    const tel = telGravar(g('tel')), inst = dataISO(g('inst')), nome = g('nome');
+    const dup = existentes.some(e => (tel && e.t && e.t === soDig(tel).slice(-9)) || e.n === normNome(nome));
+    return { nome, telefone: tel, email: g('email') || null, cidade: g('cidade') || null, data_instalacao: inst, kwp: g('kwp') ? +(g('kwp').includes(',') ? g('kwp').replace(/\./g, '').replace(',', '.') : g('kwp')) || null : null,
+      cpf_cnpj: g('cpf') || null, endereco: g('end') || null, uc: g('uc') || null, _dup: dup, _semTel: !telWa(tel) };
+  }).filter(r => r.nome);
+  const novos = IMPORT.filter(r => !r._dup);
+  $('imp-prev').innerHTML = `<p><b>${IMPORT.length}</b> linha(s) · <b style="color:var(--verde)">${novos.length} novo(s)</b> · ${IMPORT.length - novos.length} já cadastrado(s) (serão pulados) · ${novos.filter(r => r._semTel).length} sem telefone válido</p>
+    <div class="tabela-wrap" style="max-height:340px;overflow:auto"><table><thead><tr><th>Nome</th><th>Telefone</th><th>Cidade</th><th>Instalação</th><th class="num">kWp</th><th></th></tr></thead><tbody>
+    ${IMPORT.slice(0, 300).map(r => `<tr style="${r._dup ? 'opacity:.45' : ''}"><td>${esc(r.nome)}</td><td>${telBonito(r.telefone) || '<span class="tag lar">sem telefone</span>'}</td><td>${esc(r.cidade || '')}</td><td>${dBR(r.data_instalacao)}</td><td class="num">${r.kwp ? String(r.kwp).replace('.', ',') : ''}</td><td>${r._dup ? '<span class="tag">já existe</span>' : '<span class="tag ok">novo</span>'}</td></tr>`).join('')}</tbody></table></div>
+    ${novos.length ? `<div style="margin-top:10px"><button class="btn" onclick="importar()">⬆ Importar ${novos.length} cliente(s)</button></div>` : ''}`;
+}
+async function importar() {
+  const novos = IMPORT.filter(r => !r._dup).map(({ _dup, _semTel, ...r }) => ({ ...r, origem: 'planilha', manut_meses: 6, manut_proxima: proximaAuto(r.data_instalacao, null, 6) }));
+  if (!novos.length || !confirm('Importar ' + novos.length + ' cliente(s)?')) return;
+  msg('⏳ Importando…');
+  for (let i = 0; i < novos.length; i += 200) {
+    const { error } = await sb.from('clientes').insert(novos.slice(i, i + 200));
+    if (error) { msg('⚠ Parou na linha ' + (i + 1) + ': ' + error.message, true); await carregar(); return; }
+  }
+  IMPORT = []; await carregar(); msg('✅ ' + novos.length + ' cliente(s) importado(s). Eles entram na fila de limpeza pela data da instalação.');
+  trocarAba('limpezas');
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fecharCliente(); });
+iniciar();
+</script>
+</body>
+</html>
