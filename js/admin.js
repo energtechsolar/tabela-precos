@@ -13,7 +13,8 @@ function renderAdminFornecedores() {
       <div class="admin-cfg-item" style="display:grid;gap:8px">
         ${campo('Fornecedor', `<input class="admin-input" value="${escHtml(f.nome)}" oninput="PROPOSTA_CFG.fornecedores[${i}].nome=this.value">`)}
         ${campo('Código FINAME (marca / código)', `<input class="admin-input" placeholder="Ex.: Livoltek 750W~75kWp: 04340203" value="${escHtml(f.finame)}" oninput="PROPOSTA_CFG.fornecedores[${i}].finame=this.value">`)}
-        ${campo('Dados bancários e cadastro', `<textarea class="admin-input" rows="5" style="resize:vertical" oninput="PROPOSTA_CFG.fornecedores[${i}].dados=this.value">${escHtml(f.dados)}</textarea>`)}
+        ${campo((f.contas || []).length ? 'Cadastro (CNPJ, endereço, e-mail)' : 'Dados bancários e cadastro', `<textarea class="admin-input" rows="5" style="resize:vertical" oninput="PROPOSTA_CFG.fornecedores[${i}].dados=this.value">${escHtml(f.dados)}</textarea>`)}
+        ${campo('Contas para pagamento do kit (o vendedor escolhe o banco na proposta)', contasFornHtml(f, i))}
         <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
           <label style="display:flex;gap:6px;align-items:center;font-size:12px;cursor:pointer"><input type="radio" name="forn-padrao" ${PROPOSTA_CFG.fornecedor_padrao === f.id ? 'checked' : ''} onchange="PROPOSTA_CFG.fornecedor_padrao='${f.id}'"> Já vir selecionado</label>
           <button class="link-mini" onclick="removerFornecedor(${i})">✕ Remover</button>
@@ -35,6 +36,21 @@ function renderAdminFornecedores() {
       </div>`).join('')}
     </div>
     <button class="admin-btn-add" style="margin-top:8px" onclick="adicionarConta()">+ Adicionar conta Energtech</button>`;
+}
+function contasFornHtml(f, i) {
+  const cs = f.contas || [];
+  return cs.map((c, j) => `<div style="display:grid;grid-template-columns:96px 1fr auto auto;gap:6px;align-items:center;margin-bottom:4px">
+      <input class="admin-input" placeholder="Banco" value="${escHtml(c.rotulo)}" oninput="PROPOSTA_CFG.fornecedores[${i}].contas[${j}].rotulo=this.value">
+      <input class="admin-input" placeholder="Banco X (000) · Agência 0000 · Conta 0000-0" value="${escHtml(c.dados)}" oninput="PROPOSTA_CFG.fornecedores[${i}].contas[${j}].dados=this.value">
+      <label style="display:flex;gap:4px;align-items:center;font-size:12px;cursor:pointer" title="Já vem marcada na proposta"><input type="radio" name="fc-padrao-${i}" ${f.conta_padrao === c.id ? 'checked' : ''} onchange="PROPOSTA_CFG.fornecedores[${i}].conta_padrao='${c.id}'">padrão</label>
+      <button class="link-mini" onclick="removerContaForn(${i}, ${j})">✕</button>
+    </div>`).join('') + `<button class="link-mini" onclick="adicionarContaForn(${i})">+ Adicionar conta${cs.length ? '' : ' (se o fornecedor tiver mais de um banco)'}</button>`;
+}
+function adicionarContaForn(i) { const f = PROPOSTA_CFG.fornecedores[i]; (f.contas = f.contas || []).push({ id: idNovo('fc'), rotulo: '', dados: '' }); if (!f.conta_padrao) f.conta_padrao = f.contas[0].id; renderAdminFornecedores(); }
+function removerContaForn(i, j) {
+  const f = PROPOSTA_CFG.fornecedores[i]; const [c] = f.contas.splice(j, 1);
+  if (f.conta_padrao === c.id) f.conta_padrao = (f.contas[0] || {}).id || '';
+  renderAdminFornecedores();
 }
 function idNovo(p) { return p + Date.now().toString(36); }
 function adicionarFornecedor() { PROPOSTA_CFG.fornecedores.push({ id:idNovo('f'), nome:'Novo fornecedor', finame:'', dados:'' }); renderAdminFornecedores(); }
@@ -153,7 +169,7 @@ function atualizarCustoResumo(item, c) {
   elM.style.color = margem < 0 ? 'var(--vermelho)' : 'var(--verde)';
 }
 
-// ── TROCAR SENHA ────────────────────────────────────────────────────────────────────────
+// ── TROCAR SENHA ────────────────────────────────────────────────────────────────────────────────
 function abrirTrocarSenha() {
   if (!perfil) { abrirLogin(); return; }
   ['senha-atual','senha-nova','senha-confirma'].forEach(id => document.getElementById(id).value = '');
@@ -194,7 +210,7 @@ async function trocarSenha() {
   setTimeout(fecharTrocarSenha, 2500);
 }
 
-// ── PAINEL ADMIN ────────────────────────────────────────────────────────────────────────
+// ── PAINEL ADMIN ────────────────────────────────────────────────────────────────────────────────
 async function verificarSessao() { await carregarPerfil(); }
 
 function mostrarLoginArea(titulo) {

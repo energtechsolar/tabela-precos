@@ -546,7 +546,11 @@ try {
       <div class="proposta-grid" style="margin-bottom:4px">
         <div class="proposta-field">
           <label>Fornecedor do kit (dados no PDF)</label>
-          <select class="proposta-select" id="prop-fornecedor"></select>
+          <select class="proposta-select" id="prop-fornecedor" onchange="preencherContasFornecedor(false)"></select>
+        </div>
+        <div class="proposta-field" id="box-forn-conta" style="display:none">
+          <label>Banco do fornecedor (cliente paga o kit)</label>
+          <select class="proposta-select" id="prop-forn-conta"></select>
         </div>
         <div class="proposta-field">
           <label>Conta Energtech para pagamento</label>
@@ -927,9 +931,9 @@ try {
 <script src="js/precificador.js?v=20261028d"></script>
 <script src="js/logo.js?v=20261019a"></script>
 <script src="js/pdf.js?v=20261028d"></script>
-<script src="js/proposta.js?v=20261028d"></script>
-<script src="js/admin.js?v=20261028d"></script>
-<script src="js/app.js?v=20261028e"></script>
+<script src="js/proposta.js?v=20261030a"></script>
+<script src="js/admin.js?v=20261030a"></script>
+<script src="js/app.js?v=20261030a"></script>
 <script src="js/kit.js?v=20261028e"></script>
 <script src="js/fatura.js?v=20261028e"></script>
 <script>
@@ -960,7 +964,7 @@ function reguaMudou() {
   atualizarModoValor();
 }
 ['slider-adicional', 'slider-desconto'].forEach(id => document.getElementById(id).addEventListener('input', reguaMudou));
-// ── INIT ──────────────────────────────────────────────────────────────────────────
+// ── INIT ───────────────────────────────────────────────────────────────────────────────
 renderSeletorRegiao();
 atualizar();            // mostra a tabela de reserva na hora
 const _precosCarregados = carregarDoSupabase();   // e troca pelos valores oficiais assim que chegarem

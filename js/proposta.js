@@ -3,6 +3,17 @@
 
 // ── PROPOSTA EM PDF (modelo 2026) ───────────────────────────────────────────────────
 // Textos editáveis no painel admin → Configurações → Proposta (PDF)
+// contas da Viener (o vendedor escolhe em qual banco o cliente paga o kit)
+const VIENER_CONTAS = [
+  { id:'cresol', rotulo:'Cresol', dados:'Banco Cresol (133) · Agência 1616 · Conta 28391-6' },
+  { id:'caixa', rotulo:'Caixa', dados:'Banco Caixa (104) · Agência 0702 · Conta 00577575796-0' },
+  { id:'bb', rotulo:'Banco do Brasil', dados:'Banco do Brasil (001) · Agência 4072-X · Conta 5583-2' },
+  { id:'sicoob', rotulo:'Sicoob', dados:'Banco Sicoob (756) · Agência 3032 · Conta 148.949-6' },
+  { id:'santander', rotulo:'Santander', dados:'Banco Santander (033) · Agência 1238 · Conta 13002431-8' },
+  { id:'sicredi', rotulo:'Sicredi', dados:'Banco Sicredi (748) · Agência 0230 · Conta 19291-2' },
+  { id:'safra', rotulo:'Safra', dados:'Banco Safra (422) · Agência 0148 · Conta 581568-9' },
+  { id:'pix', rotulo:'PIX', dados:'PIX (CNPJ): 33.105.788/0001-50' },
+];
 const PROPOSTA_PADRAO = {
   modulos_importado:  'JA Solar ou Ronma',
   inversor_importado: 'Sofar, Solis ou Huawei',
@@ -40,7 +51,8 @@ const PROPOSTA_PADRAO = {
   // fornecedores do kit (dados bancários + FINAME) — editáveis em Configurações
   fornecedores: [
     { id:'viener', nome:'Viener Tecnologia e Inovação LTDA', finame:'',
-      dados:'CNPJ: 33.105.788/0001-50\nIE: 260017736\nRua A, Loteamento Mumbach 2, nº 457 · CEP 89891-000\nfaturamento@viener.com.br\nBanco Cresol (133) · Agência 1616 · Conta 28391-6' },
+      dados:'CNPJ: 33.105.788/0001-50\nIE: 260017736\nRua A, Loteamento Mumbach 2, nº 457 · CEP 89891-000\nfaturamento@viener.com.br',
+      conta_padrao:'cresol', contas: VIENER_CONTAS },
     { id:'maxsul', nome:'Maxsul Distribuidora de Combustíveis LTDA', finame:'Livoltek 750W~75kWp: 04340203',
       dados:'CNPJ: 00.326.969/0001-57\nBanco Itaú (341) · Agência 1312 · C/C 0099634-9' },
   ],
@@ -53,7 +65,25 @@ const PROPOSTA_PADRAO = {
   conta_padrao: 'sicoob',
 };
 let PROPOSTA_CFG = JSON.parse(JSON.stringify(PROPOSTA_PADRAO));
-function fornecedorSel() { const id = (document.getElementById('prop-fornecedor') || {}).value; return (PROPOSTA_CFG.fornecedores || []).find(f => f.id === id) || null; }
+// fornecedor escolhido já com a conta escolhida: os dados no PDF = cadastro + a conta (ex.: Viener → Caixa)
+const contasForn = f => (f && Array.isArray(f.contas) ? f.contas.filter(c => c && c.dados) : []);
+function contaFornDe(f, id) { const cs = contasForn(f); return cs.find(c => c.id === id) || cs.find(c => c.id === f.conta_padrao) || cs[0] || null; }
+function comConta(f, c) { return f ? { ...f, conta_id: c ? c.id : null, conta_rotulo: c ? c.rotulo : null, dados: [f.dados, c ? c.dados : ''].filter(Boolean).join('\n') } : null; }
+function fornecedorSel() {
+  const id = (document.getElementById('prop-fornecedor') || {}).value;
+  const f = (PROPOSTA_CFG.fornecedores || []).find(x => x.id === id) || null;
+  return comConta(f, contaFornDe(f, (document.getElementById('prop-forn-conta') || {}).value));
+}
+function preencherContasFornecedor(manter) {
+  const sel = document.getElementById('prop-forn-conta'), box = document.getElementById('box-forn-conta');
+  if (!sel) return;
+  const id = (document.getElementById('prop-fornecedor') || {}).value;
+  const f = (PROPOSTA_CFG.fornecedores || []).find(x => x.id === id) || null, cs = contasForn(f);
+  const atual = manter ? sel.value : '';
+  sel.innerHTML = cs.map(c => `<option value="${escHtml(c.id)}">${escHtml(c.rotulo || c.dados)}${c.id === f.conta_padrao ? ' (padrão)' : ''}</option>`).join('');
+  sel.value = cs.some(c => c.id === atual) ? atual : ((contaFornDe(f) || {}).id || '');
+  if (box) box.style.display = cs.length > 1 ? '' : 'none';
+}
 function contaSel() {
   const cs = PROPOSTA_CFG.contas || [];
   const id = (document.getElementById('prop-conta-pag') || {}).value || PROPOSTA_CFG.conta_padrao;
@@ -67,6 +97,7 @@ function preencherSelectsPagamento(reiniciar) {
   sc.innerHTML = (PROPOSTA_CFG.contas || []).map(c => `<option value="${escHtml(c.id)}">${escHtml(c.rotulo)}${c.id === PROPOSTA_CFG.conta_padrao ? ' (padrão)' : ''}</option>`).join('');
   sf.value = [...sf.options].some(o => o.value === fAtual) && fAtual ? fAtual : (PROPOSTA_CFG.fornecedor_padrao || '');
   sc.value = [...sc.options].some(o => o.value === cAtual) && cAtual ? cAtual : (PROPOSTA_CFG.conta_padrao || '');
+  preencherContasFornecedor(!reiniciar);
 }
 
 // variação típica da geração ao longo do ano no Sul (média = 1)
@@ -224,7 +255,8 @@ async function reimprimirProposta(id) {
   calc.valorFinal = +o.valor_final;
   let vendedor = '';
   try { const { data: v } = await sb.from('vendedores').select('nome').eq('email', o.vendedor_email).maybeSingle(); vendedor = (v && v.nome) || o.vendedor_email; } catch (e) {}
-  const forn = (PROPOSTA_CFG.fornecedores || []).find(f => f.id === dd.fornecedor_id || (dd.fornecedor && f.nome === dd.fornecedor)) || null;
+  const fornB = (PROPOSTA_CFG.fornecedores || []).find(f => f.id === dd.fornecedor_id || (dd.fornecedor && f.nome === dd.fornecedor)) || null;
+  const forn = comConta(fornB, contaFornDe(fornB, dd.fornecedor_conta_id));
   const contas = PROPOSTA_CFG.contas || [];
   const contaPag = contas.find(c => c.id === dd.conta_id || (dd.conta_pagamento && c.rotulo === dd.conta_pagamento)) || contas.find(c => c.id === PROPOSTA_CFG.conta_padrao) || contas[0] || { dados: '' };
   const d = calcularDadosProposta({
