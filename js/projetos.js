@@ -8,7 +8,7 @@ const ETAPAS_PROJ = [
   ['documentacao', 'Documentação'], ['elaboracao', 'Projeto em elaboração'], ['protocolado', 'Protocolado'],
   ['aprovado', 'Aprovado / Instalação'], ['vistoria', 'Vistoria solicitada'], ['conectado', 'Conectado'],
 ];
-let projetos = [], feriados = [], bancoPend = [], modoProjetos = false, projFichaId = null, arrastandoProj = null, filtroPrazos = false, verCancelados = false;
+let projetos = [], feriados = [], bancoPend = [], posVenda = { fila: 0, enviadas: 0, agendadas: 0 }, modoProjetos = false, projFichaId = null, arrastandoProj = null, filtroPrazos = false, verCancelados = false;
 const podeVerProjetos = () => !!perfil && (perfil.admin || ['interno', 'engenheiro'].includes(perfil.papel));
 const podeEditarProjetos = () => !!perfil && (perfil.admin || perfil.papel === 'engenheiro');
 const nomeEtapaProj = id => id === 'cancelado' ? 'Cancelado' : ((ETAPAS_PROJ.find(e => e[0] === id) || [id, id])[1]);
@@ -61,14 +61,19 @@ function prazoDe(p) {
 // ── carregar / alternar tela ──
 async function carregarProjetos() {
   if (!podeVerProjetos()) return;
-  const [p, f, b] = await Promise.all([
+  const em7 = new Date(Date.now() + 7 * 86400000); em7.setMinutes(em7.getMinutes() - em7.getTimezoneOffset());
+  const [p, f, b, c] = await Promise.all([
     sb.from('projetos').select('*').order('etapa_em', { ascending: false }).limit(2000),
     sb.from('feriados').select('id, data, nome, abrangencia, cidade').order('data'),
     // admin: parcelas do banco ainda não recebidas (para lembrar de cobrar)
     perfil && perfil.admin ? sb.from('recebimentos').select('id, lead_id, valor, vencimento').eq('tipo', 'banco').is('recebido_em', null) : Promise.resolve({ data: [] }),
+    // pós-venda (tela Clientes): quantos estão na fila de limpeza e quantos aguardam resposta
+    sb.from('clientes').select('manut_status, manut_proxima').eq('ativo', true).in('manut_status', ['a_contatar', 'enviada', 'agendada']).limit(5000),
   ]);
   if (p.error) { $('kanban-proj').innerHTML = '<div class="muted">⚠ Erro ao carregar os projetos: ' + esc(p.error.message) + '</div>'; return; }
   projetos = p.data || []; feriados = f.data || []; bancoPend = (b && b.data) || [];
+  const lim = em7.toISOString().slice(0, 10), cl = (c && c.data) || [];
+  posVenda = { fila: cl.filter(x => x.manut_status === 'a_contatar' && x.manut_proxima && x.manut_proxima <= lim).length, enviadas: cl.filter(x => x.manut_status === 'enviada').length, agendadas: cl.filter(x => x.manut_status === 'agendada').length };
   renderProjetos();
   if (projFichaId && $('ov-ficha').classList.contains('visivel')) abrirProjeto(projFichaId);
 }
@@ -222,8 +227,7 @@ async function abrirProjeto(id) {
         ${ed && l.id ? `<label class="btn btn-sec" style="padding:4px 10px;font-size:13px;cursor:pointer;margin-left:6px">📎 Anexar PDF da NF<input type="file" accept="application/pdf,image/*" style="display:none" onchange="enviarNF(${p.id}, this)"></label>` : ''}
         ${ed && l.email && (p.nf_numero || nfDocs.length) ? `<a class="btn btn-sec" style="padding:4px 10px;font-size:13px;margin-left:6px" href="${mailNF(l, p)}" onclick="setTimeout(() => marcarNFEnviada(${p.id}), 800)">📧 E-mail ao cliente</a>` : ''}
       </div>
-      ${p.etapa === 'conectado' ? `<div class="largo" style="background:#151515;border:1px solid var(--borda);border-radius:8px;padding:8px 10px">🧽 <b>Pós-venda:</b> próxima limpeza/revisão <b>${proxManut(p) ? proxManut(p).toLocaleDateString('pt-BR') : '— (informe a data da conexão)'}</b> <span class="muted">· a cada ${+p.manut_meses || 6} meses${p.manut_ultimo_contato ? ' · último contato ' + fmtD(p.manut_ultimo_contato) : ''}</span>
-        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${l.telefone ? `<button class="btn btn-verde" style="padding:4px 10px;font-size:13px" onclick="waManut(${p.id})">💬 Mensagem de limpeza</button>` : ''}<button class="btn btn-sec" style="padding:4px 10px;font-size:13px" onclick="contatoManut(${p.id})">✔ Contato feito</button></div></div>` : ''}
+      ${p.etapa === 'conectado' ? `<div class="largo muted" style="background:#151515;border:1px solid var(--borda);border-radius:8px;padding:8px 10px">🧽 <b>Pós-venda:</b> o cliente entrou na base de clientes, com a primeira limpeza programada para 6 meses após a conexão. Mensagens e agendamentos ficam em <a href="clientes.html">👥 Clientes</a>.</div>` : ''}
       <div class="largo muted" style="font-size:12px">A obra só fica <b>concluída</b> com a NF enviada ao cliente. O PDF fica guardado aqui (o cliente pode pedir depois). No e-mail, anexe o PDF baixado acima.</div>
     </div>
     ${ed ? `<div class="acoes"><button class="btn" onclick="salvarProjeto(${p.id})">💾 Salvar</button><span class="status-msg" id="pj-msg"></span></div>` : '<p class="muted" style="margin-top:8px">Somente leitura: quem altera é a engenharia ou o admin.</p>'}
@@ -268,39 +272,6 @@ async function salvarProjeto(id) {
   renderProjetos(); await abrirProjeto(id);
   const m2 = $('pj-msg'); if (m2) { m2.classList.remove('erro'); m2.textContent = '✅ Salvo'; }
 }
-// ── pós-venda: limpeza e revisão a cada N meses (padrão 6) depois da conexão ou do último contato ──
-function proxManut(p) {
-  if (p.etapa !== 'conectado') return null;
-  const base = p.manut_ultimo_contato || p.conectado_data; if (!base) return null;
-  const d = deIso(base), dia = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() + (+p.manut_meses || 6));
-  d.setDate(Math.min(dia, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
-  return d;
-}
-function msgManut(l, p) {
-  const pn = String(l.nome || '').trim().split(' ')[0].toLowerCase(), nome = pn.charAt(0).toUpperCase() + pn.slice(1);
-  const desde = p.manut_ultimo_contato ? 'a última revisão' : 'a instalação';
-  return 'Olá, ' + nome + '! Aqui é da Energtech Engenharia Solar ☀️\n\nJá se passaram ' + (+p.manut_meses || 6) + ' meses desde ' + desde + ' do seu sistema de energia solar. '
-    + 'Poeira e sujeira nos módulos reduzem a geração e a sua economia na conta de luz.\n\n'
-    + 'Quer agendar uma limpeza e revisão? É só responder esta mensagem que combinamos o melhor dia.';
-}
-async function contatoManut(id, ev) {
-  if (ev) ev.stopPropagation();
-  const p = projetos.find(x => x.id === id); if (!p) return;
-  const obs = prompt('Contato de limpeza/revisão feito. Observação (opcional, ex.: agendou para 15/11, não quis agora):', '');
-  if (obs === null) return;
-  const { error } = await sb.rpc('registrar_contato_manutencao', { p_projeto: id, p_obs: obs.trim() || null });
-  if (error) { alert('Não foi possível registrar: ' + error.message); return; }
-  p.manut_ultimo_contato = isoLocal(new Date());
-  if ($('ov-agenda').classList.contains('visivel')) renderAgenda();
-  if (projFichaId === id) abrirProjeto(id);
-}
-function waManut(id, ev) {
-  if (ev) ev.stopPropagation();
-  const p = projetos.find(x => x.id === id), l = p && leadDoProj(p); if (!l) return;
-  const tel = telWa(l.telefone); if (!tel) { alert('O cliente não tem telefone na ficha.'); return; }
-  window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(msgManut(l, p)), '_blank', 'noopener');
-}
-
 // ── instalação concluída e nota fiscal ──
 async function instalacaoConcluida(id) {
   const p = projetos.find(x => x.id === id); if (!p) return;
@@ -383,14 +354,8 @@ function agendaProjetos() {
     ${cobrar.length ? cobrar.map(r => `<div class="prop prop-click" onclick="fecharAgenda(); abrirFicha(${r.lead_id})"><span><b>${esc(nomeL(r.lead_id))}</b><br><span class="muted">liberação do banco · ${fmtR(r.valor)}</span></span><span class="muted" style="text-align:right;white-space:nowrap;${r.vencimento < hoje ? 'color:var(--vermelho)' : ''}">${r.vencimento < hoje ? 'atrasada desde' : 'prevista'}<br>${fmtD(r.vencimento)}</span></div>`).join('') : '<div class="muted" style="margin-bottom:6px">Nenhuma parcela do banco para cobrar agora. ✅</div>'}` : '';
   const blocoNF = `<h3>🧾 Obras sem NF enviada ao cliente <span class="muted">(${semNF.length})</span></h3>
     ${semNF.length ? semNF.map(p => `<div class="prop prop-click" onclick="fecharAgenda(); alternarModo(true); abrirProjeto(${p.id})"><span><b>${esc(nomeL(p.lead_id))}</b><br><span class="muted">${p.instalacao_data ? 'instalado em ' + fmtD(p.instalacao_data) : nomeEtapaProj(p.etapa)}${p.nf_numero ? ' · NF nº ' + esc(p.nf_numero) + ' ainda não enviada' : ''}</span></span><span class="muted">abrir</span></div>`).join('') : '<div class="muted" style="margin-bottom:6px">Todas as obras instaladas estão com a NF enviada. ✅</div>'}`;
-  const em7 = new Date(Date.now() + 7 * 86400000); em7.setHours(23, 59, 59, 0);
-  const hojeD = new Date(); hojeD.setHours(0, 0, 0, 0);
-  const manut = projetos.filter(p => p.etapa === 'conectado').map(p => [p, proxManut(p)]).filter(([, d]) => d && d <= em7).sort((a, b) => a[1] - b[1]);
-  const blocoManut = `<h3>🧽 Pós-venda: limpeza e revisão <span class="muted">(${manut.length})</span></h3>
-    ${manut.length ? manut.map(([p, d]) => { const l = leadDoProj(p) || {};
-      return `<div class="prop prop-click" onclick="fecharAgenda(); alternarModo(true); abrirProjeto(${p.id})"><span><b>${esc(l.nome || 'Cliente #' + p.lead_id)}</b><br><span class="muted">${esc(l.cidade || '')}${p.manut_ultimo_contato ? ' · último contato ' + fmtD(p.manut_ultimo_contato) : ' · conectado em ' + fmtD(p.conectado_data)}</span>
-        <br><span style="display:inline-flex;gap:6px;margin-top:4px">${l.telefone ? `<button class="btn btn-verde" style="padding:3px 9px;font-size:12px" onclick="waManut(${p.id}, event)">💬 WhatsApp</button>` : ''}<button class="btn btn-sec" style="padding:3px 9px;font-size:12px" onclick="contatoManut(${p.id}, event)">✔ Contato feito</button></span></span>
-        <span class="muted" style="text-align:right;white-space:nowrap;${d < hojeD ? 'color:var(--vermelho)' : ''}">${d < hojeD ? 'atrasado desde' : 'previsto'}<br>${d.toLocaleDateString('pt-BR')}</span></div>`; }).join('') : '<div class="muted" style="margin-bottom:6px">Nenhum cliente para contatar nesta semana. ✅</div>'}`;
+  const blocoManut = `<h3>🧽 Pós-venda: limpeza e revisão</h3>
+    <div class="prop prop-click" onclick="location.href='clientes.html'"><span><b>${posVenda.fila} cliente(s) para contatar</b> nesta semana<br><span class="muted">${posVenda.enviadas} aguardando resposta · ${posVenda.agendadas} limpeza(s) agendada(s)</span></span><span class="muted">abrir 👥 Clientes</span></div>`;
   return blocoBanco + blocoNF + blocoManut + `<h3>🛠 Prazos de projetos <span class="muted">(${lista.length})</span></h3>
     ${lista.length ? lista.map(([p, z]) => { const l = leadDoProj(p) || {};
       return `<div class="prop prop-click" onclick="fecharAgenda(); alternarModo(true); abrirProjeto(${p.id})"><span><b>${esc(l.nome || 'Cliente #' + p.lead_id)}</b><br><span class="muted">${esc([l.cidade, nomeEtapaProj(p.etapa), p.protocolo_numero ? 'protocolo ' + p.protocolo_numero : ''].filter(Boolean).join(' · '))}</span></span><span class="muted" style="text-align:right;white-space:nowrap">${esc(z.curto)}<br>vence ${z.fim.toLocaleDateString('pt-BR')}</span></div>`; }).join('')

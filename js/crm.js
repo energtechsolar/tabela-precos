@@ -71,6 +71,7 @@ function mostrar(qual, texto) {
 function renderHeader() {
   let h = '<a href="./">📄 Precificador</a>';
   if (perfil && (perfil.admin || perfil.papel === 'interno')) h += ' · <a href="painel.html">📊 Orçamentos</a>';
+  if (perfil && (perfil.admin || ['interno', 'engenheiro'].includes(perfil.papel))) h += ' · <a href="clientes.html">👥 Clientes</a>';
   if (perfil && perfil.admin) h += ' · <a href="financeiro.html">💰 Financeiro</a> · <a href="equipe.html">👷 Equipe</a>';
   if (perfil) h += ` · 👤 ${esc(perfil.nome || perfil.email)} <span class="papel">(${esc(perfil.papel || (perfil.admin ? 'admin' : 'vendedor'))})</span> · <a href="#" onclick="sair();return false">Sair</a>`;
   $('header-links').innerHTML = h;
