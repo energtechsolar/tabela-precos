@@ -1,7 +1,7 @@
 // Energtech — app: offline, modo simples, Supabase, usuário logado
 // (arquivo carregado pelo index.html; a ordem dos <script> importa)
 
-// ── APP / OFFLINE ───────────────────────────────────────────────────────────────
+// ── APP / OFFLINE ───────────────────────────────────────────────────────────────────────────
 function lerLocal(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
 function gravarLocal(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 function marcarOffline(off) { const el = document.getElementById('offline-aviso'); if (el) el.style.display = off ? 'block' : 'none'; }
@@ -479,6 +479,7 @@ async function salvarOrcamentoAgora() {
       modo_valor: (document.querySelector('input[name="modo-valor"]:checked') || {}).value || 'global',
       fornecedor: (fornecedorSel() || {}).nome || null,
       fornecedor_id: (fornecedorSel() || {}).id || null,
+      fornecedor_conta_id: (fornecedorSel() || {}).conta_id || null,
       conta_pagamento: contaSel().rotulo || null,
       conta_id: contaSel().id || null,
       tarifa: +(tipo === 'importado' ? valorCampo('imp-tarifa') : valorCampo('input-tarifa')) || 0.89,
@@ -583,7 +584,7 @@ async function carregarRevisao(id) {
   pre('prop-orientacao', dd.orientacao); pre('prop-estrutura', dd.estrutura);
   // itens, textos, fornecedor e conta
   if (Array.isArray(dd.itens) && dd.itens.length) pre('prop-itens', dd.itens.join('\n'));
-  pre('prop-servico', dd.servico_desc); pre('prop-fornecedor', dd.fornecedor_id); pre('prop-conta-pag', dd.conta_id);
+  pre('prop-servico', dd.servico_desc); pre('prop-fornecedor', dd.fornecedor_id); preencherContasFornecedor(false); pre('prop-forn-conta', dd.fornecedor_conta_id); pre('prop-conta-pag', dd.conta_id);
   // valores: total da proposta salva e divisão kit / mão de obra
   document.querySelectorAll('input[name="modo-valor"]').forEach(r => r.checked = r.value === (dd.modo_valor || 'global'));
   const pf = document.getElementById('prop-preco-fechado'); if (pf) pf.checked = !!(dd.calculo && dd.calculo.precoFechado);
