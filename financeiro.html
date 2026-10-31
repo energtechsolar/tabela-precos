@@ -125,7 +125,7 @@ const ultimoDia = ym => { const [a, m] = ym.split('-').map(Number); return ym + 
 const somaMes = (ym, n) => { const [a, m] = ym.split('-').map(Number); const d = new Date(a, m - 1 + n, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
 const nomeMes = ym => { const [a, m] = ym.split('-').map(Number); return new Date(a, m - 1, 1).toLocaleDateString('pt-BR', { month:'short' }).replace('.', '') + '/' + String(a).slice(2); };
 function numBR(t) { let s = String(t ?? '').replace(/[R$\s]/g, ''); if (!s) return null; if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return isFinite(n) ? Math.round(n * 100) / 100 : null; }
-const TIPOS_PAG = { kit:'Kit ao fornecedor', comissao:'Comissão', imposto:'Imposto (Simples)', salario:'Salário', diarias:'Diárias / instalações', instalacao:'Instalação', fixo:'Custo fixo', outro:'Outro' };
+const TIPOS_PAG = { kit:'Kit ao fornecedor', comissao:'Comissão', imposto:'Imposto (Simples)', salario:'Salário', diarias:'Diárias / instalações', instalacao:'Instalação', fixo:'Custo fixo', material:'Compra de material (NF)', outro:'Outro' };
 const TIPOS_REC = { entrada:'Entrada', boleto:'Boleto', banco:'Banco / financiamento', repasse:'Repasse do fornecedor', outro:'Outro' };
 const CATEGORIAS = { aluguel:'Aluguel', energia_agua:'Energia / água', internet_telefone:'Internet / telefone', marketing:'Marketing / anúncios', contador:'Contador', software:'Sistemas / software', veiculo:'Veículo / combustível', prolabore:'Pró-labore', emprestimo:'Empréstimo / financiamento', outros:'Outros' };
 let perfil = null, aba = 'fluxo', REC = [], PAG = [], FIXOS = [], PRM = {}, GANHOS = [];
@@ -138,7 +138,7 @@ function mostrar(qual, texto) {
   if (texto) $('aviso-txt').innerHTML = texto;
 }
 function renderHeader() {
-  let h = '<a href="crm.html">🗂 CRM</a> · <a href="painel.html">📊 Orçamentos</a> · <a href="./">📄 Precificador</a>';
+  let h = '<a href="crm.html">🗂 CRM</a> · <a href="estoque.html">📦 Estoque</a> · <a href="painel.html">📊 Orçamentos</a> · <a href="./">📄 Precificador</a>';
   if (perfil) h += ` · 👤 ${esc(perfil.nome || perfil.email)} · <a href="#" onclick="sair();return false">Sair</a>`;
   $('header-links').innerHTML = h;
 }
