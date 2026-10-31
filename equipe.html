@@ -133,7 +133,7 @@ function mostrar(qual, texto) {
   if (texto) $('aviso-txt').innerHTML = texto;
 }
 function renderHeader() {
-  let h = '<a href="crm.html">🗂 CRM</a> · <a href="financeiro.html">💰 Financeiro</a> · <a href="painel.html">📊 Orçamentos</a>';
+  let h = '<a href="crm.html">🗂 CRM</a> · <a href="instalacoes.html">📅 Instalações</a> · <a href="financeiro.html">💰 Financeiro</a> · <a href="painel.html">📊 Orçamentos</a>';
   if (perfil) h += ` · 👤 ${esc(perfil.nome || perfil.email)} · <a href="#" onclick="sair();return false">Sair</a>`;
   $('header-links').innerHTML = h;
 }
@@ -199,7 +199,7 @@ function render() {
   $('lancamentos').innerHTML = grupos.length ? grupos.map(pid => {
     const r = porPessoa[pid], ls = LAN.filter(x => x.pessoa_id === pid);
     return `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${esc(nomeP(pid))}</b><span class="muted">${r.dias ? String(r.dias).replace('.', ',') + ' dia(s)' : ''}${r.dias && r.inst ? ' · ' : ''}${r.inst ? r.inst + ' instalação(ões)' : ''} · <b style="color:var(--amarelo)">${fmtR(r.valor)}</b></span></div>
-      <div class="tabela-wrap"><table><tbody>${ls.map(x => `<tr><td>${dBR(x.data)}</td><td>${x.tipo === 'dia' && +x.quantidade === 0.5 ? 'Meio dia' : esc(TIPOS_L[x.tipo] || x.tipo)}</td><td>${x.lead_id ? `<a href="crm.html?lead=${x.lead_id}">${esc((x.leads || {}).nome || 'obra')}</a>` : x.obra_nome ? esc(x.obra_nome) + ' <span class="tag">fora do CRM</span>' : '<span class="muted">—</span>'}${x.obs ? '<br><span class="muted">' + esc(x.obs) + '</span>' : ''}</td><td class="num">${fmtR(x.valor)}</td><td class="num">${x.pago_em ? '<span class="tag">pago</span>' : `<button class="btn btn-sec btn-p" style="color:var(--vermelho)" onclick="apagarLanc(${x.id})">🗑</button>`}</td></tr>`).join('')}</tbody></table></div></div>`;
+      <div class="tabela-wrap"><table><tbody>${ls.map(x => `<tr><td>${dBR(x.data)}</td><td>${x.tipo === 'dia' && +x.quantidade === 0.5 ? 'Meio dia' : esc(TIPOS_L[x.tipo] || x.tipo)}</td><td>${x.lead_id ? `<a href="crm.html?lead=${x.lead_id}">${esc((x.leads || {}).nome || 'obra')}</a>` : x.obra_nome ? esc(x.obra_nome) + ' <span class="tag">fora do CRM</span>' : '<span class="muted">—</span>'}${x.obs ? '<br><span class="muted">' + esc(x.obs) + '</span>' : ''}</td><td class="num">${+x.valor ? fmtR(x.valor) : '<span class="tag" style="color:var(--vermelho);border-color:#7f1d1d">⚠ sem valor</span>'}</td><td class="num">${x.pago_em ? '<span class="tag">pago</span>' : `<button class="btn btn-sec btn-p" title="Alterar o valor" onclick="editarValor(${x.id})">✏</button> <button class="btn btn-sec btn-p" style="color:var(--vermelho)" onclick="apagarLanc(${x.id})">🗑</button>`}</td></tr>`).join('')}</tbody></table></div></div>`;
   }).join('') : '<div class="vazio">Nenhum lançamento neste mês.</div>';
   // custo por obra
   const porObra = {};
@@ -251,6 +251,16 @@ async function lancar() {
   msg('✅ Lançado.');
   if (data.slice(0, 7) !== $('f-mes').value) $('f-mes').value = data.slice(0, 7);
   await carregar();
+}
+// alterar o valor de um lançamento ainda não pago (ex.: instalação do Gerson confirmada pela engenharia sem valor)
+async function editarValor(id) {
+  const x = LAN.find(l => l.id === id); if (!x) return;
+  const v = numBR(prompt('Valor (R$)' + (x.tipo === 'dia' && +x.quantidade === 0.5 ? ' do meio dia' : '') + ':', valBR(x.valor))); if (v === null || v < 0) return;
+  const unit = Math.round(v / (+x.quantidade || 1) * 100) / 100;
+  const obs = x.obs ? x.obs.replace(' · ⚠ informar o valor', '') : null;
+  const { error } = await sb.from('equipe_lancamentos').update({ valor_unit: unit, obs }).eq('id', id);
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  await carregar(); msg('✅ Valor alterado.');
 }
 async function apagarLanc(id) {
   const x = LAN.find(l => l.id === id); if (!x || !confirm('Apagar o lançamento de ' + fmtR(x.valor) + ' em ' + dBR(x.data) + '?')) return;

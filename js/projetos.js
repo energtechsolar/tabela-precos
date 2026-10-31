@@ -202,6 +202,7 @@ async function abrirProjeto(id) {
     </div>
     <div class="acoes">
       ${l.id ? `<button class="btn btn-sec" onclick="fecharFicha(); abrirFicha(${l.id})">👤 Ficha do cliente</button>` : ''}
+      <a class="btn btn-sec" href="instalacoes.html?projeto=${p.id}">📅 Programar instalação</a>
       ${wa ? `<a class="btn btn-verde" href="https://wa.me/${wa}" target="_blank" rel="noopener">💬 WhatsApp</a>` : ''}
       ${ed && p.etapa === 'protocolado' ? `<button class="btn btn-sec" onclick="reprotocolar(${p.id})">↻ Reprotocolar</button>` : ''}
     </div>
