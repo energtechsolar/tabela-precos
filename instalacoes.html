@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://cmrndntnaaooapbdmgip.supabase.co;">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Instalações — Energtech</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  :root {
+    --amarelo:#FFC107; --amarelo-dim:#e6ac00; --preto:#111; --bg:#0f0f0f; --card:#1a1a1a; --card2:#222;
+    --borda:#2e2e2e; --texto:#e0e0e0; --muted:#8a8a8a; --verde:#4ade80; --vermelho:#f87171; --azul:#60a5fa; --laranja:#fb923c;
+  }
+  body { background:var(--bg); font-family:'Barlow',sans-serif; color:var(--texto); min-height:100vh; padding-bottom:60px; }
+  a { color:var(--azul); }
+  .header { background:var(--amarelo); padding:16px 24px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+  .logo-area { display:flex; align-items:center; gap:12px; }
+  .logo-icon { width:42px; height:42px; background:var(--preto); border-radius:50%; display:flex; align-items:center; justify-content:center; }
+  .brand-name { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:900; color:var(--preto); line-height:1; }
+  .brand-sub { font-size:10px; font-weight:600; color:var(--preto); letter-spacing:.2em; text-transform:uppercase; opacity:.6; }
+  .header-title { text-align:right; }
+  .header-title h1 { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:700; color:var(--preto); text-transform:uppercase; letter-spacing:.05em; }
+  .header-links { font-size:12px; color:var(--preto); margin-top:3px; }
+  .header-links a { color:var(--preto); font-weight:700; }
+  .page { max-width:1200px; margin:0 auto; padding:20px 16px; }
+  .card { background:var(--card); border:1px solid var(--borda); border-radius:14px; padding:18px; margin-bottom:16px; }
+  .card h2 { font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:900; letter-spacing:.1em; text-transform:uppercase; color:var(--amarelo); margin-bottom:12px; }
+  .muted { color:var(--muted); font-size:13px; }
+  .login { max-width:360px; margin:40px auto; text-align:center; }
+  .input, .select, textarea.input { background:var(--card2); border:1px solid var(--borda); color:var(--texto); font-family:'Barlow',sans-serif; font-size:14px; padding:8px 10px; border-radius:8px; outline:none; width:100%; }
+  .input:focus, .select:focus { border-color:var(--amarelo); }
+  .login .input { margin-bottom:10px; }
+  .btn { background:var(--amarelo); color:var(--preto); font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:900; letter-spacing:.05em; padding:8px 14px; border:none; border-radius:8px; cursor:pointer; white-space:nowrap; }
+  .btn:hover { background:var(--amarelo-dim); }
+  .btn-sec { background:var(--card2); color:var(--texto); border:1px solid var(--borda); }
+  .btn-verde { background:#166534; color:#fff; }
+  .btn-p { padding:3px 9px; font-size:12px; }
+  .erro { color:var(--vermelho); font-size:13px; margin-top:8px; min-height:16px; }
+  #conteudo { display:none; }
+  .abas { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; align-items:center; }
+  .aba { background:var(--card2); border:1px solid var(--borda); color:var(--texto); border-radius:20px; padding:8px 14px; font-size:14px; cursor:pointer; }
+  .aba.ativa { border-color:var(--amarelo); color:var(--amarelo); }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:10px; margin-bottom:16px; }
+  .kpi { background:var(--card); border:1px solid var(--borda); border-radius:12px; padding:14px; }
+  .kpi-val { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:900; color:var(--amarelo); line-height:1.1; }
+  .kpi-lbl { font-size:12px; color:var(--muted); margin-top:3px; }
+  .tabela-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); font-weight:600; padding:7px 8px; border-bottom:1px solid var(--borda); white-space:nowrap; }
+  td { padding:8px; border-bottom:1px solid #242424; vertical-align:middle; }
+  td.num, th.num { text-align:right; white-space:nowrap; }
+  .vazio { text-align:center; color:var(--muted); padding:18px 0; font-size:13px; }
+  .tag { display:inline-block; font-size:11px; padding:1px 7px; border-radius:20px; background:#1a1a1a; border:1px solid var(--borda); color:var(--muted); white-space:nowrap; }
+  .tag.atraso { color:var(--vermelho); border-color:#7f1d1d; } .tag.ok { color:var(--verde); border-color:#1f4d33; } .tag.azul { color:var(--azul); border-color:#1e3a5f; } .tag.lar { color:var(--laranja); border-color:#7c2d12; }
+  .linha-topo { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+  .linha-topo h2 { margin-bottom:0; }
+  .acoes-l { display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end; }
+  .grade { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .grade label { display:block; font-size:11px; color:var(--muted); margin-bottom:3px; text-transform:uppercase; letter-spacing:.05em; }
+  .grade .largo { grid-column:1/-1; }
+  .overlay { position:fixed; inset:0; background:rgba(0,0,0,.7); display:none; justify-content:flex-end; z-index:50; }
+  .overlay.visivel { display:flex; }
+  .ficha { background:var(--card); width:min(560px, 100%); height:100%; overflow-y:auto; border-left:1px solid var(--borda); padding:18px; }
+  .ficha h3 { font-family:'Barlow Condensed',sans-serif; font-size:14px; letter-spacing:.1em; text-transform:uppercase; color:var(--amarelo); margin:16px 0 8px; }
+  .fechar { background:none; border:1px solid var(--borda); color:var(--texto); border-radius:8px; width:34px; height:34px; cursor:pointer; font-size:18px; }
+  .evento { border-left:2px solid var(--borda); padding:4px 0 8px 10px; font-size:13px; }
+  .evento .quando { font-size:11px; color:var(--muted); }
+  .status-msg { font-size:12px; min-height:16px; color:var(--verde); } .status-msg.erro { color:var(--vermelho); }
+  @media (max-width:640px) { .grade { grid-template-columns:1fr; } .header-title { text-align:left; } td, th { padding:6px 5px; } }
+  .semana { display:grid; grid-template-columns:repeat(6, minmax(0, 1fr)); gap:8px; }
+  .dia { background:var(--card); border:1px solid var(--borda); border-radius:12px; padding:8px; min-height:160px; display:flex; flex-direction:column; gap:6px; }
+  .dia.hoje { border-color:var(--amarelo); }
+  .dia.fds { opacity:.8; }
+  .dia-topo { display:flex; justify-content:space-between; align-items:center; gap:4px; font-size:13px; font-weight:700; }
+  .dia-topo .muted { font-weight:400; font-size:12px; }
+  .prog { background:var(--card2); border:1px solid var(--borda); border-left:3px solid var(--amarelo); border-radius:8px; padding:7px 8px; font-size:12px; cursor:pointer; }
+  .prog:hover { border-color:#555; }
+  .prog.realizada { border-left-color:var(--verde); opacity:.85; }
+  .prog.cancelada { border-left-color:var(--vermelho); opacity:.5; text-decoration:line-through; }
+  .prog b { font-size:13px; color:#fff; }
+  .chip { display:inline-block; font-size:11px; padding:0 6px; border-radius:10px; background:#2a2a2a; margin:2px 2px 0 0; }
+  .chip.conflito { background:#7f1d1d; color:#fff; }
+  .pessoas-sel { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:6px; }
+  .pessoas-sel label { display:flex; gap:6px; align-items:center; font-size:13px; background:var(--card2); border:1px solid var(--borda); border-radius:8px; padding:6px 8px; cursor:pointer; text-transform:none; letter-spacing:0; color:var(--texto); margin:0; }
+  .pend { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid #242424; font-size:13px; }
+  @media (max-width:900px) { .semana { grid-template-columns:1fr 1fr; } }
+  @media (max-width:560px) { .semana { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo-area">
+    <div class="logo-icon"><svg width="26" height="26" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="13" fill="#FFC107"/><path d="M16 3L8 15h7l-3 10 10-13h-7l1-9z" fill="#111"/></svg></div>
+    <div><div class="brand-name">Energtech</div><div class="brand-sub">Engenharia Solar</div></div>
+  </div>
+  <div class="header-title"><h1>Programação de instalações</h1><div class="header-links" id="header-links"><a href="crm.html">CRM</a></div></div>
+</div>
+
+<div class="page">
+  <div class="card login" id="login" style="display:none">
+    <h2 style="font-family:'Barlow Condensed',sans-serif;color:var(--amarelo)">🔑 Entrar</h2>
+    <p class="muted" style="margin-bottom:16px">Use o mesmo login do CRM.</p>
+    <input class="input" type="email" id="login-email" placeholder="E-mail" autocomplete="username">
+    <input class="input" type="password" id="login-senha" placeholder="Senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')entrar()">
+    <button class="btn" id="login-btn" style="width:100%" onclick="entrar()">Entrar</button>
+    <div class="erro" id="login-erro"></div>
+  </div>
+  <div class="card" id="aviso" style="display:none"><p id="aviso-txt" class="muted"></p></div>
+
+  <div id="conteudo">
+    <div class="abas">
+      <button class="btn btn-sec" onclick="mudarSemana(-1)">◀</button>
+      <button class="btn btn-sec" onclick="irHoje()">Hoje</button>
+      <button class="btn btn-sec" onclick="mudarSemana(1)">▶</button>
+      <b id="titulo-semana" style="margin-left:6px"></b>
+      <span style="flex:1"></span>
+      <button class="btn" onclick="abrirProg(null)">+ Programar</button>
+      <button class="btn btn-sec" onclick="carregar()" title="Atualizar">🔄</button>
+    </div>
+    <div class="status-msg" id="msg"></div>
+    <div class="semana" id="semana"></div>
+    <div class="card" style="margin-top:16px"><h2>⏳ Aguardando programação</h2><div id="pendentes"></div></div>
+  </div>
+</div>
+
+<div class="overlay" id="ov-prog" onclick="if(event.target===this)fecharProg()"><div class="ficha" id="ficha-prog"></div></div>
+
+<script src="js/comum.js?v=20261019a"></script>
+<script>
+// Energtech — Programação de instalações (admin, vendas internas e engenharia)
+// Agenda da semana: cada programação tem data, obra (projeto do CRM, cliente da base ou nome digitado) e a equipe escalada.
+// "Confirmar realizado" (engenharia/admin) lança o dia de cada pessoa na tela Equipe (função confirmar_programacao),
+// pode marcar a instalação como concluída (vence a parcela do banco) e, na limpeza, atualiza o cliente no pós-venda.
+const $ = id => document.getElementById(id);
+const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const isoLocal = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const deIso = s => { const [y, m, d] = String(s).slice(0, 10).split('-').map(Number); return new Date(y, m - 1, d); };
+const hojeISO = () => isoLocal(new Date());
+const somaDias = (iso, n) => { const d = deIso(iso); d.setDate(d.getDate() + n); return isoLocal(d); };
+const dBR = iso => iso ? iso.slice(0, 10).split('-').reverse().join('/') : '—';
+const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const TIPOS = { instalacao: ['🔧', 'Instalação'], manutencao: ['🛠', 'Manutenção'], limpeza: ['🧽', 'Limpeza'], vistoria: ['📋', 'Vistoria'], visita: ['👀', 'Visita técnica'], outro: ['📌', 'Outro'] };
+const PERIODOS = { dia: 'Dia inteiro', manha: 'Manhã', tarde: 'Tarde' };
+let perfil = null, inicioSemana = null, PROG = [], PROJ = [], LEADS = {}, CLI = [], EQ = [], progAberta = null;
+const podeConfirmar = () => !!perfil && (perfil.admin || perfil.papel === 'engenheiro');
+
+function msg(t, erro) { const m = $('msg'); m.textContent = t || ''; m.classList.toggle('erro', !!erro); }
+function mostrar(qual, texto) {
+  $('login').style.display = qual === 'login' ? '' : 'none';
+  $('aviso').style.display = qual === 'aviso' ? '' : 'none';
+  $('conteudo').style.display = qual === 'conteudo' ? 'block' : 'none';
+  if (texto) $('aviso-txt').innerHTML = texto;
+}
+function renderHeader() {
+  let h = '<a href="crm.html">🗂 CRM</a> · <a href="clientes.html">👥 Clientes</a>';
+  if (perfil && perfil.admin) h += ' · <a href="equipe.html">👷 Equipe</a> · <a href="financeiro.html">💰 Financeiro</a>';
+  if (perfil) h += ` · 👤 ${esc(perfil.nome || perfil.email)} · <a href="#" onclick="sair();return false">Sair</a>`;
+  $('header-links').innerHTML = h;
+}
+async function iniciar() {
+  if (!sb) { mostrar('aviso', '⚠ Sem conexão com o servidor.'); return; }
+  const { data } = await sb.auth.getSession();
+  if (!data || !data.session) { perfil = null; renderHeader(); mostrar('login'); return; }
+  const r = await sb.rpc('meu_perfil'); perfil = r.data || {};
+  renderHeader();
+  if (!(perfil.admin || ['interno', 'engenheiro'].includes(perfil.papel))) { mostrar('aviso', 'Esta tela é da equipe interna (admin, vendas internas e engenharia).'); return; }
+  mostrar('conteudo');
+  const q = new URLSearchParams(location.search);
+  irHoje(true);
+  await carregar();
+  const pj = +q.get('projeto');
+  if (pj && PROJ.some(p => p.id === pj)) abrirProg(null, { projeto_id: pj });
+}
+async function entrar() {
+  const { error } = await sb.auth.signInWithPassword({ email: $('login-email').value.trim(), password: $('login-senha').value });
+  if (error) { $('login-erro').textContent = 'E-mail ou senha incorretos.'; return; }
+  await iniciar();
+}
+async function sair() { await sb.auth.signOut(); perfil = null; await iniciar(); }
+
+// ── semana ──
+function segundaDe(iso) { const d = deIso(iso), w = d.getDay(); d.setDate(d.getDate() - (w === 0 ? 6 : w - 1)); return isoLocal(d); }
+function irHoje(semCarregar) { inicioSemana = segundaDe(hojeISO()); if (!semCarregar) carregar(); }
+function mudarSemana(n) { inicioSemana = somaDias(inicioSemana, 7 * n); carregar(); }
+
+async function carregar() {
+  msg('⏳ Carregando…');
+  const fim = somaDias(inicioSemana, 6);
+  const [p, pj, c, e, pend] = await Promise.all([
+    sb.from('programacao').select('*').gte('data', inicioSemana).lte('data', fim).order('data').order('id'),
+    sb.from('projetos').select('id, lead_id, etapa, instalacao_data').neq('etapa', 'cancelado').order('etapa_em', { ascending: false }).limit(2000),
+    sb.from('clientes').select('id, nome, telefone, cidade, endereco, manut_status, manut_agendada_para').eq('ativo', true).order('nome').limit(5000),
+    sb.rpc('equipe_escala'),
+    sb.from('programacao').select('id, projeto_id, cliente_id, data, status').gte('data', hojeISO()).eq('status', 'programada'),
+  ]);
+  const err = [p, pj, c, e].find(x => x.error); if (err) { msg('⚠ ' + err.error.message, true); return; }
+  PROG = p.data || []; PROJ = pj.data || []; CLI = c.data || []; EQ = e.data || [];
+  window._futuras = pend.data || [];
+  const ids = [...new Set(PROJ.map(x => x.lead_id).concat(PROG.map(x => x.lead_id)).filter(Boolean))];
+  LEADS = {};
+  for (let i = 0; i < ids.length; i += 300) {
+    const { data } = await sb.from('leads').select('id, nome, telefone, cidade, endereco').in('id', ids.slice(i, i + 300));
+    (data || []).forEach(l => LEADS[l.id] = l);
+  }
+  msg(''); render();
+  if (progAberta && $('ov-prog').classList.contains('visivel')) { const x = PROG.find(y => y.id === progAberta); if (x) abrirProg(x.id); }
+}
+
+// nome e local da obra de uma programação
+function obraDe(x) {
+  const pj = x.projeto_id && PROJ.find(p => p.id === x.projeto_id);
+  const l = LEADS[x.lead_id || (pj && pj.lead_id)];
+  const c = x.cliente_id && CLI.find(k => k.id === x.cliente_id);
+  const o = l || c || {};
+  return { nome: o.nome || x.obra_nome || 'Obra sem nome', cidade: o.cidade || '', endereco: o.endereco || '', telefone: o.telefone || '', lead: l ? l.id : null };
+}
+const nomeP = id => (EQ.find(p => p.id === id) || {}).nome || ('#' + id);
+const primeiro = n => String(n || '').split(' ')[0];
+// pessoas escaladas em outra obra no mesmo dia (e período que se sobrepõe)
+function conflitos(x) {
+  return (x.equipe_ids || []).filter(pid => PROG.some(y => y.id !== x.id && y.status !== 'cancelada' && y.data === x.data
+    && (y.equipe_ids || []).includes(pid) && (x.periodo === 'dia' || y.periodo === 'dia' || x.periodo === y.periodo)));
+}
+
+function render() {
+  const fim = somaDias(inicioSemana, 5);
+  $('titulo-semana').textContent = dBR(inicioSemana) + ' a ' + dBR(fim);
+  const hoje = hojeISO(), dias = [];
+  for (let i = 0; i < 6; i++) dias.push(somaDias(inicioSemana, i));
+  const domingo = somaDias(inicioSemana, 6);
+  const temDomingo = PROG.some(x => x.data === domingo);
+  if (temDomingo) dias.push(domingo);
+  $('semana').style.gridTemplateColumns = window.innerWidth > 900 ? `repeat(${dias.length}, minmax(0, 1fr))` : '';
+  $('semana').innerHTML = dias.map(iso => {
+    const d = deIso(iso), lista = PROG.filter(x => x.data === iso);
+    const ativos = lista.filter(x => x.status !== 'cancelada');
+    return `<div class="dia ${iso === hoje ? 'hoje' : ''} ${d.getDay() === 6 || d.getDay() === 0 ? 'fds' : ''}">
+      <div class="dia-topo"><span>${DIAS[d.getDay()]} <span class="muted">${dBR(iso).slice(0, 5)}</span></span>
+        <span>${ativos.length ? `<button class="btn btn-sec btn-p" title="Mandar a escala do dia no WhatsApp" onclick="escalaWhats('${iso}')">📤</button> ` : ''}<button class="btn btn-sec btn-p" title="Programar neste dia" onclick="abrirProg(null, { data: '${iso}' })">+</button></span></div>
+      ${lista.map(cardProg).join('') || '<div class="muted" style="font-size:12px">—</div>'}
+    </div>`;
+  }).join('');
+  renderPendentes();
+}
+function cardProg(x) {
+  const o = obraDe(x), t = TIPOS[x.tipo] || TIPOS.outro, cf = conflitos(x);
+  return `<div class="prog ${x.status}" onclick="abrirProg(${x.id})">
+    <div>${t[0]} <b>${esc(o.nome)}</b></div>
+    <div class="muted" style="font-size:11px">${esc(t[1])}${x.periodo !== 'dia' ? ' · ' + PERIODOS[x.periodo] : ''}${o.cidade ? ' · ' + esc(o.cidade) : ''}${x.status === 'realizada' ? ' · ✅ realizada' : x.status === 'cancelada' ? ' · cancelada' : ''}</div>
+    <div>${(x.equipe_ids || []).map(pid => `<span class="chip ${cf.includes(pid) ? 'conflito' : ''}" title="${cf.includes(pid) ? 'Escalado em outra obra no mesmo horário' : ''}">${esc(primeiro(nomeP(pid)))}</span>`).join('') || '<span class="chip conflito">sem equipe</span>'}</div>
+  </div>`;
+}
+function renderPendentes() {
+  const fut = window._futuras || [];
+  const projSem = PROJ.filter(p => ['aprovado', 'elaboracao', 'protocolado', 'documentacao'].includes(p.etapa) && !p.instalacao_data && !fut.some(f => f.projeto_id === p.id))
+    .sort((a, b) => (a.etapa === 'aprovado' ? 0 : 1) - (b.etapa === 'aprovado' ? 0 : 1));
+  const limp = CLI.filter(c => c.manut_status === 'agendada' && !fut.some(f => f.cliente_id === c.id));
+  const nomeEt = { documentacao: 'Documentação', elaboracao: 'Projeto em elaboração', protocolado: 'Protocolado', aprovado: 'Aprovado / Instalação' };
+  $('pendentes').innerHTML = (projSem.length || limp.length) ? projSem.map(p => { const l = LEADS[p.lead_id] || {};
+      return `<div class="pend"><span>🔧 <b>${esc(l.nome || 'Cliente #' + p.lead_id)}</b> <span class="muted">· ${esc(l.cidade || '')} · ${nomeEt[p.etapa] || p.etapa}</span>${p.etapa === 'aprovado' ? ' <span class="tag ok">pronto para instalar</span>' : ''}</span>
+        <button class="btn btn-sec btn-p" onclick="abrirProg(null, { projeto_id: ${p.id} })">📅 Programar</button></div>`; }).join('')
+    + limp.map(c => `<div class="pend"><span>🧽 <b>${esc(c.nome)}</b> <span class="muted">· ${esc(c.cidade || '')} · limpeza agendada${c.manut_agendada_para ? ' para ' + dBR(c.manut_agendada_para) : ''}</span></span>
+        <button class="btn btn-sec btn-p" onclick="abrirProg(null, { tipo: 'limpeza', cliente_id: ${c.id}, data: '${c.manut_agendada_para || ''}' })">📅 Programar</button></div>`).join('')
+    : '<div class="vazio">Nenhuma obra aprovada ou limpeza agendada esperando data. ✅</div>';
+}
+
+// ── ficha: nova / editar / confirmar ──
+function opObras(sel) {
+  const ativos = PROJ.filter(p => p.etapa !== 'conectado' || p.id === sel);
+  return '<option value="">— escolher —</option><option value="txt">✏ Obra fora do CRM (digitar)</option>'
+    + '<optgroup label="Obras do CRM (projetos)">' + ativos.map(p => { const l = LEADS[p.lead_id] || {}; return `<option value="p${p.id}" ${'p' + p.id === sel ? 'selected' : ''}>${esc(l.nome || 'Cliente #' + p.lead_id)}${l.cidade ? ' · ' + esc(l.cidade) : ''}</option>`; }).join('') + '</optgroup>'
+    + '<optgroup label="Clientes (pós-venda, limpezas)">' + CLI.map(c => `<option value="c${c.id}" ${'c' + c.id === sel ? 'selected' : ''}>${esc(c.nome)}${c.cidade ? ' · ' + esc(c.cidade) : ''}</option>`).join('') + '</optgroup>';
+}
+function abrirProg(id, pre) {
+  const x = id ? PROG.find(y => y.id === id) : { data: hojeISO(), tipo: 'instalacao', periodo: 'dia', equipe_ids: [], status: 'programada', ...(pre || {}) };
+  if (!x) return;
+  if (!x.data) x.data = hojeISO();
+  progAberta = id || null;
+  const sel = x.projeto_id ? 'p' + x.projeto_id : x.cliente_id ? 'c' + x.cliente_id : x.obra_nome ? 'txt' : '';
+  const travada = x.status !== 'programada';
+  const dis = travada ? 'disabled' : '';
+  const o = id ? obraDe(x) : null;
+  const pj = x.projeto_id && PROJ.find(p => p.id === x.projeto_id);
+  $('ficha-prog').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <h2 style="font-family:'Barlow Condensed',sans-serif;color:var(--amarelo)">${id ? (TIPOS[x.tipo] || TIPOS.outro)[0] + ' ' + esc(o.nome) : '📅 Programar'}</h2>
+      <button class="fechar" onclick="fecharProg()">×</button></div>
+    ${id ? `<div class="muted">Programação nº ${x.id} · ${x.status === 'realizada' ? '✅ realizada' + (x.realizado_por ? ' por ' + esc(x.realizado_por.split('@')[0]) : '') : x.status === 'cancelada' ? '❌ cancelada' : '⏳ programada'}${o.endereco ? ' · ' + esc(o.endereco) : ''}${o.cidade ? ' · ' + esc(o.cidade) : ''}</div>` : ''}
+    ${o && o.lead ? `<div style="margin-top:6px"><a href="crm.html?lead=${o.lead}">🗂 Abrir no CRM</a>${x.projeto_id ? ` · <a href="crm.html?projeto=${x.projeto_id}">🛠 Projeto</a>` : ''}</div>` : ''}
+    <h3>Quando e onde</h3>
+    <div class="grade">
+      <div><label>Data</label><input class="input" type="date" id="pg-data" value="${x.data}" ${dis} onchange="avisoConflito()"></div>
+      <div><label>Período</label><select class="select" id="pg-periodo" ${dis} onchange="avisoConflito()">${Object.entries(PERIODOS).map(([k, n]) => `<option value="${k}" ${k === x.periodo ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+      <div><label>Tipo</label><select class="select" id="pg-tipo" ${dis}>${Object.entries(TIPOS).map(([k, t]) => `<option value="${k}" ${k === x.tipo ? 'selected' : ''}>${t[0]} ${t[1]}</option>`).join('')}</select></div>
+      ${!id ? `<div><label>Repetir nos próximos dias úteis</label><input class="input" type="number" min="0" max="20" id="pg-repetir" value="0" title="Ex.: 2 = programa também os 2 dias úteis seguintes (obra de 3 dias)"></div>` : '<div></div>'}
+      <div class="largo"><label>Obra / cliente</label><select class="select" id="pg-obra" ${dis} onchange="$('pg-obra-txt').style.display=this.value==='txt'?'':'none'">${opObras(sel)}</select>
+        <input class="input" id="pg-obra-txt" placeholder="Nome do cliente / obra" value="${esc(x.obra_nome || '')}" style="margin-top:6px;${sel === 'txt' ? '' : 'display:none'}" ${dis}></div>
+    </div>
+    <h3>Equipe</h3>
+    <div class="pessoas-sel">${EQ.map(p => `<label><input type="checkbox" class="pg-pes" value="${p.id}" ${(x.equipe_ids || []).includes(p.id) ? 'checked' : ''} ${dis} onchange="avisoConflito()"> ${esc(p.nome)}</label>`).join('') || '<span class="muted">Nenhuma pessoa ativa na equipe.</span>'}</div>
+    <div class="status-msg erro" id="pg-conflito"></div>
+    <h3>Observações</h3>
+    <textarea class="input" id="pg-obs" rows="3" ${dis} placeholder="Ex.: levar escada grande, cliente pediu para chegar às 8h.">${esc(x.obs || '')}</textarea>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+      ${!travada ? `<button class="btn" onclick="salvarProg(${id || 'null'})">💾 ${id ? 'Salvar' : 'Programar'}</button>` : ''}
+      ${id && x.status === 'programada' ? `<button class="btn btn-sec" onclick="cancelarProg(${id})">❌ Cancelar</button><button class="btn btn-sec" style="color:var(--vermelho)" onclick="excluirProg(${id})">🗑 Excluir</button>` : ''}
+      ${id && x.status === 'cancelada' ? `<button class="btn btn-sec" onclick="reativarProg(${id})">↺ Reativar</button>` : ''}
+    </div>
+    <div class="status-msg" id="pg-msg"></div>
+    ${id && x.status === 'programada' && podeConfirmar() ? blocoConfirmar(x, pj) : ''}
+    ${id && x.status === 'programada' && !podeConfirmar() ? '<p class="muted" style="margin-top:14px">A confirmação do dia (que lança os dias da equipe) é feita pela engenharia ou pelo admin.</p>' : ''}
+    ${id && x.status === 'realizada' && podeConfirmar() ? `<h3>Realizada</h3><p class="muted">Os dias da equipe já foram lançados na tela Equipe.</p><button class="btn btn-sec" style="margin-top:8px" onclick="desfazerProg(${id})">↺ Desfazer confirmação</button><div class="status-msg" id="pg-msg2"></div>` : ''}`;
+  $('ov-prog').classList.add('visivel');
+  avisoConflito();
+}
+function blocoConfirmar(x, pj) {
+  const com = EQ.filter(p => p.tipo === 'comissionado');
+  return `<h3>✅ Confirmar realizado</h3>
+    <p class="muted" style="margin-bottom:8px">Marque quem foi de verdade. Diaristas recebem a diária (meio período = meio dia); fixos não geram lançamento.</p>
+    <div class="pessoas-sel">${EQ.map(p => `<label><input type="checkbox" class="cf-pes" value="${p.id}" ${(x.equipe_ids || []).includes(p.id) ? 'checked' : ''}> ${esc(p.nome)}</label>`).join('')}</div>
+    ${perfil.admin && com.length ? `<div class="grade" style="margin-top:8px">${com.map(p => `<div><label>💰 Valor desta ${x.tipo === 'instalacao' ? 'instalação' : 'saída'} — ${esc(primeiro(p.nome))} (R$)</label><input class="input cf-val" data-id="${p.id}" inputmode="decimal" placeholder="em branco = informar depois"></div>`).join('')}</div>` : ''}
+    ${pj && x.tipo === 'instalacao' && !pj.instalacao_data ? `<label style="display:flex;gap:6px;align-items:center;margin-top:10px;font-size:13px;cursor:pointer"><input type="checkbox" id="cf-concluir"> Instalação <b>concluída</b> neste dia (avisa o financeiro: a parcela do banco vence em 15 dias)</label>` : ''}
+    <button class="btn btn-verde" style="margin-top:10px" onclick="confirmarProg(${x.id})">✅ Confirmar realizado</button>
+    <div class="status-msg" id="pg-msg2"></div>`;
+}
+function fecharProg() { progAberta = null; $('ov-prog').classList.remove('visivel'); }
+function lerForm() {
+  const ob = $('pg-obra').value;
+  const reg = { data: $('pg-data').value, periodo: $('pg-periodo').value, tipo: $('pg-tipo').value, obs: $('pg-obs').value.trim() || null,
+    equipe_ids: [...document.querySelectorAll('.pg-pes:checked')].map(i => +i.value), projeto_id: null, lead_id: null, cliente_id: null, obra_nome: null };
+  if (ob.startsWith('p')) { reg.projeto_id = +ob.slice(1); reg.lead_id = (PROJ.find(p => p.id === reg.projeto_id) || {}).lead_id || null; }
+  else if (ob.startsWith('c')) reg.cliente_id = +ob.slice(1);
+  else if (ob === 'txt') reg.obra_nome = $('pg-obra-txt').value.trim() || null;
+  return reg;
+}
+function avisoConflito() {
+  const el = $('pg-conflito'); if (!el || !$('pg-data')) return;
+  const r = lerForm(); r.id = progAberta || -1;
+  const cf = conflitos(r);
+  el.textContent = cf.length ? '⚠ Já escalado(s) em outra obra neste dia/período: ' + cf.map(nomeP).join(', ') + (r.data < inicioSemana || r.data > somaDias(inicioSemana, 6) ? '' : '') : '';
+}
+// próximo dia útil (pula domingo; sábado vale)
+function proximoUtil(iso) { let d = somaDias(iso, 1); while (deIso(d).getDay() === 0) d = somaDias(d, 1); return d; }
+async function salvarProg(id) {
+  const reg = lerForm(), m = $('pg-msg');
+  m.classList.add('erro');
+  if (!reg.data) { m.textContent = 'Informe a data.'; return; }
+  if (!reg.projeto_id && !reg.cliente_id && !reg.obra_nome) { m.textContent = 'Escolha a obra ou digite o nome.'; return; }
+  if (!reg.equipe_ids.length && !confirm('Programar sem ninguém da equipe?')) return;
+  if (id) {
+    const { error } = await sb.from('programacao').update(reg).eq('id', id);
+    if (error) { m.textContent = '⚠ ' + error.message; return; }
+  } else {
+    const n = Math.max(0, Math.min(20, +($('pg-repetir') || {}).value || 0)), regs = [reg];
+    for (let i = 0; i < n; i++) regs.push({ ...reg, data: proximoUtil(regs[regs.length - 1].data) });
+    const { error } = await sb.from('programacao').insert(regs);
+    if (error) { m.textContent = '⚠ ' + error.message; return; }
+    if (reg.data < inicioSemana || reg.data > somaDias(inicioSemana, 6)) inicioSemana = segundaDe(reg.data);
+  }
+  fecharProg(); await carregar(); msg('✅ Programação salva.');
+}
+async function cancelarProg(id) {
+  if (!confirm('Cancelar esta programação? (fica riscada na agenda)')) return;
+  const { error } = await sb.from('programacao').update({ status: 'cancelada' }).eq('id', id);
+  if (error) { $('pg-msg').textContent = '⚠ ' + error.message; return; }
+  fecharProg(); await carregar();
+}
+async function reativarProg(id) {
+  const { error } = await sb.from('programacao').update({ status: 'programada' }).eq('id', id);
+  if (error) { $('pg-msg').textContent = '⚠ ' + error.message; return; }
+  await carregar();
+}
+async function excluirProg(id) {
+  if (!confirm('Excluir esta programação de vez?')) return;
+  const { error } = await sb.from('programacao').delete().eq('id', id);
+  if (error) { $('pg-msg').textContent = '⚠ ' + error.message; return; }
+  fecharProg(); await carregar();
+}
+function numBR(t) { let s = String(t ?? '').replace(/[R$\s]/g, ''); if (!s) return null; if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return isFinite(n) ? Math.round(n * 100) / 100 : null; }
+async function confirmarProg(id) {
+  const m = $('pg-msg2');
+  const pessoas = [...document.querySelectorAll('.cf-pes:checked')].map(i => +i.value);
+  if (!pessoas.length && !confirm('Ninguém marcado: confirmar mesmo assim (sem lançar dias)?')) return;
+  const valores = {};
+  document.querySelectorAll('.cf-val').forEach(i => { const v = numBR(i.value); if (v !== null && pessoas.includes(+i.dataset.id)) valores[i.dataset.id] = v; });
+  const concluir = !!($('cf-concluir') && $('cf-concluir').checked);
+  m.classList.remove('erro'); m.textContent = '⏳ Confirmando…';
+  const { data, error } = await sb.rpc('confirmar_programacao', { p_id: id, p_pessoas: pessoas, p_concluir: concluir, p_valores: valores });
+  if (error) { m.classList.add('erro'); m.textContent = '⚠ ' + error.message; return; }
+  fecharProg(); await carregar();
+  msg('✅ Confirmado: ' + (data.lancados || 0) + ' lançamento(s) na tela Equipe' + (data.sem_valor ? ' · ⚠ ' + data.sem_valor + ' instalação(ões) sem valor: o admin completa na tela Equipe' : '') + (concluir ? ' · instalação concluída' : '') + '.');
+}
+async function desfazerProg(id) {
+  if (!confirm('Desfazer a confirmação? Os dias lançados (ainda não pagos) desta programação são apagados.')) return;
+  const { error } = await sb.rpc('desfazer_programacao', { p_id: id });
+  if (error) { const m = $('pg-msg2'); m.classList.add('erro'); m.textContent = '⚠ ' + error.message; return; }
+  await carregar(); msg('↺ Confirmação desfeita (a data de instalação concluída, se marcada, continua no projeto).');
+}
+// escala do dia para o grupo da equipe no WhatsApp
+function escalaWhats(iso) {
+  const d = deIso(iso), lista = PROG.filter(x => x.data === iso && x.status !== 'cancelada');
+  const linhas = ['📅 *Escala Energtech — ' + DIAS[d.getDay()] + ' ' + dBR(iso) + '*', ''];
+  lista.forEach(x => { const o = obraDe(x), t = TIPOS[x.tipo] || TIPOS.outro;
+    linhas.push(t[0] + ' *' + o.nome + '*' + (x.periodo !== 'dia' ? ' (' + PERIODOS[x.periodo].toLowerCase() + ')' : ''));
+    if (o.endereco || o.cidade) linhas.push('📍 ' + [o.endereco, o.cidade].filter(Boolean).join(' · ') + ' — https://www.google.com/maps/search/' + encodeURIComponent([o.endereco, o.cidade].filter(Boolean).join(', ')));
+    linhas.push('👷 ' + ((x.equipe_ids || []).map(nomeP).map(primeiro).join(', ') || 'equipe a definir'));
+    if (x.obs) linhas.push('📝 ' + x.obs);
+    linhas.push('');
+  });
+  window.open('https://wa.me/?text=' + encodeURIComponent(linhas.join('\n').trim()), '_blank', 'noopener');
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fecharProg(); });
+window.addEventListener('resize', () => { if (PROG && $('semana').innerHTML) render(); });
+iniciar();
+</script>
+</body>
+</html>
