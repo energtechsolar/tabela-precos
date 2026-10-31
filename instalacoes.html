@@ -154,7 +154,7 @@ function mostrar(qual, texto) {
   if (texto) $('aviso-txt').innerHTML = texto;
 }
 function renderHeader() {
-  let h = '<a href="crm.html">🗂 CRM</a> · <a href="clientes.html">👥 Clientes</a>';
+  let h = '<a href="crm.html">🗂 CRM</a> · <a href="clientes.html">👥 Clientes</a> · <a href="estoque.html">📦 Estoque</a>';
   if (perfil && perfil.admin) h += ' · <a href="equipe.html">👷 Equipe</a> · <a href="financeiro.html">💰 Financeiro</a>';
   if (perfil) h += ` · 👤 ${esc(perfil.nome || perfil.email)} · <a href="#" onclick="sair();return false">Sair</a>`;
   $('header-links').innerHTML = h;

@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://cmrndntnaaooapbdmgip.supabase.co;">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compras e estoque — Energtech</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  :root {
+    --amarelo:#FFC107; --amarelo-dim:#e6ac00; --preto:#111; --bg:#0f0f0f; --card:#1a1a1a; --card2:#222;
+    --borda:#2e2e2e; --texto:#e0e0e0; --muted:#8a8a8a; --verde:#4ade80; --vermelho:#f87171; --azul:#60a5fa; --laranja:#fb923c;
+  }
+  body { background:var(--bg); font-family:'Barlow',sans-serif; color:var(--texto); min-height:100vh; padding-bottom:60px; }
+  a { color:var(--azul); }
+  .header { background:var(--amarelo); padding:16px 24px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+  .logo-area { display:flex; align-items:center; gap:12px; }
+  .logo-icon { width:42px; height:42px; background:var(--preto); border-radius:50%; display:flex; align-items:center; justify-content:center; }
+  .brand-name { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:900; color:var(--preto); line-height:1; }
+  .brand-sub { font-size:10px; font-weight:600; color:var(--preto); letter-spacing:.2em; text-transform:uppercase; opacity:.6; }
+  .header-title { text-align:right; }
+  .header-title h1 { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:700; color:var(--preto); text-transform:uppercase; letter-spacing:.05em; }
+  .header-links { font-size:12px; color:var(--preto); margin-top:3px; }
+  .header-links a { color:var(--preto); font-weight:700; }
+  .page { max-width:1200px; margin:0 auto; padding:20px 16px; }
+  .card { background:var(--card); border:1px solid var(--borda); border-radius:14px; padding:18px; margin-bottom:16px; }
+  .card h2 { font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:900; letter-spacing:.1em; text-transform:uppercase; color:var(--amarelo); margin-bottom:12px; }
+  .muted { color:var(--muted); font-size:13px; }
+  .login { max-width:360px; margin:40px auto; text-align:center; }
+  .input, .select, textarea.input { background:var(--card2); border:1px solid var(--borda); color:var(--texto); font-family:'Barlow',sans-serif; font-size:14px; padding:8px 10px; border-radius:8px; outline:none; width:100%; }
+  .input:focus, .select:focus { border-color:var(--amarelo); }
+  .login .input { margin-bottom:10px; }
+  .btn { background:var(--amarelo); color:var(--preto); font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:900; letter-spacing:.05em; padding:8px 14px; border:none; border-radius:8px; cursor:pointer; white-space:nowrap; }
+  .btn:hover { background:var(--amarelo-dim); }
+  .btn-sec { background:var(--card2); color:var(--texto); border:1px solid var(--borda); }
+  .btn-verde { background:#166534; color:#fff; }
+  .btn-p { padding:3px 9px; font-size:12px; }
+  .erro { color:var(--vermelho); font-size:13px; margin-top:8px; min-height:16px; }
+  #conteudo { display:none; }
+  .abas { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; align-items:center; }
+  .aba { background:var(--card2); border:1px solid var(--borda); color:var(--texto); border-radius:20px; padding:8px 14px; font-size:14px; cursor:pointer; }
+  .aba.ativa { border-color:var(--amarelo); color:var(--amarelo); }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:10px; margin-bottom:16px; }
+  .kpi { background:var(--card); border:1px solid var(--borda); border-radius:12px; padding:14px; }
+  .kpi-val { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:900; color:var(--amarelo); line-height:1.1; }
+  .kpi-lbl { font-size:12px; color:var(--muted); margin-top:3px; }
+  .tabela-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); font-weight:600; padding:7px 8px; border-bottom:1px solid var(--borda); white-space:nowrap; }
+  td { padding:8px; border-bottom:1px solid #242424; vertical-align:middle; }
+  td.num, th.num { text-align:right; white-space:nowrap; }
+  .vazio { text-align:center; color:var(--muted); padding:18px 0; font-size:13px; }
+  .tag { display:inline-block; font-size:11px; padding:1px 7px; border-radius:20px; background:#1a1a1a; border:1px solid var(--borda); color:var(--muted); white-space:nowrap; }
+  .tag.atraso { color:var(--vermelho); border-color:#7f1d1d; } .tag.ok { color:var(--verde); border-color:#1f4d33; } .tag.azul { color:var(--azul); border-color:#1e3a5f; } .tag.lar { color:var(--laranja); border-color:#7c2d12; }
+  .linha-topo { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+  .linha-topo h2 { margin-bottom:0; }
+  .acoes-l { display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end; }
+  .grade { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .grade label { display:block; font-size:11px; color:var(--muted); margin-bottom:3px; text-transform:uppercase; letter-spacing:.05em; }
+  .grade .largo { grid-column:1/-1; }
+  .overlay { position:fixed; inset:0; background:rgba(0,0,0,.7); display:none; justify-content:flex-end; z-index:50; }
+  .overlay.visivel { display:flex; }
+  .ficha { background:var(--card); width:min(560px, 100%); height:100%; overflow-y:auto; border-left:1px solid var(--borda); padding:18px; }
+  .ficha h3 { font-family:'Barlow Condensed',sans-serif; font-size:14px; letter-spacing:.1em; text-transform:uppercase; color:var(--amarelo); margin:16px 0 8px; }
+  .fechar { background:none; border:1px solid var(--borda); color:var(--texto); border-radius:8px; width:34px; height:34px; cursor:pointer; font-size:18px; }
+  .evento { border-left:2px solid var(--borda); padding:4px 0 8px 10px; font-size:13px; }
+  .evento .quando { font-size:11px; color:var(--muted); }
+  .status-msg { font-size:12px; min-height:16px; color:var(--verde); } .status-msg.erro { color:var(--vermelho); }
+  @media (max-width:640px) { .grade { grid-template-columns:1fr; } .header-title { text-align:left; } td, th { padding:6px 5px; } }
+  .nota-prev { background:var(--card2); border:1px solid var(--borda); border-radius:12px; padding:14px; margin-bottom:14px; }
+  .nota-prev table td { padding:5px 6px; }
+  .nota-prev .input, .nota-prev .select { padding:5px 7px; font-size:13px; }
+  .baixo { color:var(--vermelho); font-weight:700; }
+  .drop { border:2px dashed var(--borda); border-radius:12px; padding:24px; text-align:center; cursor:pointer; color:var(--muted); }
+  .drop:hover, .drop.sobre { border-color:var(--amarelo); color:var(--texto); }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo-area">
+    <div class="logo-icon"><svg width="26" height="26" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="13" fill="#FFC107"/><path d="M16 3L8 15h7l-3 10 10-13h-7l1-9z" fill="#111"/></svg></div>
+    <div><div class="brand-name">Energtech</div><div class="brand-sub">Engenharia Solar</div></div>
+  </div>
+  <div class="header-title"><h1>Compras e estoque</h1><div class="header-links" id="header-links"><a href="crm.html">CRM</a></div></div>
+</div>
+
+<div class="page">
+  <div class="card login" id="login" style="display:none">
+    <h2 style="font-family:'Barlow Condensed',sans-serif;color:var(--amarelo)">🔑 Entrar</h2>
+    <p class="muted" style="margin-bottom:16px">Use o mesmo login do CRM.</p>
+    <input class="input" type="email" id="login-email" placeholder="E-mail" autocomplete="username">
+    <input class="input" type="password" id="login-senha" placeholder="Senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')entrar()">
+    <button class="btn" id="login-btn" style="width:100%" onclick="entrar()">Entrar</button>
+    <div class="erro" id="login-erro"></div>
+  </div>
+  <div class="card" id="aviso" style="display:none"><p id="aviso-txt" class="muted"></p></div>
+
+  <div id="conteudo">
+    <div class="abas">
+      <button class="aba ativa" data-aba="estoque" onclick="trocarAba('estoque')">📦 Estoque</button>
+      <button class="aba" data-aba="importar" onclick="trocarAba('importar')" id="aba-btn-importar">⬆ Importar XML</button>
+      <button class="aba" data-aba="notas" onclick="trocarAba('notas')">🧾 Notas</button>
+      <span style="flex:1"></span>
+      <button class="btn btn-sec" onclick="carregar()" title="Atualizar">🔄</button>
+    </div>
+    <div class="status-msg" id="msg"></div>
+    <div id="aba-estoque"></div>
+    <div id="aba-importar" style="display:none"></div>
+    <div id="aba-notas" style="display:none"></div>
+  </div>
+</div>
+
+<div class="overlay" id="ov" onclick="if(event.target===this)fechar()"><div class="ficha" id="ficha"></div></div>
+
+<script src="js/comum.js?v=20261019a"></script>
+<script>
+// Energtech — Compras e estoque (admin, vendas internas e engenharia)
+// Importa o XML da NF-e: nota de MATERIAL (destinatário Energtech) entra no estoque com custo médio e as parcelas vão
+// para "a pagar" no Financeiro; nota de KIT em nome do cliente (entregue na obra) não entra no estoque: liga ao cliente
+// pelo CPF e guarda potência, código FINAME e número de série. Saídas de material por obra; ajuste por contagem.
+const $ = id => document.getElementById(id);
+const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtR = v => (+v || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+const fmtN = v => (+v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
+const hojeISO = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+const dBR = iso => iso ? iso.slice(0, 10).split('-').reverse().join('/') : '—';
+const soDig = t => String(t || '').replace(/\D/g, '');
+function numBR(t) { let s = String(t ?? '').replace(/[R$\s]/g, ''); if (!s) return null; if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return isFinite(n) ? n : null; }
+const CNPJ_ENERGTECH = '40297488000185';
+let perfil = null, aba = 'estoque', PROD = [], NOTAS = [], FORN = [], COD = [], OBRAS = [], LEADS_G = [], PREV = [], busca = '';
+const ehAdmin = () => !!perfil && !!perfil.admin;
+const podeMexer = () => !!perfil && (perfil.admin || perfil.papel === 'engenheiro');
+
+function msg(t, erro) { const m = $('msg'); m.textContent = t || ''; m.classList.toggle('erro', !!erro); }
+function mostrar(qual, texto) {
+  $('login').style.display = qual === 'login' ? '' : 'none';
+  $('aviso').style.display = qual === 'aviso' ? '' : 'none';
+  $('conteudo').style.display = qual === 'conteudo' ? 'block' : 'none';
+  if (texto) $('aviso-txt').innerHTML = texto;
+}
+function renderHeader() {
+  let h = '<a href="crm.html">🗂 CRM</a> · <a href="instalacoes.html">📅 Instalações</a>';
+  if (ehAdmin()) h += ' · <a href="financeiro.html">💰 Financeiro</a>';
+  if (perfil) h += ` · 👤 ${esc(perfil.nome || perfil.email)} · <a href="#" onclick="sair();return false">Sair</a>`;
+  $('header-links').innerHTML = h;
+}
+async function iniciar() {
+  if (!sb) { mostrar('aviso', '⚠ Sem conexão com o servidor.'); return; }
+  const { data } = await sb.auth.getSession();
+  if (!data || !data.session) { perfil = null; renderHeader(); mostrar('login'); return; }
+  const r = await sb.rpc('meu_perfil'); perfil = r.data || {};
+  renderHeader();
+  if (!(perfil.admin || ['interno', 'engenheiro'].includes(perfil.papel))) { mostrar('aviso', 'Esta tela é da equipe interna (admin, vendas internas e engenharia).'); return; }
+  $('aba-btn-importar').style.display = ehAdmin() ? '' : 'none';
+  mostrar('conteudo');
+  await carregar();
+}
+async function entrar() {
+  const { error } = await sb.auth.signInWithPassword({ email: $('login-email').value.trim(), password: $('login-senha').value });
+  if (error) { $('login-erro').textContent = 'E-mail ou senha incorretos.'; return; }
+  await iniciar();
+}
+async function sair() { await sb.auth.signOut(); perfil = null; await iniciar(); }
+function trocarAba(a) {
+  aba = a;
+  document.querySelectorAll('.aba').forEach(b => b.classList.toggle('ativa', b.dataset.aba === a));
+  ['estoque', 'importar', 'notas'].forEach(k => $('aba-' + k).style.display = k === a ? '' : 'none');
+  render();
+}
+async function carregar() {
+  msg('⏳ Carregando…');
+  const [p, n, f, c, pj] = await Promise.all([
+    sb.from('produtos').select('*').order('nome').limit(5000),
+    sb.from('notas_entrada').select('id, chave, numero, emissao, valor_total, tipo, dest_nome, dest_doc, lead_id, fornecedor_id, dados, criado_em, leads(nome)').order('emissao', { ascending: false }).limit(1000),
+    sb.from('fornecedores').select('*').order('nome'),
+    sb.from('produto_codigos').select('*'),
+    sb.from('projetos').select('id, lead_id, etapa, leads(nome, cidade)').neq('etapa', 'cancelado').order('etapa_em', { ascending: false }).limit(500),
+  ]);
+  const err = [p, n, f, c].find(x => x.error); if (err) { msg('⚠ ' + err.error.message, true); return; }
+  PROD = p.data || []; NOTAS = n.data || []; FORN = f.data || []; COD = c.data || []; OBRAS = (pj && pj.data) || [];
+  msg(''); render();
+}
+function render() { if (aba === 'estoque') renderEstoque(); else if (aba === 'importar') renderImportar(); else renderNotas(); }
+
+// ── estoque ──
+function renderEstoque() {
+  const q = busca.trim().toLowerCase();
+  const ativos = PROD.filter(x => x.ativo);
+  const lista = ativos.filter(x => !q || (x.nome + ' ' + (x.categoria || '')).toLowerCase().includes(q));
+  const baixos = ativos.filter(x => +x.estoque_minimo > 0 && +x.saldo < +x.estoque_minimo);
+  const valor = ativos.reduce((a, x) => a + Math.max(0, +x.saldo) * +x.custo_medio, 0);
+  $('aba-estoque').innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><div class="kpi-val">${ativos.length}</div><div class="kpi-lbl">produtos cadastrados</div></div>
+      <div class="kpi"><div class="kpi-val">${fmtR(valor)}</div><div class="kpi-lbl">valor em estoque (custo médio)</div></div>
+      <div class="kpi"><div class="kpi-val" style="${baixos.length ? 'color:var(--vermelho)' : ''}">${baixos.length}</div><div class="kpi-lbl">abaixo do estoque mínimo</div></div>
+    </div>
+    <div class="card">
+      <div class="linha-topo"><h2>📦 Estoque</h2>
+        <div class="acoes-l"><input class="input" style="width:220px" placeholder="🔎 Buscar produto" value="${esc(busca)}" oninput="busca=this.value;renderEstoque();this.focus();this.setSelectionRange(this.value.length,this.value.length)">
+        ${podeMexer() ? '<button class="btn btn-sec" onclick="novoProduto()">+ Produto</button>' : ''}</div></div>
+      ${lista.length ? `<div class="tabela-wrap"><table><thead><tr><th>Produto</th><th>Un.</th><th class="num">Saldo</th><th class="num">Mínimo</th><th class="num">Custo médio</th><th class="num">Valor</th><th></th></tr></thead><tbody>
+        ${lista.map(x => `<tr><td><a href="#" onclick="abrirProduto(${x.id});return false">${esc(x.nome)}</a>${x.categoria ? ' <span class="tag">' + esc(x.categoria) + '</span>' : ''}</td><td>${esc(x.unidade)}</td>
+          <td class="num ${+x.estoque_minimo > 0 && +x.saldo < +x.estoque_minimo ? 'baixo' : ''}">${fmtN(x.saldo)}</td><td class="num">${+x.estoque_minimo ? fmtN(x.estoque_minimo) : '—'}</td>
+          <td class="num">${fmtR(x.custo_medio)}</td><td class="num">${fmtR(Math.max(0, +x.saldo) * +x.custo_medio)}</td>
+          <td class="num">${podeMexer() ? `<button class="btn btn-sec btn-p" onclick="saida(${x.id})" title="Dar baixa para uma obra">➖ Saída</button>` : ''}</td></tr>`).join('')}
+      </tbody></table></div>` : `<div class="vazio">${ativos.length ? 'Nada encontrado.' : 'Nenhum produto ainda. Importe o XML de uma nota de compra na aba "⬆ Importar XML".'}</div>`}
+    </div>`;
+}
+function opObras(sel) {
+  return '<option value="">— sem obra (uso geral) —</option><option value="txt">✏ Obra fora do CRM (digitar)</option>'
+    + OBRAS.map(p => `<option value="${p.id}" ${String(p.id) === String(sel) ? 'selected' : ''}>${esc((p.leads || {}).nome || 'Cliente #' + p.lead_id)}${(p.leads || {}).cidade ? ' · ' + esc(p.leads.cidade) : ''}</option>`).join('');
+}
+async function abrirProduto(id) {
+  const x = PROD.find(p => p.id === id); if (!x) return;
+  $('ficha').innerHTML = `<div style="display:flex;justify-content:space-between;gap:10px"><h2 style="font-family:'Barlow Condensed',sans-serif;color:var(--amarelo)">📦 ${esc(x.nome)}</h2><button class="fechar" onclick="fechar()">×</button></div>
+    <div class="muted">Saldo <b style="color:var(--texto)">${fmtN(x.saldo)} ${esc(x.unidade)}</b> · custo médio ${fmtR(x.custo_medio)}${x.ncm ? ' · NCM ' + esc(x.ncm) : ''}</div>
+    ${podeMexer() ? `<h3>Cadastro</h3><div class="grade">
+      <div class="largo"><label>Nome</label><input class="input" id="pr-nome" value="${esc(x.nome)}"></div>
+      <div><label>Unidade</label><input class="input" id="pr-un" value="${esc(x.unidade)}"></div>
+      <div><label>Categoria</label><input class="input" id="pr-cat" value="${esc(x.categoria || '')}" placeholder="Ex.: proteção, eletroduto, estrutura"></div>
+      <div><label>Estoque mínimo</label><input class="input" id="pr-min" inputmode="decimal" value="${+x.estoque_minimo ? String(x.estoque_minimo).replace('.', ',') : ''}"></div>
+      <div><label>Contagem real hoje (ajuste)</label><input class="input" id="pr-cont" inputmode="decimal" placeholder="deixe vazio se não contou"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn" onclick="salvarProduto(${x.id})">💾 Salvar</button><button class="btn btn-sec" onclick="saida(${x.id})">➖ Saída para obra</button>${ehAdmin() ? `<button class="btn btn-sec" onclick="ativarProduto(${x.id}, false)">Desativar</button>` : ''}</div>
+    <div class="status-msg" id="pr-msg"></div>` : ''}
+    <h3>Movimentos</h3><div id="pr-mov"><div class="muted">Carregando…</div></div>`;
+  $('ov').classList.add('visivel');
+  const { data } = await sb.from('estoque_movimentos').select('*, leads(nome), notas_itens(nota_id, notas_entrada(numero))').eq('produto_id', id).order('data', { ascending: false }).order('id', { ascending: false }).limit(300);
+  const T = { entrada: '⬆ Entrada', saida: '⬇ Saída', ajuste: '⚖ Ajuste', devolucao: '↩ Devolução' };
+  $('pr-mov').innerHTML = (data || []).length ? `<div class="tabela-wrap"><table><tbody>${data.map(m => `<tr><td>${dBR(m.data)}</td><td>${T[m.tipo] || m.tipo}</td><td class="num">${m.tipo === 'saida' ? '−' : ''}${fmtN(m.quantidade)}</td><td>${m.leads ? esc(m.leads.nome) : m.obra_nome ? esc(m.obra_nome) : ''}${m.notas_itens && m.notas_itens.notas_entrada ? 'NF ' + esc(m.notas_itens.notas_entrada.numero) : ''}${m.obs && !/^NF /.test(m.obs) ? '<br><span class="muted">' + esc(m.obs) + '</span>' : ''}</td><td class="num">${m.custo_unit != null ? fmtR(m.custo_unit) : ''}</td><td class="num">${podeMexer() && !m.nota_item_id ? `<button class="btn btn-sec btn-p" style="color:var(--vermelho)" onclick="apagarMov(${m.id}, ${id})">🗑</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<div class="muted">Sem movimentos.</div>';
+}
+function fechar() { $('ov').classList.remove('visivel'); }
+async function salvarProduto(id) {
+  const x = PROD.find(p => p.id === id), m = $('pr-msg');
+  const mud = { nome: $('pr-nome').value.trim() || x.nome, unidade: $('pr-un').value.trim() || 'UN', categoria: $('pr-cat').value.trim() || null, estoque_minimo: numBR($('pr-min').value) || 0 };
+  const { error } = await sb.from('produtos').update(mud).eq('id', id);
+  if (error) { m.classList.add('erro'); m.textContent = '⚠ ' + error.message; return; }
+  const cont = numBR($('pr-cont').value);
+  if (cont !== null && Math.abs(cont - +x.saldo) > 0.0001) {
+    const { error: e2 } = await sb.from('estoque_movimentos').insert({ produto_id: id, tipo: 'ajuste', quantidade: Math.round((cont - +x.saldo) * 10000) / 10000, obs: 'Contagem: ' + fmtN(cont) + ' (sistema tinha ' + fmtN(x.saldo) + ')' });
+    if (e2) { m.classList.add('erro'); m.textContent = '⚠ ' + e2.message; return; }
+  }
+  await carregar(); abrirProduto(id);
+  const m2 = $('pr-msg'); if (m2) m2.textContent = '✅ Salvo.';
+}
+async function ativarProduto(id, ativo) { if (!confirm('Desativar este produto? (some da lista; o histórico fica)')) return; await sb.from('produtos').update({ ativo }).eq('id', id); fechar(); await carregar(); }
+async function apagarMov(mid, pid) {
+  if (!confirm('Apagar este movimento? O saldo é recalculado.')) return;
+  const { error } = await sb.from('estoque_movimentos').delete().eq('id', mid);
+  if (error) { alert(error.message); return; }
+  await carregar(); abrirProduto(pid);
+}
+function saida(id) {
+  const x = PROD.find(p => p.id === id); if (!x) return;
+  $('ficha').innerHTML = `<div style="display:flex;justify-content:space-between;gap:10px"><h2 style="font-family:'Barlow Condensed',sans-serif;color:var(--amarelo)">➖ Saída · ${esc(x.nome)}</h2><button class="fechar" onclick="fechar()">×</button></div>
+    <div class="muted">Saldo atual: <b style="color:var(--texto)">${fmtN(x.saldo)} ${esc(x.unidade)}</b></div>
+    <div class="grade" style="margin-top:12px">
+      <div><label>Quantidade (${esc(x.unidade)})</label><input class="input" id="sd-q" inputmode="decimal"></div>
+      <div><label>Data</label><input class="input" type="date" id="sd-data" value="${hojeISO()}"></div>
+      <div class="largo"><label>Obra</label><select class="select" id="sd-obra" onchange="$('sd-obra-txt').style.display=this.value==='txt'?'':'none'">${opObras('')}</select>
+        <input class="input" id="sd-obra-txt" placeholder="Nome do cliente / obra" style="display:none;margin-top:6px"></div>
+      <div class="largo"><label>Observação</label><input class="input" id="sd-obs" placeholder="Opcional"></div>
+    </div>
+    <button class="btn" style="margin-top:12px" onclick="salvarSaida(${id})">➖ Dar baixa</button><div class="status-msg" id="sd-msg"></div>`;
+  $('ov').classList.add('visivel');
+  setTimeout(() => $('sd-q').focus(), 50);
+}
+async function salvarSaida(id) {
+  const x = PROD.find(p => p.id === id), q = numBR($('sd-q').value), m = $('sd-msg');
+  m.classList.add('erro');
+  if (!q || q <= 0) { m.textContent = 'Informe a quantidade.'; return; }
+  if (q > +x.saldo && !confirm('A saída (' + fmtN(q) + ') é maior que o saldo (' + fmtN(x.saldo) + '). Lançar assim mesmo?')) return;
+  const ob = $('sd-obra').value, pj = OBRAS.find(p => String(p.id) === ob);
+  const reg = { produto_id: id, tipo: 'saida', quantidade: q, data: $('sd-data').value || hojeISO(), custo_unit: +x.custo_medio || null,
+    projeto_id: pj ? pj.id : null, lead_id: pj ? pj.lead_id : null, obra_nome: ob === 'txt' ? ($('sd-obra-txt').value.trim() || null) : null, obs: $('sd-obs').value.trim() || null };
+  const { error } = await sb.from('estoque_movimentos').insert(reg);
+  if (error) { m.textContent = '⚠ ' + error.message; return; }
+  fechar(); await carregar(); msg('✅ Baixa de ' + fmtN(q) + ' ' + x.unidade + ' de ' + x.nome + ' lançada.');
+}
+async function novoProduto() {
+  const nome = prompt('Nome do produto:'); if (!nome) return;
+  const un = (prompt('Unidade (UN, PC, M, KG…):', 'UN') || 'UN').trim().toUpperCase();
+  const { error } = await sb.from('produtos').insert({ nome: nome.trim(), unidade: un });
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  await carregar(); msg('✅ Produto cadastrado. Para dar entrada sem nota, use "Contagem real" na ficha do produto.');
+}
+
+// ── importar XML da NF-e ──
+function renderImportar() {
+  if (!ehAdmin()) { $('aba-importar').innerHTML = '<div class="card muted">Só o admin importa notas.</div>'; return; }
+  $('aba-importar').innerHTML = `<div class="card"><h2>⬆ Importar XML da nota fiscal</h2>
+      <label class="drop" id="drop" ondragover="event.preventDefault();this.classList.add('sobre')" ondragleave="this.classList.remove('sobre')" ondrop="event.preventDefault();this.classList.remove('sobre');lerXMLs(event.dataTransfer.files)">
+        📎 Clique para escolher ou arraste aqui o(s) arquivo(s) <b>.xml</b> da NF-e (vem no e-mail do fornecedor junto com o PDF)
+        <input type="file" accept=".xml,text/xml,application/xml" multiple style="display:none" onchange="lerXMLs(this.files);this.value=''"></label>
+      <p class="muted" style="margin-top:8px">Nota de <b>material</b> (para a Energtech): entra no estoque e as parcelas vão para "a pagar" no Financeiro. Nota de <b>kit</b> em nome do cliente: não entra no estoque; fica ligada à obra com potência, código FINAME e número de série.</p></div>
+    <div id="previas">${PREV.map(previa).join('')}</div>`;
+}
+const tx = (el, tag) => { const e = el && el.getElementsByTagName(tag)[0]; return e ? e.textContent.trim() : ''; };
+function lerXMLs(files) {
+  [...files].forEach(f => {
+    const r = new FileReader();
+    r.onload = () => {
+      try { const n = parseNFe(r.result); if (PREV.some(p => p.chave && p.chave === n.chave)) return; PREV.push(n); renderImportar(); }
+      catch (e) { msg('⚠ ' + f.name + ': ' + e.message, true); }
+    };
+    r.readAsText(f);
+  });
+}
+function parseNFe(xml) {
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  const inf = doc.getElementsByTagName('infNFe')[0];
+  if (!inf) throw new Error('não parece ser o XML de uma NF-e');
+  const ide = inf.getElementsByTagName('ide')[0], emit = inf.getElementsByTagName('emit')[0], dest = inf.getElementsByTagName('dest')[0];
+  const tot = inf.getElementsByTagName('ICMSTot')[0];
+  const chave = tx(doc, 'chNFe') || (inf.getAttribute('Id') || '').replace(/^NFe/, '');
+  const vNF = +tx(tot, 'vNF') || 0, vProd = +tx(tot, 'vProd') || 0, fator = vProd > 0 ? vNF / vProd : 1;
+  const destDoc = tx(dest, 'CNPJ') || tx(dest, 'CPF');
+  const info = tx(inf.getElementsByTagName('infAdic')[0], 'infCpl');
+  const fornCnpj = tx(emit, 'CNPJ'), forn = FORN.find(f => soDig(f.cnpj) === fornCnpj);
+  const itens = [...inf.getElementsByTagName('det')].map(det => {
+    const p = det.getElementsByTagName('prod')[0], q = +tx(p, 'qCom') || 0, vt = +tx(p, 'vProd') || 0;
+    const codigo = tx(p, 'cProd'), map = forn && COD.find(c => c.fornecedor_id === forn.id && c.codigo === codigo);
+    return { n: +det.getAttribute('nItem'), codigo, ean: /^\d{8,14}$/.test(tx(p, 'cEAN')) ? tx(p, 'cEAN') : '', descricao: tx(p, 'xProd'), ncm: tx(p, 'NCM'),
+      unidade: (tx(p, 'uCom') || 'UN').toUpperCase(), quantidade: q, valor_unit: +tx(p, 'vUnCom') || 0, valor_total: vt,
+      custo_unit: q ? Math.round(vt * fator / q * 10000) / 10000 : 0, info: tx(det, 'infAdProd'),
+      produto_id: map ? map.produto_id : '', nome_produto: tx(p, 'xProd'), estoque: true };
+  });
+  const dups = [...inf.getElementsByTagName('dup')].map(d => ({ numero: tx(d, 'nDup'), vencimento: tx(d, 'dVenc'), valor: +tx(d, 'vDup') || 0 }));
+  const tipo = soDig(destDoc) === CNPJ_ENERGTECH ? 'material' : 'kit_cliente';
+  // dados do kit (Viener e outros): potência, código FINAME e número de série
+  const todoTexto = info + ' ' + itens.map(i => i.info + ' ' + i.descricao).join(' ');
+  const kwp = (todoTexto.match(/pot[eê]ncia\s*:?\s*([\d.,]+)\s*kwp/i) || [])[1] || '';
+  const serie = (todoTexto.match(/s[eé]rie(?:\s+do\s+gerador)?\s*:?\s*([A-Z0-9][A-Z0-9\-\/.]{3,})/i) || [])[1] || '';
+  const finame = (todoTexto.match(/c[oó]digo\s*:?\s*(\d{6,10})/i) || [])[1] || '';
+  // cliente da nota de kit: procura pelo CPF/CNPJ nos leads ganhos e na base de clientes
+  return { xml, chave, numero: tx(ide, 'nNF'), serie: tx(ide, 'serie'), emissao: tx(ide, 'dhEmi').slice(0, 10), valor_total: vNF, vProd,
+    emit: { cnpj: fornCnpj, nome: tx(emit, 'xNome'), fantasia: tx(emit, 'xFant'), ie: tx(emit, 'IE'), cidade: tx(emit.getElementsByTagName('enderEmit')[0], 'xMun'), uf: tx(emit.getElementsByTagName('enderEmit')[0], 'UF'), telefone: tx(emit, 'fone') },
+    dest_doc: destDoc, dest_nome: tx(dest, 'xNome'), info, itens, duplicatas: dups, tipo,
+    dados: { kwp, serie, finame, natureza: tx(ide, 'natOp') }, lead_id: '', projeto_id: '', ja_importada: NOTAS.some(n => n.chave === chave),
+    pagar: dups.length ? 'dup' : 'avista' };
+}
+async function acharCliente(i) {
+  const n = PREV[i]; if (!n || n.tipo !== 'kit_cliente' || n._buscou) return;
+  n._buscou = true;
+  const d = soDig(n.dest_doc);
+  const { data } = await sb.from('leads').select('id, nome, cpf_cnpj, cidade, etapa').eq('etapa', 'ganho').limit(2000);
+  LEADS_G = data || [];
+  const achou = LEADS_G.find(l => soDig(l.cpf_cnpj) === d) || LEADS_G.find(l => (l.nome || '').trim().toLowerCase() === (n.dest_nome || '').trim().toLowerCase());
+  if (achou) { n.lead_id = achou.id; const pj = OBRAS.find(p => p.lead_id === achou.id); if (pj) n.projeto_id = pj.id; }
+  renderImportar();
+}
+function previa(n, i) {
+  if (n.tipo === 'kit_cliente' && !n._buscou) setTimeout(() => acharCliente(i), 0);
+  const forn = FORN.find(f => soDig(f.cnpj) === n.emit.cnpj);
+  const cab = `<div class="linha-topo"><h2 style="margin:0">${n.tipo === 'kit_cliente' ? '🔆 Kit do cliente' : '🧾 Compra de material'} · NF ${esc(n.numero)} · ${esc(n.emit.fantasia || n.emit.nome)}</h2>
+      <div class="acoes-l"><select class="select" style="width:auto" onchange="PREV[${i}].tipo=this.value;renderImportar()"><option value="material" ${n.tipo === 'material' ? 'selected' : ''}>Material (estoque)</option><option value="kit_cliente" ${n.tipo === 'kit_cliente' ? 'selected' : ''}>Kit do cliente</option><option value="outro" ${n.tipo === 'outro' ? 'selected' : ''}>Outro (só registrar)</option></select>
+      <button class="btn btn-sec btn-p" onclick="PREV.splice(${i},1);renderImportar()">✕</button></div></div>
+    <div class="muted" style="margin:6px 0 10px">Emissão ${dBR(n.emissao)} · total <b style="color:var(--amarelo)">${fmtR(n.valor_total)}</b> · ${n.itens.length} item(ns) · destinatário ${esc(n.dest_nome)}${forn ? '' : ' · <span class="tag azul">fornecedor novo</span>'}${n.ja_importada ? ' · <span class="tag atraso">⚠ já importada</span>' : ''}</div>`;
+  if (n.tipo === 'kit_cliente') {
+    const leadOpts = '<option value="">— não ligar a um cliente —</option>' + LEADS_G.map(l => `<option value="${l.id}" ${String(l.id) === String(n.lead_id) ? 'selected' : ''}>${esc(l.nome)}${l.cidade ? ' · ' + esc(l.cidade) : ''}</option>`).join('');
+    return `<div class="nota-prev">${cab}
+      <div class="grade">
+        <div class="largo"><label>Cliente / obra (achado pelo CPF ${esc(n.dest_doc)})</label><select class="select" onchange="PREV[${i}].lead_id=this.value;const pj=OBRAS.find(p=>String(p.lead_id)===this.value);PREV[${i}].projeto_id=pj?pj.id:''">${leadOpts}</select>
+          ${!n.lead_id && n._buscou ? '<div class="muted" style="margin-top:4px">Não achei esse CPF entre os negócios ganhos do CRM (pode ser cliente da época do DataCrazy). Dá para importar assim mesmo.</div>' : ''}</div>
+        <div><label>Potência (kWp)</label><input class="input" value="${esc(n.dados.kwp)}" oninput="PREV[${i}].dados.kwp=this.value"></div>
+        <div><label>Nº de série do gerador</label><input class="input" value="${esc(n.dados.serie)}" oninput="PREV[${i}].dados.serie=this.value"></div>
+        <div><label>Código FINAME</label><input class="input" value="${esc(n.dados.finame)}" oninput="PREV[${i}].dados.finame=this.value"></div>
+        <div><label>Itens</label><div class="muted">${n.itens.map(t => esc(t.descricao) + ' · ' + fmtR(t.valor_total)).join('<br>')}</div></div>
+      </div>
+      <p class="muted" style="margin-top:8px">Não entra no estoque nem no "a pagar" (quem paga o kit é o cliente ou o banco).</p>
+      <button class="btn" style="margin-top:8px" onclick="importar(${i})" ${n.ja_importada ? 'disabled' : ''}>⬆ Importar nota do kit</button><div class="status-msg" id="imp-msg-${i}"></div></div>`;
+  }
+  const opProd = sel => '<option value="">➕ criar produto novo</option>' + PROD.filter(p => p.ativo).map(p => `<option value="${p.id}" ${String(p.id) === String(sel) ? 'selected' : ''}>${esc(p.nome)} (${esc(p.unidade)})</option>`).join('');
+  const estoque = n.tipo === 'material';
+  return `<div class="nota-prev">${cab}
+    <div class="tabela-wrap"><table><thead><tr>${estoque ? '<th>Estoque</th>' : ''}<th>Item da nota</th><th class="num">Qtd</th><th class="num">Custo un.</th><th class="num">Total</th>${estoque ? '<th>Produto no nosso cadastro</th>' : ''}</tr></thead><tbody>
+      ${n.itens.map((t, j) => `<tr>${estoque ? `<td><input type="checkbox" ${t.estoque ? 'checked' : ''} onchange="PREV[${i}].itens[${j}].estoque=this.checked"></td>` : ''}
+        <td>${esc(t.descricao)}<br><span class="muted" style="font-size:11px">cód. ${esc(t.codigo)} · ${esc(t.unidade)}</span></td>
+        <td class="num">${fmtN(t.quantidade)}</td><td class="num">${fmtR(t.custo_unit)}</td><td class="num">${fmtR(t.valor_total)}</td>
+        ${estoque ? `<td><select class="select" onchange="PREV[${i}].itens[${j}].produto_id=this.value;renderImportar()">${opProd(t.produto_id)}</select>
+          ${t.produto_id ? '' : `<input class="input" style="margin-top:4px" value="${esc(t.nome_produto)}" title="Nome do produto novo" oninput="PREV[${i}].itens[${j}].nome_produto=this.value">`}</td>` : ''}</tr>`).join('')}
+    </tbody></table></div>
+    ${Math.abs(n.valor_total - n.vProd) > 0.01 ? `<p class="muted" style="margin-top:6px">Frete/impostos/desconto da nota (${fmtR(n.valor_total - n.vProd)}) já rateados no custo unitário.</p>` : ''}
+    <h3 style="font-family:'Barlow Condensed',sans-serif;color:var(--amarelo);margin:12px 0 6px;font-size:14px;letter-spacing:.08em">💰 A pagar no Financeiro</h3>
+    ${n.duplicatas.length ? n.duplicatas.map((d, k) => `<div class="muted">Parcela ${k + 1}/${n.duplicatas.length}: <b style="color:var(--texto)">${fmtR(d.valor)}</b> vence ${dBR(d.vencimento)}${d.vencimento <= hojeISO() ? ' <span class="tag atraso">vence hoje ou já venceu</span>' : ''}</div>`).join('')
+      : `<label class="muted" style="display:flex;gap:6px;align-items:center"><input type="checkbox" ${n.pagar === 'avista' ? 'checked' : ''} onchange="PREV[${i}].pagar=this.checked?'avista':'nao'"> Lançar ${fmtR(n.valor_total)} a pagar com vencimento na emissão (a nota não traz parcelas)</label>`}
+    <button class="btn" style="margin-top:12px" onclick="importar(${i})" ${n.ja_importada ? 'disabled' : ''}>⬆ Importar nota</button><div class="status-msg" id="imp-msg-${i}"></div></div>`;
+}
+async function importar(i) {
+  const n = PREV[i], m = $('imp-msg-' + i);
+  const estoque = n.tipo === 'material';
+  const p = { chave: n.chave, numero: n.numero, serie: n.serie, emissao: n.emissao, valor_total: n.valor_total, tipo: n.tipo, emit: n.emit,
+    dest_doc: n.dest_doc, dest_nome: n.dest_nome, info: n.info, xml: n.xml, dados: n.dados,
+    lead_id: n.tipo === 'kit_cliente' ? (n.lead_id || null) : null, projeto_id: n.tipo === 'kit_cliente' ? (n.projeto_id || null) : null,
+    itens: n.itens.map(t => ({ n: t.n, codigo: t.codigo, ean: t.ean, descricao: t.descricao, ncm: t.ncm, unidade: t.unidade, quantidade: t.quantidade,
+      valor_unit: t.valor_unit, valor_total: t.valor_total, custo_unit: t.custo_unit, estoque: estoque && t.estoque, produto_id: t.produto_id || null, nome_produto: t.nome_produto })),
+    duplicatas: n.tipo === 'kit_cliente' ? [] : n.duplicatas.length ? n.duplicatas : n.pagar === 'avista' ? [{ vencimento: n.emissao, valor: n.valor_total }] : [] };
+  m.classList.remove('erro'); m.textContent = '⏳ Importando…';
+  const { error } = await sb.rpc('importar_nota', { p });
+  if (error) { m.classList.add('erro'); m.textContent = '⚠ ' + error.message; return; }
+  PREV.splice(i, 1);
+  await carregar();
+  msg('✅ NF ' + n.numero + ' importada' + (estoque ? ': estoque atualizado' + (p.duplicatas.length ? ' e ' + p.duplicatas.length + ' parcela(s) no Financeiro' : '') : n.tipo === 'kit_cliente' ? ' e ligada ao cliente' : '') + '.');
+}
+
+// ── notas importadas ──
+function renderNotas() {
+  const nomeF = id => { const f = FORN.find(x => x.id === id); return f ? (f.fantasia || f.nome) : '—'; };
+  const T = { material: 'Material', kit_cliente: 'Kit do cliente', outro: 'Outro' };
+  $('aba-notas').innerHTML = `<div class="card"><h2>🧾 Notas importadas</h2>${NOTAS.length ? `<div class="tabela-wrap"><table><thead><tr><th>Emissão</th><th>Fornecedor</th><th>NF</th><th>Tipo</th><th>Cliente / obra</th><th class="num">Valor</th><th></th></tr></thead><tbody>
+    ${NOTAS.map(n => `<tr><td>${dBR(n.emissao)}</td><td>${esc(nomeF(n.fornecedor_id))}</td><td><a href="#" onclick="abrirNota(${n.id});return false">${esc(n.numero)}</a></td><td><span class="tag ${n.tipo === 'kit_cliente' ? 'azul' : ''}">${T[n.tipo] || n.tipo}</span></td>
+      <td>${n.lead_id ? `<a href="crm.html?lead=${n.lead_id}">${esc((n.leads || {}).nome || 'cliente')}</a>` : n.tipo === 'kit_cliente' ? esc(n.dest_nome || '') : ''}${n.dados && n.dados.serie ? '<br><span class="muted" style="font-size:11px">série ' + esc(n.dados.serie) + '</span>' : ''}</td>
+      <td class="num">${fmtR(n.valor_total)}</td><td class="num">${ehAdmin() ? `<button class="btn btn-sec btn-p" style="color:var(--vermelho)" onclick="excluirNota(${n.id})">🗑</button>` : ''}</td></tr>`).join('')}
+    </tbody></table></div>` : '<div class="vazio">Nenhuma nota importada ainda.</div>'}</div>`;
+}
+async function abrirNota(id) {
+  const n = NOTAS.find(x => x.id === id); if (!n) return;
+  const { data: it } = await sb.from('notas_itens').select('*, produtos(nome)').eq('nota_id', id).order('n_item');
+  const { data: pg } = ehAdmin() ? await sb.from('pagamentos').select('valor, vencimento, pago_em, descricao').eq('nota_id', id).order('vencimento') : { data: [] };
+  const f = FORN.find(x => x.id === n.fornecedor_id) || {};
+  $('ficha').innerHTML = `<div style="display:flex;justify-content:space-between;gap:10px"><h2 style="font-family:'Barlow Condensed',sans-serif;color:var(--amarelo)">🧾 NF ${esc(n.numero)} · ${esc(f.fantasia || f.nome || '')}</h2><button class="fechar" onclick="fechar()">×</button></div>
+    <div class="muted">Emissão ${dBR(n.emissao)} · ${fmtR(n.valor_total)} · CNPJ ${esc(f.cnpj || '')}${n.chave ? '<br>Chave ' + esc(n.chave) : ''}</div>
+    ${n.dados && (n.dados.kwp || n.dados.serie || n.dados.finame) ? `<div style="margin-top:8px">🔆 ${n.dados.kwp ? esc(n.dados.kwp) + ' kWp · ' : ''}${n.dados.serie ? 'série <b>' + esc(n.dados.serie) + '</b> · ' : ''}${n.dados.finame ? 'FINAME ' + esc(n.dados.finame) : ''}</div>` : ''}
+    <h3>Itens</h3><div class="tabela-wrap"><table><tbody>${(it || []).map(t => `<tr><td>${esc(t.descricao)}${t.produtos ? '<br><span class="muted" style="font-size:11px">→ ' + esc(t.produtos.nome) + (t.estoque ? ' (estoque)' : '') + '</span>' : ''}</td><td class="num">${fmtN(t.quantidade)} ${esc(t.unidade || '')}</td><td class="num">${fmtR(t.valor_total)}</td></tr>`).join('')}</tbody></table></div>
+    ${(pg || []).length ? `<h3>Parcelas no Financeiro</h3>${pg.map(x => `<div class="muted">${fmtR(x.valor)} · vence ${dBR(x.vencimento)} · ${x.pago_em ? '✅ paga em ' + dBR(x.pago_em) : '<span style="color:var(--amarelo)">a pagar</span>'}</div>`).join('')}` : ''}`;
+  $('ov').classList.add('visivel');
+}
+async function excluirNota(id) {
+  const n = NOTAS.find(x => x.id === id);
+  if (!confirm('Excluir a NF ' + n.numero + '? Saem os itens, as entradas no estoque e as parcelas ainda não pagas.')) return;
+  const { error } = await sb.rpc('excluir_nota', { p_id: id });
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  await carregar(); msg('🗑 Nota excluída.');
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fechar(); });
+iniciar();
+</script>
+</body>
+</html>
