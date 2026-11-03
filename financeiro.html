@@ -110,6 +110,7 @@
 </div>
 
 <script src="js/comum.js?v=20261019a"></script>
+<script src="js/parcelas.js?v=20261103a"></script>
 <script>
 // Energtech — Financeiro (só admin)
 // Contas do mês: o que entra (recebimentos) e o que sai (a pagar). O "a pagar" automático (kit ao fornecedor,
@@ -128,7 +129,7 @@ function numBR(t) { let s = String(t ?? '').replace(/[R$\s]/g, ''); if (!s) retu
 const TIPOS_PAG = { kit:'Kit ao fornecedor', comissao:'Comissão', imposto:'Imposto (Simples)', salario:'Salário', diarias:'Diárias / instalações', instalacao:'Instalação', fixo:'Custo fixo', material:'Compra de material (NF)', outro:'Outro' };
 const TIPOS_REC = { entrada:'Entrada', boleto:'Boleto', banco:'Banco / financiamento', repasse:'Repasse do fornecedor', outro:'Outro' };
 const CATEGORIAS = { aluguel:'Aluguel', energia_agua:'Energia / água', internet_telefone:'Internet / telefone', marketing:'Marketing / anúncios', contador:'Contador', software:'Sistemas / software', veiculo:'Veículo / combustível', prolabore:'Pró-labore', emprestimo:'Empréstimo / financiamento', outros:'Outros' };
-let perfil = null, aba = 'fluxo', REC = [], PAG = [], FIXOS = [], PRM = {}, GANHOS = [];
+let perfil = null, aba = 'fluxo', REC = [], PAG = [], FIXOS = [], PRM = {}, GANHOS = [], verTodas = false;
 
 function msg(t, erro) { const m = $('msg'); m.textContent = t || ''; m.classList.toggle('erro', !!erro); }
 function mostrar(qual, texto) {
@@ -229,13 +230,13 @@ function renderFluxo() {
   const ym = $('f-mes').value, ini = ym + '-01', fim = ultimoDia(ym), hoje = hojeISO();
   const noMes = d => d && d >= ini && d <= fim;
   // a receber: não recebidos até o fim do mês (inclui atrasados) e sem data
-  const aReceber = REC.filter(x => !x.recebido_em && (!x.vencimento || x.vencimento <= fim)).sort((a, b) => (a.vencimento || '9') < (b.vencimento || '9') ? -1 : 1);
+  const aReceber = REC.filter(x => !x.recebido_em && (verTodas || !x.vencimento || x.vencimento <= fim)).sort((a, b) => (a.vencimento || '9') < (b.vencimento || '9') ? -1 : 1);
   const recebidos = REC.filter(x => noMes(x.recebido_em));
   const atrasadoRec = REC.filter(x => !x.recebido_em && x.vencimento && x.vencimento < hoje).reduce((a, x) => a + +x.valor, 0);
   const somaRecMes = REC.filter(x => !x.recebido_em && noMes(x.vencimento)).reduce((a, x) => a + +x.valor, 0);
   const recebidoMes = recebidos.reduce((a, x) => a + +(x.valor_recebido ?? x.valor), 0);
   const coms = comissoes();
-  const aPagar = PAG.filter(x => !x.pago_em && !(x.auto && x.tipo === 'comissao') && (!x.vencimento || x.vencimento <= fim)).sort((a, b) => (a.vencimento || '9') < (b.vencimento || '9') ? -1 : 1);
+  const aPagar = PAG.filter(x => !x.pago_em && !(x.auto && x.tipo === 'comissao') && (verTodas || !x.vencimento || x.vencimento <= fim)).sort((a, b) => (a.vencimento || '9') < (b.vencimento || '9') ? -1 : 1);
   const pagos = PAG.filter(x => noMes(x.pago_em) && !(x.auto && x.tipo === 'comissao'));
   const comAgora = coms.reduce((a, c) => a + c.agora, 0);
   const somaPagMes = aPagar.filter(x => !x.vencimento || x.vencimento <= fim).reduce((a, x) => a + +x.valor, 0) + comAgora;
@@ -248,7 +249,15 @@ function renderFluxo() {
   const linhaCom = c => `<tr><td>${esc((c.equipe && c.equipe.nome) || 'Vendedor não informado')}</td><td>${linkCli(c)}<br><span class="muted">comissão ${fmtR(c.valor)} · cliente pagou ${Math.round(c.fr * 100)}% · já pago ${fmtR(c.pago)}</span></td><td class="num">${fmtR(c.liberada)}</td><td class="num"><b>${fmtR(c.agora)}</b></td><td class="num">${c.agora > 0 ? `<button class="btn btn-verde btn-p" onclick="pagarComissao(${c.id})">✔ Paguei</button>` : '<span class="muted">—</span>'}</td></tr>`;
   const tab = (cab, linhas, vazio) => `<div class="tabela-wrap"><table><thead><tr>${cab}</tr></thead><tbody>${linhas || `<tr><td colspan="9" class="vazio">${vazio}</td></tr>`}</tbody></table></div>`;
   const comAbertas = coms.filter(c => c.resta > 0.004);
+  // vendas ganhas que ainda não têm nenhuma parcela a receber lançada
+  const semParcelas = GANHOS.filter(l => !REC.some(r => r.lead_id === l.id));
+  const totAbertoRec = REC.filter(x => !x.recebido_em).reduce((a, x) => a + +x.valor, 0);
+  const totAbertoPag = PAG.filter(x => !x.pago_em && !(x.auto && x.tipo === 'comissao')).reduce((a, x) => a + +x.valor, 0) + coms.reduce((a, c) => a + c.resta, 0);
   $('aba-fluxo').innerHTML = `
+    ${semParcelas.length ? `<div class="card" style="border-color:#7c5a00"><div class="linha-topo"><h2>⚠ Vendas sem parcelas a receber</h2><span class="muted">Sem as parcelas, a venda não aparece em "A receber"</span></div>
+      ${semParcelas.map(l => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #242424;flex-wrap:wrap">
+        <span><a href="crm.html?lead=${l.id}">${esc(l.nome)}</a> <span class="muted">· ganho em ${dBR(l.etapa_em)} · ${fmtR(l.valor)}${l.forma_pagamento ? ' · ' + esc(l.forma_pagamento) : ''}</span></span>
+        <button class="btn btn-p" onclick="gerarParcelas(${l.id})">⚡ Gerar parcelas da proposta</button></div>`).join('')}</div>` : ''}
     <div class="kpis">
       ${kp(fmtR0(recebidoMes), '✅ Recebido no mês', 'verde')}
       ${kp(fmtR0(somaRecMes), '⏳ A receber no mês (vencendo)')}
@@ -257,9 +266,11 @@ function renderFluxo() {
       ${kp(fmtR0(somaPagMes), '📌 A pagar até o fim do mês (inclui vencidos e comissões liberadas)')}
       ${kp(fmtR0(saldo), '⚖ Saldo previsto do mês (entra − sai)', saldo < 0 ? 'verm' : 'verde')}
     </div>
-    <div class="card"><div class="linha-topo"><h2>⬇ A receber</h2><span class="muted">As parcelas são lançadas na ficha do cliente (CRM → 💰 Recebimentos)</span></div>
+    <div class="card" style="padding:10px 18px"><label class="muted" style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" ${verTodas ? 'checked' : ''} onchange="verTodas=this.checked;render()"> Mostrar todas as contas em aberto (também as dos próximos meses)</label>
+      <div class="muted" style="margin-top:4px">Em aberto no total: a receber <b class="pos">${fmtR(totAbertoRec)}</b> · a pagar <b class="neg">${fmtR(totAbertoPag)}</b> (inclui comissões ainda não liberadas)</div></div>
+    <div class="card"><div class="linha-topo"><h2>⬇ A receber${verTodas ? ' — todas em aberto' : ''}</h2><span class="muted">As parcelas são lançadas na ficha do cliente (CRM → 💰 Recebimentos)</span></div>
       ${tab('<th>Cliente</th><th>Parcela</th><th>Vencimento</th><th class="num">Valor</th><th></th>', aReceber.map(linhaRec).join(''), 'Nada a receber até o fim do mês. ✅')}</div>
-    <div class="card"><div class="linha-topo"><h2>⬆ A pagar</h2><button class="btn btn-sec" onclick="novoPagamento()">+ Lançamento avulso</button></div>
+    <div class="card"><div class="linha-topo"><h2>⬆ A pagar${verTodas ? ' — todas em aberto' : ''}</h2><button class="btn btn-sec" onclick="novoPagamento()">+ Lançamento avulso</button></div>
       ${tab('<th>Tipo</th><th>Descrição</th><th>Vencimento</th><th class="num">Valor</th><th></th>', aPagar.map(linhaPag).join(''), 'Nada a pagar até o fim do mês. ✅')}</div>
     <div class="card"><div class="linha-topo"><h2>🤝 Comissões</h2><span class="muted">Liberadas conforme o cliente paga (sobre o valor total da venda)</span></div>
       ${tab('<th>Vendedor</th><th>Venda</th><th class="num">Liberada</th><th class="num">A pagar agora</th><th></th>', comAbertas.map(linhaCom).join(''), 'Nenhuma comissão em aberto.')}</div>
@@ -267,6 +278,21 @@ function renderFluxo() {
       <div class="card"><h2>✅ Recebido em ${nomeMes(ym)}</h2>${tab('<th>Data</th><th>Cliente</th><th class="num">Valor</th>', recebidos.sort((a, b) => a.recebido_em < b.recebido_em ? -1 : 1).map(x => `<tr><td>${dBR(x.recebido_em)}</td><td>${linkCli(x)} <span class="muted">${esc(TIPOS_REC[x.tipo] || '')}</span></td><td class="num">${fmtR(x.valor_recebido ?? x.valor)}</td></tr>`).join(''), 'Nada recebido no mês.')}</div>
       <div class="card"><h2>💸 Pago em ${nomeMes(ym)}</h2>${tab('<th>Data</th><th>Descrição</th><th class="num">Valor</th><th></th>', pagos.sort((a, b) => a.pago_em < b.pago_em ? -1 : 1).map(x => `<tr><td>${dBR(x.pago_em)}</td><td>${esc(TIPOS_PAG[x.tipo] || '')} <span class="muted">${esc(x.descricao || '')}</span></td><td class="num">${fmtR(x.valor)}</td><td class="num"><a href="#" onclick="desfazerPag(${x.id});return false" class="muted">desfazer</a></td></tr>`).join(''), 'Nada pago no mês.')}</div>
     </div>`;
+}
+// gera as parcelas a receber de uma venda pela condição salva na proposta (mesma regra do CRM)
+async function gerarParcelas(leadId) {
+  const l = GANHOS.find(x => x.id === leadId); if (!l) return;
+  if (!l.orcamento_ganho_id) { msg('⚠ Marque no CRM qual proposta fechou (bloco Negócio ganho → alterar).', true); return; }
+  msg('⏳ Gerando parcelas…');
+  const r = await parcelasDaVenda({ leadId, orcamentoId: l.orcamento_ganho_id, forma: l.forma_pagamento, valorFinal: l.valor,
+    perguntarN: () => Math.max(0, Math.min(24, parseInt(prompt('Em quantos boletos fica o restante (depois da entrada no valor do kit)?', '3'), 10) || 0)) });
+  if (r.erro) { msg('⚠ ' + r.erro, true); return; }
+  if (r.cancelado || !r.novas.length) { msg(''); return; }
+  const resumo = r.novas.map(x => '• ' + x.descricao + ': ' + fmtR(x.valor) + (x.vencimento ? ' em ' + dBR(x.vencimento) : ' (sem data)')).join('\n');
+  if (!confirm('Parcelas de ' + l.nome + ':\n\n' + resumo + '\n\nLançar? (dá para ajustar valores e datas depois, na ficha do cliente no CRM)')) { msg(''); return; }
+  const { error } = await sb.from('recebimentos').insert(r.novas);
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  await carregar(); msg('✅ Parcelas de ' + l.nome + ' lançadas.' + (r.aviso ? ' ⚠ ' + r.aviso : ''), !!r.aviso);
 }
 const editavel = x => !x.auto || ['fixo', 'salario', 'diarias', 'instalacao', 'outro'].includes(x.tipo);
 
