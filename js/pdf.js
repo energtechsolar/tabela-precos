@@ -85,7 +85,9 @@ function montarPropostaPDF(d, fotos) {
   // kit personalizado: tipo de sistema (on-grid, zero grid, híbrido, off-grid), baterias e pagamento a combinar
   const tipoSis = d.item.tipo_sistema || 'ongrid';
   const bat = d.item.baterias && +d.item.baterias.qtd > 0 ? d.item.baterias : null;
-  const aCombinar = d.item.pagamento === 'combinar';
+  const modoPag = imp && d.pag && d.pag.modo ? d.pag.modo : 'opcoes';   // opcoes · negociada · avista · combinar
+  const aCombinar = d.item.pagamento === 'combinar' || modoPag === 'combinar';
+  const soAVista = !aCombinar && modoPag === 'avista', negociada = !aCombinar && modoPag === 'negociada';
   const fmtN = n => String(+(+n || 0).toFixed(2)).replace('.', ',');
 
   // ═══════════════ PÁGINA 1 — CAPA ═══════════════
@@ -364,7 +366,7 @@ function montarPropostaPDF(d, fotos) {
 
   // ═══════════════ PÁGINA 4 — INVESTIMENTO E FORMAS DE PAGAMENTO ═══════════════
   doc.addPage(); cabecalho();
-  secao(4, 'INVESTIMENTO E FORMAS DE PAGAMENTO', 'Escolha a condição que melhor se adapta a você.');
+  secao(4, 'INVESTIMENTO E FORMAS DE PAGAMENTO', soAVista || negociada ? 'Condição de pagamento desta proposta.' : 'Escolha a condição que melhor se adapta a você.');
   const itensCfg = k => String(PROPOSTA_CFG[k] || '').split('\n').map(t => t.trim()).filter(Boolean);
   const opcoes = [];
   if (aCombinar) opcoes.push({ titulo:'INVESTIMENTO', desenha:(x, y, w) => {
@@ -373,6 +375,17 @@ function montarPropostaPDF(d, fotos) {
     texto('Condições de pagamento a combinar com a Energtech', x + w / 2, y + 19, { align:'center' });
     cor(CZ); fonte(7); doc.text(linhas('Entre em contato para definir a forma de pagamento que melhor se adapta a você.', w - 8), x + 4, y + 27);
     return 32;
+  }});
+  else if (negociada) opcoes.push({ titulo:'CONDIÇÃO DE PAGAMENTO', desenha:(x, y, w) => {
+    cor(PR); fonte(8.5, 'bold'); texto('Investimento total', x + 4, y + 7);
+    caber(brl(d.valor), w - 8, 18, 10, 'bold'); texto(brl(d.valor), x + 4, y + 15);
+    fill(AM); doc.rect(x + 4, y + 19, w - 8, 6, 'F'); cor(PR); fonte(7.5, 'bold');
+    texto('Condição acordada com a Energtech', x + w / 2, y + 23, { align:'center' });
+    cor(PR); fonte(11, 'bold'); texto('Entrada: ' + brl(d.pag.entrada), x + 4, y + 33);
+    cor(CZ); fonte(6.5); texto('no ato do pedido', x + 4, y + 37);
+    cor(PR); fonte(11, 'bold'); doc.text(linhas('Saldo: ' + d.pag.n + 'x ' + brl(d.pag.parcela), w - 8), x + 4, y + 45);
+    cor(CZ); fonte(6.5); texto('parcelas mensais no boleto  ·  total ' + brl(d.pag.totalPrazo), x + 4, y + 49);
+    return 54;
   }});
   else opcoes.push({ titulo:'À VISTA', desenha:(x, y, w) => {
     let yv = y + 9;
@@ -386,7 +399,7 @@ function montarPropostaPDF(d, fotos) {
     texto(temDesc ? 'Você economiza ' + brl(d.descontoAVista) : 'Melhor custo-benefício', x + w / 2, yv + 7.4, { align:'center' });
     return listaCheck(itensCfg('avista_itens'), x + 4, yv + 16, w - 8, 7.2, PR, 1.3) - y;
   }});
-  if (aCombinar) { /* só o valor */ }
+  if (aCombinar || soAVista || negociada) { /* só a condição escolhida */ }
   else if (imp) opcoes.push({ titulo:'ENTRADA + PARCELAS', desenha:(x, y, w) => {
     cor(PR); fonte(11, 'bold'); texto('Entrada: ' + brl(d.pag.entrada), x + 4, y + 8);
     cor(CZ); fonte(6.5); texto('no ato do pedido', x + 4, y + 12);
@@ -408,7 +421,7 @@ function montarPropostaPDF(d, fotos) {
   const prazos = String(PROPOSTA_CFG.fin_prazos || '').split(/[,;\s]+/).map(Number).filter(n => n > 0).slice(0, 6);
   const taxaFin = (+PROPOSTA_CFG.fin_taxa_mes || 0) / 100;
   const pmt = (v, n) => taxaFin > 0 ? v * taxaFin / (1 - Math.pow(1 + taxaFin, -n)) : v / n;
-  const mostrarFin = PROPOSTA_CFG.fin_ativo && imp && !aCombinar && prazos.length > 0;   // nacional: só FINAME (a linha da Caixa é para imóvel urbano)
+  const mostrarFin = PROPOSTA_CFG.fin_ativo && imp && !aCombinar && !soAVista && !negociada && prazos.length > 0;   // nacional: só FINAME (a linha da Caixa é para imóvel urbano)
   if (mostrarFin) opcoes.push({ titulo:'FINANCIAMENTO', sub: PROPOSTA_CFG.fin_banco, desenha:(x, y, w) => {
     cor(PR); fonte(8.5, 'bold'); texto('Parcelas estimadas', x + 4, y + 7);
     let yy = y + 10;
@@ -429,21 +442,21 @@ function montarPropostaPDF(d, fotos) {
   let hBody = 0;
   opcoes.forEach((o, i) => { const x = X0 + i * (ow + 4); hBody = Math.max(hBody, o.desenha(x, yOp + hHead + 400, ow) + 4); });
   doc.deletePage(doc.getNumberOfPages()); doc.addPage(); cabecalho();
-  secao(4, 'INVESTIMENTO E FORMAS DE PAGAMENTO', 'Escolha a condição que melhor se adapta a você.');
+  secao(4, 'INVESTIMENTO E FORMAS DE PAGAMENTO', soAVista || negociada ? 'Condição de pagamento desta proposta.' : 'Escolha a condição que melhor se adapta a você.');
   opcoes.forEach((o, i) => {
     const x = X0 + i * (ow + 4);
     caixa(x, yOp, ow, hHead, PR);
-    cor(BR); fonte(6.9, 'bold'); const tt = linhas('OPÇÃO ' + (i + 1) + ' — ' + o.titulo + (o.sub ? ' ' + o.sub.toUpperCase() : ''), ow - 8).slice(0, 2);
+    cor(BR); fonte(6.9, 'bold'); const tt = linhas((opcoes.length > 1 ? 'OPÇÃO ' + (i + 1) + ' — ' : '') + o.titulo + (o.sub ? ' ' + o.sub.toUpperCase() : ''), ow - 8).slice(0, 2);
     doc.text(tt, x + 4, yOp + (tt.length > 1 ? 4.2 : 6.2));
     caixa(x, yOp + hHead, ow, hBody, BR, BD);
     o.desenha(x, yOp + hHead, ow);
   });
   y = yOp + hHead + hBody + 8;
-  const menorParcela = aCombinar ? 0 : Math.min(...[imp ? d.pag.parcela10 : d.pag.p120].concat(mostrarFin ? prazos.map(n => pmt(cheio, n)) : []).filter(v => v > 0));
+  const menorParcela = aCombinar || soAVista ? 0 : Math.min(...[imp ? d.pag.parcela10 : d.pag.p120].concat(mostrarFin ? prazos.map(n => pmt(cheio, n)) : []).filter(v => v > 0));
   const msgEco = (d.economia > 0 && menorParcela <= d.economia) ? 'Sua economia estimada é de ' + brl0(d.economia) + ' por mês, e a parcela pode começar em ' + brl0(menorParcela) + '.' : '';
   fonte(7.4); const corpo = linhas('Em muitos casos, o valor da parcela pode ser igual ou menor do que a sua conta de luz atual. Ou seja: você troca a conta de energia por um investimento que fica seu.' + (msgEco ? ' ' + msgEco : ''), CW - 16);
   const hEco = 13 + corpo.length * 3.4;
-  if (!aCombinar) {
+  if (!aCombinar && !soAVista) {
     caixa(X0, y, CW, hEco, AM);
     cor(PR); fonte(10, 'bold'); texto('Parcela menor que a fatura', X0 + 8, y + 7.5);
     fonte(7.4); doc.text(corpo, X0 + 8, y + 12.5);
@@ -454,7 +467,7 @@ function montarPropostaPDF(d, fotos) {
     + (temDesc ? ' No parcelado e no financiamento: kit gerador ' + brl(d.valorKit) + ' + serviços de instalação ' + brl(d.valorServicoCheio) + ' = ' + brl(cheio) + '.' : ''));
   if (temDesc) obs.push('O desconto de ' + brl(d.descontoAVista) + ' vale para o pagamento à vista. Entrada + parcelas e financiamentos são calculados sobre ' + brl(cheio) + '.');
   if (!imp && !(d.fornecedor && d.fornecedor.finame) && PROPOSTA_CFG.codigo_finame) obs.push('Código FINAME do kit: ' + PROPOSTA_CFG.codigo_finame + '.');
-  if (!aCombinar) obs.push('Condições de financiamento sujeitas à análise de crédito.');
+  if (!aCombinar && !soAVista && !negociada) obs.push('Condições de financiamento sujeitas à análise de crédito.');
   // dados do cliente (para cadastro do financiamento) — linhas vazias não aparecem
   const temV = v => v && String(v).trim();
   const linhasCli = [

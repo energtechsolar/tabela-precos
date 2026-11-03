@@ -99,27 +99,96 @@ function conferirJuros() {
   const inp = document.getElementById('bol-juros'); if (!inp) return;
   const b = boletoEscolhido(); inp.value = fmtPct(b.juros); atualizar();
 }
+// ── CONDIÇÃO DE PAGAMENTO DA PROPOSTA (importados) ──
+// modo: opcoes (à vista + entrada/parcelas + financiamento) · negociada (só a condição combinada) · avista · combinar
+// Entrada editável: o vendedor não desce abaixo da entrada da tabela do kit; o admin pode tudo (com aviso abaixo do custo).
+// Na condição negociada o valor da parcela pode ser digitado; a soma (entrada + parcelas) não pode ficar abaixo do total (vendedor).
+const MODOS_PAG = ['opcoes', 'negociada', 'avista', 'combinar'];
+const modoPag = () => { const v = (document.getElementById('pag-modo') || {}).value; return MODOS_PAG.includes(v) ? v : 'opcoes'; };
+const itemPagFoco = () => { const idx = linhaFoco && linhaFoco.startsWith('importado') ? +linhaFoco.split('-')[1] : -1; return IMPORTADO[idx] || null; };
+const chaveItemPag = item => item ? (linhaFoco || '') + '|' + (+item.inv_r || 0) + '|' + (+item.entrada || 0) : '';
+// valor sobre o qual entram entrada + parcelas: proposta aberta (total digitado) ou, só na tabela, a régua
+function totalParaParcelar(item, modo) {
+  if (typeof propostaItem !== 'undefined' && propostaItem === item && typeof propostaCalc !== 'undefined' && propostaCalc)
+    return modo === 'negociada' ? Math.round((+propostaCalc.valorFinal || 0) * 100) / 100 : valorCheioDe(item, propostaCalc);
+  return valorCheioDe(item, calcLinha(item, +document.getElementById('slider-adicional').value, +document.getElementById('slider-desconto').value));
+}
+const leReais = id => { const el = document.getElementById(id); return el && el.value.trim() && typeof lerReais === 'function' ? lerReais(el.value) : null; };
+// condição completa escolhida na tela, já com as travas de quem está logado
+function pagamentoEscolhido(item) {
+  item = item || itemPagFoco();
+  const modo = modoPag(), b = boletoEscolhido(), adm = ehAdminBoleto();
+  const entTab = item ? +item.entrada || 0 : 0;
+  const total = item ? totalParaParcelar(item, modo) : 0;
+  let entrada = leReais('bol-entrada'); if (entrada === null) entrada = entTab;
+  const avisos = [];
+  if (!adm && entTab > 0 && entrada < entTab - 0.004) { avisos.push('A entrada mínima deste kit é ' + fmt(entTab) + ' (só o admin libera menos).'); entrada = entTab; }
+  if (total > 0 && entrada >= total) { avisos.push('A entrada precisa ser menor que o total (' + fmt(total) + ').'); entrada = Math.min(entTab, total); }
+  if (adm && item && typeof custoDoKit === 'function') { const custo = custoDoKit(item); if (custo !== null && entrada < custo - 0.5) avisos.push('Entrada abaixo do custo do kit (' + fmt(custo) + '): a Energtech paga a diferença ao fornecedor com caixa próprio.'); }
+  const saldo = Math.max(0, total - entrada);
+  let parcela = parcelaPrice(saldo, b.n, b.juros), fixa = false;
+  const digitada = modo === 'negociada' ? leReais('bol-parcela-valor') : null;
+  if (digitada !== null && digitada > 0) {
+    const soma = entrada + digitada * b.n;
+    if (soma < total - 0.5 && !adm) avisos.push('Com parcelas de ' + fmt(digitada) + ' a soma fica ' + fmt(soma) + ', abaixo do total de ' + fmt(total) + ': a proposta usa a parcela calculada.');
+    else { parcela = digitada; fixa = true; if (Math.abs(soma - total) > 0.5) avisos.push('Entrada + parcelas = ' + fmt(soma) + (soma < total ? ' (abaixo' : ' (acima') + ' do total de ' + fmt(total) + ').'); }
+  }
+  parcela = Math.round(parcela * 100) / 100;
+  return { modo, entrada: Math.round(entrada * 100) / 100, n: b.n, juros: fixa ? 0 : b.juros, parcela, parcela_fixa: fixa, total, totalPrazo: Math.round((entrada + parcela * b.n) * 100) / 100, avisos };
+}
+// texto da condição (CRM, contrato e WhatsApp) — sempre em reais
+function textoCondicaoPag(p, valorAVista) {
+  if (!p) return '';
+  if (p.modo === 'combinar') return 'A combinar';
+  if (p.modo === 'avista') return 'À vista' + (valorAVista ? ' ' + fmt(valorAVista) : '');
+  const t = 'Entrada de ' + fmt(p.entrada) + ' + ' + p.n + 'x de ' + fmt(p.parcela) + ' no boleto';
+  return p.modo === 'negociada' ? t : 'À vista' + (valorAVista ? ' ' + fmt(valorAVista) : '') + ' ou ' + t.charAt(0).toLowerCase() + t.slice(1);
+}
+function mudouModoPag() { const pv = document.getElementById('bol-parcela-valor'); if (pv && modoPag() !== 'negociada') pv.value = ''; atualizar(); }
+// restaura a condição de uma proposta salva (revisão)
+function definirPagamento(b) {
+  b = b || {};
+  definirBoleto(b.parcelas || BOLETO_CFG.padrao, b.juros_mes || 0);
+  const sel = document.getElementById('pag-modo'); if (sel) sel.value = MODOS_PAG.includes(b.modo) ? b.modo : 'opcoes';
+  const ent = document.getElementById('bol-entrada'), item = itemPagFoco();
+  if (ent) { ent.value = b.entrada != null && typeof fmtReais === 'function' ? fmtReais(b.entrada) : ''; ent.dataset.chave = chaveItemPag(item); }
+  const pv = document.getElementById('bol-parcela-valor'); if (pv) pv.value = b.parcela_fixa && b.parcela && typeof fmtReais === 'function' ? fmtReais(b.parcela) : '';
+}
 function atualizarBlocoBoleto() {
   const bloco = document.getElementById('neg-boleto'); if (!bloco || !document.getElementById('bol-resumo')) return;
   bloco.style.display = abaAtual === 'importado' ? '' : 'none';
   montarSelectParcelas(false);
+  const modo = modoPag(), item = itemPagFoco();
+  const campos = document.getElementById('bol-campos'); if (campos) campos.style.display = modo === 'avista' || modo === 'combinar' ? 'none' : 'flex';
+  const pbox = document.getElementById('bol-parcela-box'); if (pbox) pbox.style.display = modo === 'negociada' ? '' : 'none';
+  // trocou de kit: a entrada volta para a da tabela
+  const ent = document.getElementById('bol-entrada');
+  if (ent && item && ent.dataset.chave !== chaveItemPag(item) && document.activeElement !== ent) {
+    ent.value = typeof fmtReais === 'function' ? fmtReais(+item.entrada || 0) : String(+item.entrada || 0); ent.dataset.chave = chaveItemPag(item);
+    const pv = document.getElementById('bol-parcela-valor'); if (pv) pv.value = '';
+  }
   const b = boletoEscolhido(), min = jurosMinimo(b.n);
   const inp = document.getElementById('bol-juros');
   if (inp && document.activeElement !== inp && inp.value.trim() === '') inp.value = fmtPct(b.juros);
   const regra = BOLETO_CFG.juros_min > 0
     ? `Até ${BOLETO_CFG.sem_juros_ate}x pode ser sem juros · acima disso mínimo ${fmtPct(BOLETO_CFG.juros_min)}% ao mês`
     : `Até ${BOLETO_CFG.sem_juros_ate}x sem juros (o admin ainda não definiu juros mínimo acima disso)`;
-  document.getElementById('bol-regra').textContent = regra + (ehAdminBoleto() ? ' · admin: sem trava' : '');
+  document.getElementById('bol-regra').textContent = modo === 'avista' ? 'A proposta mostra só o pagamento à vista.'
+    : modo === 'combinar' ? 'A proposta mostra só o valor total, com "condições a combinar".'
+    : regra + (item && +item.entrada ? ' · entrada da tabela: ' + fmt(+item.entrada) : '') + (ehAdminBoleto() ? ' · admin: sem trava' : '');
   const digitado = inp ? Math.max(0, +String(inp.value).replace(',', '.') || 0) : 0;
   const aviso = document.getElementById('bol-aviso');
-  aviso.textContent = !ehAdminBoleto() && digitado < min ? `⚠ Em ${b.n}x o juro mínimo é ${fmtPct(min)}% ao mês — a proposta usa ${fmtPct(min)}%.` : '';
-  const idx = linhaFoco && linhaFoco.startsWith('importado') ? +linhaFoco.split('-')[1] : -1, item = IMPORTADO[idx];
   const res = document.getElementById('bol-resumo');
-  if (!item) { res.textContent = 'Selecione um sistema na tabela para ver a parcela.'; return; }
-  const c = calcLinha(item, +document.getElementById('slider-adicional').value, +document.getElementById('slider-desconto').value);
-  const saldo = Math.max(0, valorCheioDe(item, c) - item.entrada), k = calcBoleto(saldo, b);
-  res.innerHTML = `Entrada <b>${fmt(item.entrada)}</b> + <b>${k.n}x de ${fmt(k.parcela)}</b> · total a prazo <b>${fmt(item.entrada + k.totalParcelas)}</b>`
-    + (k.jurosReais > 0.005 ? ` · <span style="color:var(--verde)">juros para a empresa: ${fmt(k.jurosReais)}</span>` : ' · sem juros');
+  if (!item) { aviso.textContent = ''; res.textContent = 'Selecione um sistema na tabela para ver a parcela.'; return; }
+  const p = pagamentoEscolhido(item);
+  const avisos = (modo === 'avista' || modo === 'combinar') ? [] : p.avisos.slice();
+  if (!p.parcela_fixa && !ehAdminBoleto() && digitado < min && modo !== 'avista' && modo !== 'combinar') avisos.unshift(`Em ${b.n}x o juro mínimo é ${fmtPct(min)}% ao mês — a proposta usa ${fmtPct(min)}%.`);
+  aviso.innerHTML = avisos.map(a => '⚠ ' + a).join('<br>');
+  if (modo === 'avista' || modo === 'combinar') { res.innerHTML = ''; return; }
+  const jurosR = Math.max(0, p.totalPrazo - p.total);
+  res.innerHTML = `Entrada <b>${fmt(p.entrada)}</b> + <b>${p.n}x de ${fmt(p.parcela)}</b> · total a prazo <b>${fmt(p.totalPrazo)}</b>`
+    + (p.parcela_fixa ? ' · parcela digitada' : jurosR > 0.5 ? ` · <span style="color:var(--verde)">juros para a empresa: ${fmt(jurosR)}</span>` : ' · sem juros')
+    + (modo === 'negociada' ? ' · <span class="regiao-aviso">a proposta mostra só esta condição</span>' : '');
 }
 
 // ── CALCULA LINHA ───────────────────────────────────────────────────────────

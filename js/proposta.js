@@ -188,7 +188,7 @@ function coletarDadosProposta() {
     emissao: hoje,
     vendedor: perfil && perfil.vendedor ? (perfil.nome || perfil.email) : '',
     fornecedor: fornecedorSel(), contaPag: contaSel(), descontoSoAVista: true,
-    boleto: tipo === 'importado' ? boletoEscolhido() : null,
+    boleto: tipo === 'importado' ? pagamentoEscolhido(propostaItem) : null,
   });
 }
 
@@ -210,14 +210,19 @@ function calcularDadosProposta(e) {
   // desconto só no à vista: entrada + parcelas e financiamentos usam o valor cheio (sem o desconto).
   // Propostas salvas antes desta regra (sem a marca desconto_so_avista) reimprimem como foram enviadas.
   const novaRegra = !!e.descontoSoAVista;
-  const valorCheio = novaRegra ? valorCheioDe(item, calc) : valor;
+  // condição de pagamento (importados): opcoes · negociada · avista · combinar (propostas antigas = opcoes)
+  const modoPag = tipo === 'importado' && e.boleto && ['negociada', 'avista', 'combinar'].includes(e.boleto.modo) ? e.boleto.modo : 'opcoes';
+  // negociada: o total combinado é o valor do negócio (sem "de / por" e sem desconto só no à vista)
+  const valorCheio = modoPag === 'negociada' ? valor : novaRegra ? valorCheioDe(item, calc) : valor;
   const paybackMeses = economia > 0 ? Math.ceil(valor / economia) : null;
   let eco25 = 0; for (let t = 0; t < 25; t++) eco25 += economia * 12 * Math.pow(0.995, t);
   // importado: entrada + N parcelas (propostas antigas, sem a marca "boleto", seguem 10x sem juros)
   const bol = e.boleto && +e.boleto.n > 0 ? { n: Math.round(+e.boleto.n), juros: +e.boleto.juros || 0 } : { n: 10, juros: 0 };
-  const saldoImp = Math.max(0, valorCheio - item.entrada), parcImp = parcelaPrice(saldoImp, bol.n, bol.juros);
+  const entImp = e.boleto && e.boleto.entrada != null && isFinite(+e.boleto.entrada) ? +e.boleto.entrada : +item.entrada || 0;   // entrada editada na proposta
+  const saldoImp = Math.max(0, valorCheio - entImp);
+  const parcImp = e.boleto && e.boleto.parcela_fixa && +e.boleto.parcela > 0 ? +e.boleto.parcela : parcelaPrice(saldoImp, bol.n, bol.juros);
   const pag = tipo === 'importado'
-    ? { entrada: item.entrada, saldo: saldoImp, n: bol.n, juros: bol.juros, parcela: parcImp, parcela10: parcImp, totalPrazo: item.entrada + parcImp * bol.n }
+    ? { modo: modoPag, entrada: entImp, saldo: saldoImp, n: bol.n, juros: bol.juros, parcela: parcImp, parcela10: parcImp, totalPrazo: entImp + parcImp * bol.n }
     : { p96: calcParcelaMensal(valorCheio, 8), p120: calcParcelaMensal(valorCheio, 10), kit: valorCheio / 1.30, servicos: valorCheio - valorCheio / 1.30 };
   const modoValor = e.modoValor || 'global';
   let valorKit = modoValor === 'separado' ? (e.valorKit || valor / (+PROPOSTA_CFG.fator_kit || 1.30)) : null;
@@ -272,7 +277,7 @@ async function reimprimirProposta(id) {
     regiao: dd.regiao && dd.regiao.fator ? dd.regiao : { ...regiaoSel(), fator: fatorRegiao() },
     numero: String(o.id).padStart(5, '0'), emissao: new Date(o.criado_em),
     vendedor, fornecedor: forn, contaPag, descontoSoAVista: !!dd.desconto_so_avista,
-    boleto: dd.boleto && +dd.boleto.parcelas > 0 ? { n: +dd.boleto.parcelas, juros: +dd.boleto.juros_mes || 0 } : null,
+    boleto: dd.boleto && +dd.boleto.parcelas > 0 ? { n: +dd.boleto.parcelas, juros: +dd.boleto.juros_mes || 0, modo: dd.boleto.modo, entrada: dd.boleto.entrada, parcela: dd.boleto.parcela, parcela_fixa: !!dd.boleto.parcela_fixa } : null,
   });
   const fotos = {};
   await Promise.all(SLOTS_IMAGEM.map(async ([slot, , w, h]) => {
@@ -324,8 +329,11 @@ async function gerarPDF(modo) {
 function mensagemProposta(d) {
   const primeiro = (d.nome || '').split(' ')[0] || '';
   const imp = d.tipo === 'importado';
-  const pagamento = d.item.pagamento === 'combinar'
+  const modoPag = imp && d.pag ? d.pag.modo : 'opcoes';
+  const pagamento = d.item.pagamento === 'combinar' || modoPag === 'combinar'
     ? `${brl(d.valor)}, condições de pagamento a combinar`
+    : modoPag === 'avista' ? `à vista ${brl(d.valor)}`
+    : modoPag === 'negociada' ? `entrada de ${brl(d.pag.entrada)} + ${d.pag.n}x de ${brl(d.pag.parcela)}`
     : imp
     ? `à vista ${brl(d.valor)} ou entrada de ${brl(d.pag.entrada)} + ${d.pag.n}x de ${brl(d.pag.parcela)}`
     : `à vista ${brl(d.valor)}, ou FINAME em 96x de ${brl(d.pag.p96)} sem juros, ou 120x de ${brl(d.pag.p120)}`;
@@ -356,6 +364,7 @@ function preencherItensProposta() {
   document.getElementById('prop-itens').value = itensDoKit(propostaItem, tipo);
   document.getElementById('prop-servico').value = PROPOSTA_CFG.servico_desc || '';
   const modo = tipo === 'nacional' ? 'separado' : 'global';
+  { const pm = document.getElementById('pag-modo'); if (pm) pm.value = 'opcoes'; const pv = document.getElementById('bol-parcela-valor'); if (pv) pv.value = ''; }
   document.querySelectorAll('input[name="modo-valor"]').forEach(r => r.checked = r.value === modo);
   // a tabela é orientativa: o vendedor pode ajustar o total, ou o kit e a mão de obra
   if (propostaCalc.valorTabela === undefined) propostaCalc.valorTabela = propostaCalc.valorFinal;
@@ -456,6 +465,7 @@ function mostrarRefTabela() {
   el.style.color = dif < -0.009 ? 'var(--vermelho)' : '';
   avisoLimiteServico();
   atualizarDemonstrativo();
+  if (typeof atualizarBlocoBoleto === 'function') atualizarBlocoBoleto();   // entrada + parcelas acompanham o total digitado
 }
 
 // valor do parcelado / financiamento da proposta aberta (sem o desconto do à vista)
