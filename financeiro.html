@@ -129,7 +129,7 @@ function numBR(t) { let s = String(t ?? '').replace(/[R$\s]/g, ''); if (!s) retu
 const TIPOS_PAG = { kit:'Kit ao fornecedor', comissao:'Comissão', imposto:'Imposto (Simples)', salario:'Salário', diarias:'Diárias / instalações', instalacao:'Instalação', fixo:'Custo fixo', material:'Compra de material (NF)', outro:'Outro' };
 const TIPOS_REC = { entrada:'Entrada', boleto:'Boleto', banco:'Banco / financiamento', repasse:'Repasse do fornecedor', outro:'Outro' };
 const CATEGORIAS = { aluguel:'Aluguel', energia_agua:'Energia / água', internet_telefone:'Internet / telefone', marketing:'Marketing / anúncios', contador:'Contador', software:'Sistemas / software', veiculo:'Veículo / combustível', prolabore:'Pró-labore', emprestimo:'Empréstimo / financiamento', outros:'Outros' };
-let perfil = null, aba = 'fluxo', REC = [], PAG = [], FIXOS = [], PRM = {}, GANHOS = [], verTodas = false;
+let perfil = null, aba = 'fluxo', REC = [], PAG = [], FIXOS = [], PRM = {}, GANHOS = [], verTodas = false, formNovo = false;
 
 function msg(t, erro) { const m = $('msg'); m.textContent = t || ''; m.classList.toggle('erro', !!erro); }
 function mostrar(qual, texto) {
@@ -270,7 +270,8 @@ function renderFluxo() {
       <div class="muted" style="margin-top:4px">Em aberto no total: a receber <b class="pos">${fmtR(totAbertoRec)}</b> · a pagar <b class="neg">${fmtR(totAbertoPag)}</b> (inclui comissões ainda não liberadas)</div></div>
     <div class="card"><div class="linha-topo"><h2>⬇ A receber${verTodas ? ' — todas em aberto' : ''}</h2><span class="muted">As parcelas são lançadas na ficha do cliente (CRM → 💰 Recebimentos)</span></div>
       ${tab('<th>Cliente</th><th>Parcela</th><th>Vencimento</th><th class="num">Valor</th><th></th>', aReceber.map(linhaRec).join(''), 'Nada a receber até o fim do mês. ✅')}</div>
-    <div class="card"><div class="linha-topo"><h2>⬆ A pagar${verTodas ? ' — todas em aberto' : ''}</h2><button class="btn btn-sec" onclick="novoPagamento()">+ Lançamento avulso</button></div>
+    <div class="card"><div class="linha-topo"><h2>⬆ A pagar${verTodas ? ' — todas em aberto' : ''}</h2><button class="btn btn-sec" onclick="formNovo=!formNovo;render()">${formNovo ? '✕ Fechar' : '+ Lançamento avulso'}</button></div>
+      ${formNovo ? formNovoPag() : ''}
       ${tab('<th>Tipo</th><th>Descrição</th><th>Vencimento</th><th class="num">Valor</th><th></th>', aPagar.map(linhaPag).join(''), 'Nada a pagar até o fim do mês. ✅')}</div>
     <div class="card"><div class="linha-topo"><h2>🤝 Comissões</h2><span class="muted">Liberadas conforme o cliente paga (sobre o valor total da venda)</span></div>
       ${tab('<th>Vendedor</th><th>Venda</th><th class="num">Liberada</th><th class="num">A pagar agora</th><th></th>', comAbertas.map(linhaCom).join(''), 'Nenhuma comissão em aberto.')}</div>
@@ -350,6 +351,30 @@ async function apagarPag(id) {
   const x = PAG.find(p => p.id === id); if (!x || !confirm('Apagar "' + (x.descricao || TIPOS_PAG[x.tipo]) + '" de ' + fmtR(x.valor) + '?')) return;
   const { error } = await sb.from('pagamentos').delete().eq('id', id); if (error) { msg('⚠ ' + error.message, true); return; }
   PAG = PAG.filter(p => p.id !== id); render();
+}
+// lançamento avulso: pode ser ligado a um cliente/obra (ex.: cimento, areia e brita da instalação do Angelo)
+const CATS_AVULSO = ['Material de obra', 'Combustível / deslocamento', 'Alimentação / hospedagem', 'Ferramenta / equipamento', 'Serviço de terceiro', 'Outro'];
+function formNovoPag() {
+  const obras = GANHOS.slice().sort((a, b) => (b.etapa_em || '') < (a.etapa_em || '') ? -1 : 1);
+  return `<div style="background:var(--card2);border:1px solid var(--borda);border-radius:10px;padding:12px;margin-bottom:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;align-items:end">
+    <label class="muted">Cliente / obra (opcional)<select class="select" id="np-lead"><option value="">— despesa geral da empresa —</option>${obras.map(l => `<option value="${l.id}">${esc(l.nome)}</option>`).join('')}</select></label>
+    <label class="muted">Tipo<select class="select" id="np-cat">${CATS_AVULSO.map(c => `<option>${c}</option>`).join('')}</select></label>
+    <label class="muted">Descrição<input class="input" id="np-desc" placeholder="Ex.: cimento, areia e brita"></label>
+    <label class="muted">Valor (R$)<input class="input" id="np-valor" inputmode="decimal" placeholder="563,90"></label>
+    <label class="muted">Vencimento<input class="input" type="date" id="np-venc" value="${hojeISO()}"></label>
+    <label class="muted" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="np-pago" checked> Já foi pago</label>
+    <button class="btn" onclick="salvarNovoPag()">💾 Lançar</button>
+  </div>`;
+}
+async function salvarNovoPag() {
+  const lead = +$('np-lead').value || null, cat = $('np-cat').value, desc = $('np-desc').value.trim(), v = numBR($('np-valor').value), venc = $('np-venc').value;
+  if (!v || v <= 0) { msg('⚠ Informe o valor.', true); return; }
+  if (!venc) { msg('⚠ Informe o vencimento.', true); return; }
+  const reg = { tipo: 'outro', descricao: cat + (desc ? ': ' + desc : ''), valor: v, vencimento: venc, competencia: venc.slice(0, 8) + '01', lead_id: lead, pago_em: $('np-pago').checked ? hojeISO() : null };
+  const { data, error } = await sb.from('pagamentos').insert(reg).select('*, leads(nome), equipe(nome)').single();
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  PAG.push(data); formNovo = false; render();
+  msg('✅ Lançado' + (lead ? ' na obra de ' + ((data.leads || {}).nome || 'cliente') : '') + ': ' + fmtR(v) + (reg.pago_em ? ' (pago hoje)' : ' (a pagar)') + '.');
 }
 async function novoPagamento() {
   const desc = prompt('Descrição da saída (ex.: manutenção do carro, material elétrico extra):'); if (!desc) return;
