@@ -103,6 +103,7 @@
       <p class="muted" style="margin-top:8px">O total do mês de cada pessoa entra sozinho no Financeiro como conta a pagar (pagamento no mês seguinte). Valores já pagos não mudam.</p>
     </div>
 
+    <div class="card"><h2>💰 A receber por pessoa (tudo em aberto)</h2><div id="a-receber"></div></div>
     <div class="card"><h2>📒 Lançamentos do mês</h2><div id="lancamentos"></div></div>
     <div class="card"><h2>🏗 Custo de equipe por obra (no mês)</h2><div id="por-obra"></div></div>
     <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">👷 Cadastro da equipe</h2><button class="btn btn-sec" onclick="novaPessoa()">+ Pessoa</button></div><div class="pessoas" id="pessoas"></div></div>
@@ -123,7 +124,7 @@ function numBR(t) { let s = String(t ?? '').replace(/[R$\s]/g, ''); if (!s) retu
 const valBR = v => (+v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const TIPOS_P = { fixo:'Fixo (salário)', diarista:'Diarista', vendedor:'Vendedor (comissão)', comissionado:'Comissão + instalação' };
 const TIPOS_L = { dia:'Dia', instalacao:'Instalação', comissao:'Comissão', outro:'Outro' };
-let perfil = null, PES = [], LAN = [], OBRAS = [], OBRAS_TXT = [];
+let perfil = null, PES = [], LAN = [], OBRAS = [], OBRAS_TXT = [], ABERTOS = [], PAGP = [];
 
 function msg(t, erro) { const m = $('msg'); m.textContent = t || ''; m.classList.toggle('erro', !!erro); }
 function mostrar(qual, texto) {
@@ -160,14 +161,17 @@ async function carregar() {
   const ym = $('f-mes').value, ini = ym + '-01', fim = ultimoDia(ym);
   msg('⏳ Carregando…');
   const desde = new Date(); desde.setMonth(desde.getMonth() - 12);
-  const [p, l, o, t] = await Promise.all([
+  const [p, l, o, t, ab, pg] = await Promise.all([
     sb.from('equipe').select('*').order('nome'),
     sb.from('equipe_lancamentos').select('*, leads(nome)').gte('data', ini).lte('data', fim).order('data', { ascending: false }).order('id', { ascending: false }),
     sb.from('leads').select('id, nome, cidade, etapa, etapa_em').eq('etapa', 'ganho').gte('etapa_em', desde.toISOString()).order('etapa_em', { ascending: false }).limit(300),
     sb.from('equipe_lancamentos').select('obra_nome').not('obra_nome', 'is', null).order('id', { ascending: false }).limit(500),
+    // a receber: lançamentos ainda não pagos (de qualquer mês) e as contas da equipe no Financeiro
+    sb.from('equipe_lancamentos').select('*, leads(nome)').is('pago_em', null).order('data').limit(3000),
+    sb.from('pagamentos').select('id, tipo, pessoa_id, lead_id, competencia, valor, vencimento, pago_em, auto, descricao, leads(nome)').not('pessoa_id', 'is', null).limit(5000),
   ]);
   const err = [p, l, o].find(x => x.error); if (err) { msg('⚠ ' + err.error.message, true); return; }
-  PES = p.data || []; LAN = l.data || []; OBRAS = o.data || [];
+  PES = p.data || []; LAN = l.data || []; OBRAS = o.data || []; ABERTOS = (ab && ab.data) || []; PAGP = (pg && pg.data) || [];
   OBRAS_TXT = [...new Set(((t && t.data) || []).map(x => x.obra_nome).filter(Boolean))];
   msg(''); render();
 }
@@ -201,6 +205,7 @@ function render() {
     return `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${esc(nomeP(pid))}</b><span class="muted">${r.dias ? String(r.dias).replace('.', ',') + ' dia(s)' : ''}${r.dias && r.inst ? ' · ' : ''}${r.inst ? r.inst + ' instalação(ões)' : ''} · <b style="color:var(--amarelo)">${fmtR(r.valor)}</b></span></div>
       <div class="tabela-wrap"><table><tbody>${ls.map(x => `<tr><td>${dBR(x.data)}</td><td>${x.tipo === 'dia' && +x.quantidade === 0.5 ? 'Meio dia' : esc(TIPOS_L[x.tipo] || x.tipo)}</td><td>${x.lead_id ? `<a href="crm.html?lead=${x.lead_id}">${esc((x.leads || {}).nome || 'obra')}</a>` : x.obra_nome ? esc(x.obra_nome) + ' <span class="tag">fora do CRM</span>' : '<span class="muted">—</span>'}${x.obs ? '<br><span class="muted">' + esc(x.obs) + '</span>' : ''}</td><td class="num">${+x.valor ? fmtR(x.valor) : '<span class="tag" style="color:var(--vermelho);border-color:#7f1d1d">⚠ sem valor</span>'}</td><td class="num">${x.pago_em ? '<span class="tag">pago</span>' : `<button class="btn btn-sec btn-p" title="Alterar o valor" onclick="editarValor(${x.id})">✏</button> <button class="btn btn-sec btn-p" style="color:var(--vermelho)" onclick="apagarLanc(${x.id})">🗑</button>`}</td></tr>`).join('')}</tbody></table></div></div>`;
   }).join('') : '<div class="vazio">Nenhum lançamento neste mês.</div>';
+  renderAReceber(nomeP);
   // custo por obra
   const porObra = {};
   LAN.filter(x => x.lead_id || x.obra_nome).forEach(x => {
@@ -224,6 +229,62 @@ function render() {
       </div>
       <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-sec btn-p" onclick="editarPessoa(${x.id})">✏ Editar</button><button class="btn btn-sec btn-p" onclick="ativarPessoa(${x.id}, ${!x.ativo})">${x.ativo ? 'Desativar' : 'Reativar'}</button></div>
     </div>`).join('');
+}
+// ── a receber por pessoa: diárias/instalações dos meses ainda não pagos no Financeiro, salário e comissões em aberto ──
+// Um mês de diárias conta como pago quando a conta "Diárias / instalações" daquela pessoa e daquele mês foi marcada como paga no Financeiro.
+const mesDe = iso => String(iso || '').slice(0, 7);
+const nomeMesE = ym => { const [a, m] = ym.split('-').map(Number); return new Date(a, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }); };
+function aReceberDe(pid) {
+  const pagoMes = ym => PAGP.some(x => x.pessoa_id === pid && x.tipo === 'diarias' && x.pago_em && mesDe(x.competencia) === ym);
+  const lans = ABERTOS.filter(x => x.pessoa_id === pid && !pagoMes(mesDe(x.data)));
+  const sal = PAGP.filter(x => x.pessoa_id === pid && x.tipo === 'salario' && !x.pago_em);
+  const comAuto = PAGP.filter(x => x.pessoa_id === pid && x.tipo === 'comissao' && x.auto && !x.pago_em);
+  const comPaga = l => PAGP.filter(x => x.pessoa_id === pid && x.tipo === 'comissao' && !x.auto && x.lead_id === l && x.pago_em).reduce((a, x) => a + +x.valor, 0);
+  const coms = comAuto.map(x => ({ ...x, resta: Math.max(0, +x.valor - comPaga(x.lead_id)) })).filter(x => x.resta > 0.004);
+  const tDia = lans.reduce((a, x) => a + (+x.valor || 0), 0), tSal = sal.reduce((a, x) => a + +x.valor, 0), tCom = coms.reduce((a, x) => a + x.resta, 0);
+  return { lans, sal, coms, tDia, tSal, tCom, total: tDia + tSal + tCom, semValor: lans.filter(x => !+x.valor).length };
+}
+function renderAReceber(nomeP) {
+  const linhas = PES.map(x => ({ p: x, r: aReceberDe(x.id) })).filter(o => o.r.total > 0.004 || o.r.semValor).sort((a, b) => b.r.total - a.r.total);
+  const tot = linhas.reduce((a, o) => a + o.r.total, 0);
+  $('a-receber').innerHTML = linhas.length ? `<div class="tabela-wrap"><table><thead><tr><th>Pessoa</th><th class="num">Diárias / instalações</th><th class="num">Salário</th><th class="num">Comissões</th><th class="num">Total a receber</th><th></th></tr></thead><tbody>
+    ${linhas.map(({ p, r }) => `<tr><td><b>${esc(p.nome)}</b>${r.semValor ? ` <span class="tag" style="color:var(--vermelho);border-color:#7f1d1d">⚠ ${r.semValor} sem valor</span>` : ''}</td>
+      <td class="num">${r.tDia ? fmtR(r.tDia) : '—'}</td><td class="num">${r.tSal ? fmtR(r.tSal) : '—'}</td><td class="num">${r.tCom ? fmtR(r.tCom) : '—'}</td>
+      <td class="num"><b style="color:var(--amarelo)">${fmtR(r.total)}</b></td>
+      <td class="num" style="white-space:nowrap"><button class="btn btn-sec btn-p" onclick="extrato(${p.id})" title="Onde trabalhou e quanto tem a receber">📄 Extrato</button> <button class="btn btn-sec btn-p" onclick="extratoWhats(${p.id})" title="Mandar o extrato no WhatsApp">📤</button></td></tr>`).join('')}
+    <tr><td class="muted">Total da equipe</td><td></td><td></td><td></td><td class="num"><b>${fmtR(tot)}</b></td><td></td></tr></tbody></table></div>
+    <p class="muted" style="margin-top:8px">Diárias e instalações de todos os meses que ainda não foram pagos no Financeiro (o pagamento é marcado lá, em "Diárias / instalações"). Comissões: o que ainda falta pagar da venda — no Financeiro aparece quanto já está liberado, conforme o cliente paga.</p>`
+    : '<div class="vazio">Ninguém com valores em aberto. ✅</div>';
+}
+function linhasExtrato(pid) {
+  const r = aReceberDe(pid), out = [];
+  const meses = [...new Set(r.lans.map(x => mesDe(x.data)))].sort();
+  meses.forEach(ym => {
+    const ls = r.lans.filter(x => mesDe(x.data) === ym);
+    out.push({ tit: nomeMesE(ym), itens: ls.map(x => ({ data: dBR(x.data), tipo: x.tipo === 'dia' && +x.quantidade === 0.5 ? 'Meio dia' : (TIPOS_L[x.tipo] || x.tipo), obra: x.lead_id ? ((x.leads || {}).nome || 'obra') : (x.obra_nome || '—'), valor: +x.valor })), total: ls.reduce((a, x) => a + (+x.valor || 0), 0) });
+  });
+  return { r, blocos: out };
+}
+function extrato(pid) {
+  const p = PES.find(x => x.id === pid) || {}, { r, blocos } = linhasExtrato(pid);
+  const w = window.open('', '_blank'); if (!w) { msg('⚠ Libere as janelas (pop-up) para ver o extrato.', true); return; }
+  const lin = (a, b, c, d) => `<tr><td>${a}</td><td>${b}</td><td>${c}</td><td style="text-align:right">${d}</td></tr>`;
+  w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Extrato — ${esc(p.nome)}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111}h1{font-size:18px;margin:0}h2{font-size:14px;margin:18px 0 6px;border-bottom:2px solid #FFC107}table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:5px 6px;border-bottom:1px solid #ddd;text-align:left}.tot{font-weight:bold;background:#f5f5f5}.muted{color:#666;font-size:12px}@media print{button{display:none}}</style></head><body>
+    <h1>Energtech — extrato de ${esc(p.nome)}</h1><div class="muted">Valores em aberto em ${dBR(hojeISO())}${p.pix ? ' · PIX: ' + esc(p.pix) : ''}</div>
+    ${blocos.map(b => `<h2>${esc(b.tit)}</h2><table><tr><th>Data</th><th>Tipo</th><th>Obra</th><th style="text-align:right">Valor</th></tr>${b.itens.map(i => lin(i.data, esc(i.tipo), esc(i.obra), i.valor ? fmtR(i.valor) : '⚠ sem valor')).join('')}<tr class="tot"><td colspan="3">Total do mês</td><td style="text-align:right">${fmtR(b.total)}</td></tr></table>`).join('')}
+    ${r.sal.length ? `<h2>Salário</h2><table>${r.sal.map(x => lin(esc(nomeMesE(mesDe(x.competencia))), 'Salário', '', fmtR(x.valor))).join('')}</table>` : ''}
+    ${r.coms.length ? `<h2>Comissões (o que falta receber de cada venda)</h2><table>${r.coms.map(x => lin('', 'Comissão', esc((x.leads || {}).nome || x.descricao || ''), fmtR(x.resta))).join('')}</table>` : ''}
+    <h2>Total a receber: ${fmtR(r.total)}</h2><button onclick="print()">🖨 Imprimir / salvar PDF</button></body></html>`);
+  w.document.close();
+}
+function extratoWhats(pid) {
+  const p = PES.find(x => x.id === pid) || {}, { r, blocos } = linhasExtrato(pid);
+  const t = ['*Energtech — extrato de ' + (p.nome || '') + '*', ''];
+  blocos.forEach(b => { t.push('*' + b.tit + '*'); b.itens.forEach(i => t.push(i.data + ' · ' + i.tipo + ' · ' + i.obra + (i.valor ? ' · ' + fmtR(i.valor) : ' · (valor a definir)'))); t.push('Total do mês: ' + fmtR(b.total), ''); });
+  if (r.tSal) t.push('Salário: ' + fmtR(r.tSal));
+  if (r.tCom) t.push('Comissões em aberto: ' + fmtR(r.tCom));
+  t.push('*Total a receber: ' + fmtR(r.total) + '*');
+  window.open('https://wa.me/?text=' + encodeURIComponent(t.join('\n')), '_blank', 'noopener');
 }
 function mudouObra() {
   const txt = $('l-obra').value === 'txt';
