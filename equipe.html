@@ -237,7 +237,8 @@ const nomeMesE = ym => { const [a, m] = ym.split('-').map(Number); return new Da
 function aReceberDe(pid) {
   const pagoMes = ym => PAGP.some(x => x.pessoa_id === pid && x.tipo === 'diarias' && x.pago_em && mesDe(x.competencia) === ym);
   const lans = ABERTOS.filter(x => x.pessoa_id === pid && !pagoMes(mesDe(x.data)));
-  const sal = PAGP.filter(x => x.pessoa_id === pid && x.tipo === 'salario' && !x.pago_em);
+  // salário: só meses já fechados (o Financeiro também cria os meses seguintes como previsão)
+  const sal = PAGP.filter(x => x.pessoa_id === pid && x.tipo === 'salario' && !x.pago_em && String(x.competencia) < hojeISO().slice(0, 8) + '01');
   const comAuto = PAGP.filter(x => x.pessoa_id === pid && x.tipo === 'comissao' && x.auto && !x.pago_em);
   const comPaga = l => PAGP.filter(x => x.pessoa_id === pid && x.tipo === 'comissao' && !x.auto && x.lead_id === l && x.pago_em).reduce((a, x) => a + +x.valor, 0);
   const coms = comAuto.map(x => ({ ...x, resta: Math.max(0, +x.valor - comPaga(x.lead_id)) })).filter(x => x.resta > 0.004);
