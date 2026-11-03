@@ -78,6 +78,7 @@
   .prog { background:var(--card2); border:1px solid var(--borda); border-left:3px solid var(--amarelo); border-radius:8px; padding:7px 8px; font-size:12px; cursor:pointer; }
   .prog:hover { border-color:#555; }
   .prog.realizada { border-left-color:var(--verde); opacity:.85; }
+  .prog.atrasada { border-left-color:var(--laranja); }
   .prog.cancelada { border-left-color:var(--vermelho); opacity:.5; text-decoration:line-through; }
   .prog b { font-size:13px; color:#fff; }
   .chip { display:inline-block; font-size:11px; padding:0 6px; border-radius:10px; background:#2a2a2a; margin:2px 2px 0 0; }
@@ -97,7 +98,6 @@
   </div>
   <div class="header-title"><h1>Programação de instalações</h1><div class="header-links" id="header-links"><a href="crm.html">CRM</a></div></div>
 </div>
-
 <div class="page">
   <div class="card login" id="login" style="display:none">
     <h2 style="font-family:'Barlow Condensed',sans-serif;color:var(--amarelo)">🔑 Entrar</h2>
@@ -121,6 +121,8 @@
     </div>
     <div class="status-msg" id="msg"></div>
     <div class="semana" id="semana"></div>
+    <div class="card" id="card-confirmar" style="margin-top:16px;display:none;border-color:#7c2d12"><h2>✅ Já passou: confirmar o que foi feito</h2>
+      <p class="muted" style="margin-bottom:6px">Programações com data passada que ainda não foram confirmadas. Confirmar lança os dias da equipe e, na instalação, marca a obra como instalada.</p><div id="para-confirmar"></div></div>
     <div class="card" style="margin-top:16px"><h2>⏳ Aguardando programação</h2><div id="pendentes"></div></div>
   </div>
 </div>
@@ -143,7 +145,7 @@ const dBR = iso => iso ? iso.slice(0, 10).split('-').reverse().join('/') : '—'
 const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const TIPOS = { instalacao: ['🔧', 'Instalação'], manutencao: ['🛠', 'Manutenção'], limpeza: ['🧽', 'Limpeza'], vistoria: ['📋', 'Vistoria'], visita: ['👀', 'Visita técnica'], outro: ['📌', 'Outro'] };
 const PERIODOS = { dia: 'Dia inteiro', manha: 'Manhã', tarde: 'Tarde' };
-let perfil = null, inicioSemana = null, PROG = [], PROJ = [], LEADS = {}, CLI = [], EQ = [], progAberta = null;
+let perfil = null, inicioSemana = null, PROG = [], PROJ = [], LEADS = {}, CLI = [], EQ = [], progAberta = null, ATRASADAS = [];
 const podeConfirmar = () => !!perfil && (perfil.admin || perfil.papel === 'engenheiro');
 
 function msg(t, erro) { const m = $('msg'); m.textContent = t || ''; m.classList.toggle('erro', !!erro); }
@@ -188,24 +190,28 @@ function mudarSemana(n) { inicioSemana = somaDias(inicioSemana, 7 * n); carregar
 async function carregar() {
   msg('⏳ Carregando…');
   const fim = somaDias(inicioSemana, 6);
-  const [p, pj, c, e, pend] = await Promise.all([
+  const [p, pj, c, e, pend, atr] = await Promise.all([
     sb.from('programacao').select('*').gte('data', inicioSemana).lte('data', fim).order('data').order('id'),
     sb.from('projetos').select('id, lead_id, etapa, instalacao_data').neq('etapa', 'cancelado').order('etapa_em', { ascending: false }).limit(2000),
     sb.from('clientes').select('id, nome, telefone, cidade, endereco, manut_status, manut_agendada_para').eq('ativo', true).order('nome').limit(5000),
     sb.rpc('equipe_escala'),
-    sb.from('programacao').select('id, projeto_id, cliente_id, data, status').gte('data', hojeISO()).eq('status', 'programada'),
+    // programações que tiram a obra de "Aguardando": programada (qualquer data) ou já realizada
+    sb.from('programacao').select('id, projeto_id, cliente_id, data, status').in('status', ['programada', 'realizada']).limit(5000),
+    // data passada e não confirmada (fora da semana também)
+    sb.from('programacao').select('*').eq('status', 'programada').lt('data', hojeISO()).order('data').limit(300),
   ]);
   const err = [p, pj, c, e].find(x => x.error); if (err) { msg('⚠ ' + err.error.message, true); return; }
   PROG = p.data || []; PROJ = pj.data || []; CLI = c.data || []; EQ = e.data || [];
   window._futuras = pend.data || [];
-  const ids = [...new Set(PROJ.map(x => x.lead_id).concat(PROG.map(x => x.lead_id)).filter(Boolean))];
+  ATRASADAS = (atr && atr.data) || [];
+  const ids = [...new Set(PROJ.map(x => x.lead_id).concat(PROG.map(x => x.lead_id), ATRASADAS.map(x => x.lead_id)).filter(Boolean))];
   LEADS = {};
   for (let i = 0; i < ids.length; i += 300) {
     const { data } = await sb.from('leads').select('id, nome, telefone, cidade, endereco').in('id', ids.slice(i, i + 300));
     (data || []).forEach(l => LEADS[l.id] = l);
   }
   msg(''); render();
-  if (progAberta && $('ov-prog').classList.contains('visivel')) { const x = PROG.find(y => y.id === progAberta); if (x) abrirProg(x.id); }
+  if (progAberta && $('ov-prog').classList.contains('visivel')) { const x = acharProg(progAberta); if (x) abrirProg(x.id); }
 }
 
 // nome e local da obra de uma programação
@@ -216,6 +222,7 @@ function obraDe(x) {
   const o = l || c || {};
   return { nome: o.nome || x.obra_nome || 'Obra sem nome', cidade: o.cidade || '', endereco: o.endereco || '', telefone: o.telefone || '', lead: l ? l.id : null };
 }
+const acharProg = id => PROG.find(y => y.id === id) || ATRASADAS.find(y => y.id === id);
 const nomeP = id => (EQ.find(p => p.id === id) || {}).nome || ('#' + id);
 const primeiro = n => String(n || '').split(' ')[0];
 // pessoas escaladas em outra obra no mesmo dia (e período que se sobrepõe)
@@ -243,12 +250,21 @@ function render() {
     </div>`;
   }).join('');
   renderPendentes();
+  renderParaConfirmar();
+}
+function renderParaConfirmar() {
+  const card = $('card-confirmar'); if (!card) return;
+  card.style.display = ATRASADAS.length ? '' : 'none';
+  $('para-confirmar').innerHTML = ATRASADAS.map(x => { const o = obraDe(x), t = TIPOS[x.tipo] || TIPOS.outro;
+    return `<div class="pend"><span>${t[0]} <b>${esc(o.nome)}</b> <span class="muted">· ${dBR(x.data)}${x.periodo !== 'dia' ? ' (' + PERIODOS[x.periodo].toLowerCase() + ')' : ''} · ${esc(t[1])} · ${esc((x.equipe_ids || []).map(nomeP).map(primeiro).join(', ') || 'sem equipe')}</span></span>
+      <button class="btn btn-verde btn-p" onclick="abrirProg(${x.id})">${podeConfirmar() ? '✅ Confirmar' : 'Ver'}</button></div>`; }).join('');
 }
 function cardProg(x) {
   const o = obraDe(x), t = TIPOS[x.tipo] || TIPOS.outro, cf = conflitos(x);
-  return `<div class="prog ${x.status}" onclick="abrirProg(${x.id})">
+  const atrasada = x.status === 'programada' && x.data < hojeISO();
+  return `<div class="prog ${x.status}${atrasada ? ' atrasada' : ''}" onclick="abrirProg(${x.id})">
     <div>${t[0]} <b>${esc(o.nome)}</b></div>
-    <div class="muted" style="font-size:11px">${esc(t[1])}${x.periodo !== 'dia' ? ' · ' + PERIODOS[x.periodo] : ''}${o.cidade ? ' · ' + esc(o.cidade) : ''}${x.status === 'realizada' ? ' · ✅ realizada' : x.status === 'cancelada' ? ' · cancelada' : ''}</div>
+    <div class="muted" style="font-size:11px">${esc(t[1])}${x.periodo !== 'dia' ? ' · ' + PERIODOS[x.periodo] : ''}${o.cidade ? ' · ' + esc(o.cidade) : ''}${x.status === 'realizada' ? ' · ✅ realizada' : x.status === 'cancelada' ? ' · cancelada' : atrasada ? ' · <span style="color:var(--laranja)">⏳ confirmar</span>' : ''}</div>
     <div>${(x.equipe_ids || []).map(pid => `<span class="chip ${cf.includes(pid) ? 'conflito' : ''}" title="${cf.includes(pid) ? 'Escalado em outra obra no mesmo horário' : ''}">${esc(primeiro(nomeP(pid)))}</span>`).join('') || '<span class="chip conflito">sem equipe</span>'}</div>
   </div>`;
 }
@@ -274,7 +290,7 @@ function opObras(sel) {
     + '<optgroup label="Clientes (pós-venda, limpezas)">' + CLI.map(c => `<option value="c${c.id}" ${'c' + c.id === sel ? 'selected' : ''}>${esc(c.nome)}${c.cidade ? ' · ' + esc(c.cidade) : ''}</option>`).join('') + '</optgroup>';
 }
 function abrirProg(id, pre) {
-  const x = id ? PROG.find(y => y.id === id) : { data: hojeISO(), tipo: 'instalacao', periodo: 'dia', equipe_ids: [], status: 'programada', ...(pre || {}) };
+  const x = id ? acharProg(id) : { data: hojeISO(), tipo: 'instalacao', periodo: 'dia', equipe_ids: [], status: 'programada', ...(pre || {}) };
   if (!x) return;
   if (!x.data) x.data = hojeISO();
   progAberta = id || null;
@@ -303,6 +319,12 @@ function abrirProg(id, pre) {
     <div class="status-msg erro" id="pg-conflito"></div>
     <h3>Observações</h3>
     <textarea class="input" id="pg-obs" rows="3" ${dis} placeholder="Ex.: levar escada grande, cliente pediu para chegar às 8h.">${esc(x.obs || '')}</textarea>
+    ${!id && podeConfirmar() ? `<div style="background:var(--card2);border:1px solid var(--borda);border-radius:10px;padding:10px;margin-top:12px">
+      <label style="display:flex;gap:6px;align-items:center;font-size:14px;cursor:pointer"><input type="checkbox" id="pg-feito" onchange="$('pg-feito-op').style.display=this.checked?'':'none'"> ✅ <b>Já foi feito</b> nesta data pela equipe marcada (registrar como realizado)</label>
+      <div id="pg-feito-op" style="display:none;margin-top:6px">
+        <p class="muted">Lança os dias de cada diarista na tela Equipe, como no "Confirmar realizado".</p>
+        <label style="display:flex;gap:6px;align-items:center;margin-top:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="pg-feito-concluir" checked> Instalação <b>concluída</b> (marca a data de instalação no projeto)</label>
+      </div></div>` : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
       ${!travada ? `<button class="btn" onclick="salvarProg(${id || 'null'})">💾 ${id ? 'Salvar' : 'Programar'}</button>` : ''}
       ${id && x.status === 'programada' ? `<button class="btn btn-sec" onclick="cancelarProg(${id})">❌ Cancelar</button><button class="btn btn-sec" style="color:var(--vermelho)" onclick="excluirProg(${id})">🗑 Excluir</button>` : ''}
@@ -355,9 +377,22 @@ async function salvarProg(id) {
   } else {
     const n = Math.max(0, Math.min(20, +($('pg-repetir') || {}).value || 0)), regs = [reg];
     for (let i = 0; i < n; i++) regs.push({ ...reg, data: proximoUtil(regs[regs.length - 1].data) });
-    const { error } = await sb.from('programacao').insert(regs);
+    const feito = !!($('pg-feito') && $('pg-feito').checked);
+    if (feito && regs[regs.length - 1].data > hojeISO()) { m.textContent = 'Uma data ainda não chegou: para marcar "Já foi feito", use datas até hoje.'; return; }
+    const { data: novas, error } = await sb.from('programacao').insert(regs).select('id, data');
     if (error) { m.textContent = '⚠ ' + error.message; return; }
     if (reg.data < inicioSemana || reg.data > somaDias(inicioSemana, 6)) inicioSemana = segundaDe(reg.data);
+    if (feito) {   // registra como realizado: mesma função do "Confirmar realizado"
+      const ord = (novas || []).slice().sort((a, b) => a.data < b.data ? -1 : 1);
+      const concluir = !!($('pg-feito-concluir') && $('pg-feito-concluir').checked) && reg.tipo === 'instalacao' && !!reg.projeto_id;
+      let lanc = 0;
+      for (let i = 0; i < ord.length; i++) {
+        const r = await sb.rpc('confirmar_programacao', { p_id: ord[i].id, p_pessoas: reg.equipe_ids, p_concluir: concluir && i === ord.length - 1, p_valores: {} });
+        if (r.error) { fecharProg(); await carregar(); msg('⚠ Programação salva, mas não consegui confirmar: ' + r.error.message + '. Abra o card e use "Confirmar realizado".', true); return; }
+        lanc += (r.data && r.data.lancados) || 0;
+      }
+      fecharProg(); await carregar(); msg('✅ Registrado como realizado: ' + lanc + ' dia(s) lançado(s) na tela Equipe' + (concluir ? ' · instalação concluída' : '') + '.'); return;
+    }
   }
   fecharProg(); await carregar(); msg('✅ Programação salva.');
 }
