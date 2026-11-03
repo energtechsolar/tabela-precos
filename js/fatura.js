@@ -178,8 +178,18 @@ function aplicarFatura() {
   };
   if (typeof validarProposta === 'function') validarProposta();
   if (typeof avisoCpf === 'function') avisoCpf();
-  document.getElementById('fat-result').innerHTML = '';
+  // resumo do que foi para a proposta (os campos ficam no bloco "Dados do cliente", mais abaixo)
+  const levados = [['Nome', 'prop-nome'], ['Titular da UC', 'prop-titular-uc'], ['CPF/CNPJ', 'prop-cpf'], ['UC', 'prop-uc'], ['Endereço', 'prop-endereco'], ['Cidade', 'prop-cidade'], ['CEP', 'prop-cep'], ['Concessionária', 'prop-concessionaria'], ['Consumo médio', 'prop-consumo']]
+    .map(([r, id]) => [r, val(id)]).filter(([, x]) => x);
+  document.getElementById('fat-result').innerHTML = `<div class="regiao-aviso" style="margin-top:6px">${levados.map(([r, x]) => escHtml(r) + ': <b>' + escHtml(x) + (r === 'Consumo médio' ? ' kWh/mês' : '') + '</b>').join(' · ')}
+    <br><a href="#" onclick="irParaDadosCliente();return false">✏ Conferir / editar em "Dados do cliente"</a></div>`;
   statusFatura('✅ Dados da fatura aplicados' + (media > 0 ? ' (consumo médio ' + media.toLocaleString('pt-BR') + ' kWh/mês)' : '') + (op === 'outro' ? ' · proposta em nome de ' + nomeProp + ', titular da UC: ' + titular : '') + (propostaItem ? '.' : '. Agora escolha o kit: "✅ Usar este kit" na sugestão abaixo ou a tabela.'), 'ok');
+}
+
+function irParaDadosCliente() {
+  const el = document.getElementById('prop-nome'); if (!el) return;
+  if (!el.offsetParent) { statusFatura('Os dados já estão guardados. O bloco "Dados do cliente" aparece quando você escolhe o kit ("✅ Usar este kit").', 'ok'); return; }
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => el.focus({ preventScroll: true }), 400);
 }
 
 // ── guardar o arquivo da fatura no cliente (pasta privada "documentos", a mesma da ficha do CRM) ──
@@ -219,3 +229,19 @@ async function anexarFaturaAoLead(leadId, r) {
   statusFatura('⚠ A fatura foi enviada, mas não entrou na ficha do cliente: ' + ((erro && erro.message) || 'falha de conexão') + '. Anexe pela ficha do CRM.', 'erro');
   return false;
 }
+
+// escolher o cliente na lista depois de aplicar a fatura: dado vazio no cadastro do cliente
+// não apaga o que veio da fatura (UC, endereço, CEP, concessionária, titular, CPF)
+(function () {
+  if (typeof selecionarLead !== 'function') return;
+  const _sel = selecionarLead;
+  const CAMPOS = ['prop-cpf', 'prop-endereco', 'prop-cep', 'prop-uc', 'prop-concessionaria', 'prop-titular-uc'];
+  selecionarLead = function () {
+    const antes = faturaLida ? Object.fromEntries(CAMPOS.map(id => [id, (document.getElementById(id) || {}).value || ''])) : null;
+    _sel.apply(this, arguments);
+    if (!antes) return;
+    CAMPOS.forEach(id => { const el = document.getElementById(id); if (el && !el.value.trim() && antes[id]) el.value = antes[id]; });
+    if (typeof avisoCpf === 'function') avisoCpf();
+    if (typeof validarProposta === 'function') validarProposta();
+  };
+})();
