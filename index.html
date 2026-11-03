@@ -587,14 +587,20 @@ try {
 
     <div class="aviso-modo-simples">📱 Modo simples: itens do kit e valores (total, kit e mão de obra) ficam escondidos. Para alterar, <a href="#" onclick="alternarModo();return false">toque aqui para o 🖥 Modo completo</a>.</div>
 
-    <!-- Parcelamento no boleto (só kits importados) -->
+    <!-- Condição de pagamento (só kits importados): opções padrão, condição negociada, só à vista ou a combinar -->
     <div class="proposta-itens" id="neg-boleto">
-      <label class="tit" for="bol-parcelas">Entrada + parcelas no boleto</label>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-        <select id="bol-parcelas" class="proposta-select" style="width:auto;min-width:110px" onchange="mudouParcelas()"><option value="10">10x</option></select>
-        <span class="regiao-aviso">juros</span>
-        <input type="text" inputmode="decimal" id="bol-juros" class="proposta-input" style="width:90px" value="0" oninput="atualizar()" onblur="conferirJuros()">
-        <span class="regiao-aviso">% ao mês</span>
+      <label class="tit" for="pag-modo">Condição de pagamento</label>
+      <select id="pag-modo" class="proposta-select" onchange="mudouModoPag()">
+        <option value="opcoes">Opções padrão: à vista · entrada + parcelas · financiamento</option>
+        <option value="negociada">Condição negociada: só o que foi combinado com o cliente</option>
+        <option value="avista">Somente à vista</option>
+        <option value="combinar">A combinar</option>
+      </select>
+      <div id="bol-campos" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:8px">
+        <div><div class="regiao-aviso">Entrada (R$)</div><input type="text" inputmode="decimal" id="bol-entrada" class="proposta-input" style="width:130px" oninput="atualizarBlocoBoleto()" onblur="formatarCampoReais(this);atualizarBlocoBoleto()"></div>
+        <div><div class="regiao-aviso">Parcelas</div><select id="bol-parcelas" class="proposta-select" style="width:auto;min-width:110px" onchange="mudouParcelas()"><option value="10">10x</option></select></div>
+        <div id="bol-juros-box"><div class="regiao-aviso">Juros (% ao mês)</div><input type="text" inputmode="decimal" id="bol-juros" class="proposta-input" style="width:90px" value="0" oninput="atualizar()" onblur="conferirJuros()"></div>
+        <div id="bol-parcela-box" style="display:none"><div class="regiao-aviso">Valor da parcela (R$) — opcional</div><input type="text" inputmode="decimal" id="bol-parcela-valor" class="proposta-input" style="width:140px" placeholder="calculado" oninput="atualizarBlocoBoleto()" onblur="formatarCampoReais(this);atualizarBlocoBoleto()"></div>
       </div>
       <div class="regiao-aviso" id="bol-regra" style="margin-top:6px"></div>
       <div class="regiao-aviso" id="bol-aviso" style="color:var(--amarelo)"></div>
@@ -928,12 +934,12 @@ try {
 </div>
 
 <script src="js/comum.js?v=20261019a"></script>
-<script src="js/precificador.js?v=20261028d"></script>
+<script src="js/precificador.js?v=20261103a"></script>
 <script src="js/logo.js?v=20261019a"></script>
-<script src="js/pdf.js?v=20261028d"></script>
-<script src="js/proposta.js?v=20261030a"></script>
+<script src="js/pdf.js?v=20261103a"></script>
+<script src="js/proposta.js?v=20261103a"></script>
 <script src="js/admin.js?v=20261030a"></script>
-<script src="js/app.js?v=20261030a"></script>
+<script src="js/app.js?v=20261103a"></script>
 <script src="js/kit.js?v=20261028e"></script>
 <script src="js/fatura.js?v=20261028e"></script>
 <script>
@@ -964,7 +970,7 @@ function reguaMudou() {
   atualizarModoValor();
 }
 ['slider-adicional', 'slider-desconto'].forEach(id => document.getElementById(id).addEventListener('input', reguaMudou));
-// ── INIT ───────────────────────────────────────────────────────────────────────────────
+// ── INIT ────────────────────────────────────────────────────────────────────────────
 renderSeletorRegiao();
 atualizar();            // mostra a tabela de reserva na hora
 const _precosCarregados = carregarDoSupabase();   // e troca pelos valores oficiais assim que chegarem
