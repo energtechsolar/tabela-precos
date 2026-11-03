@@ -229,3 +229,19 @@ async function anexarFaturaAoLead(leadId, r) {
   statusFatura('⚠ A fatura foi enviada, mas não entrou na ficha do cliente: ' + ((erro && erro.message) || 'falha de conexão') + '. Anexe pela ficha do CRM.', 'erro');
   return false;
 }
+
+// escolher o cliente na lista depois de aplicar a fatura: dado vazio no cadastro do cliente
+// não apaga o que veio da fatura (UC, endereço, CEP, concessionária, titular, CPF)
+(function () {
+  if (typeof selecionarLead !== 'function') return;
+  const _sel = selecionarLead;
+  const CAMPOS = ['prop-cpf', 'prop-endereco', 'prop-cep', 'prop-uc', 'prop-concessionaria', 'prop-titular-uc'];
+  selecionarLead = function () {
+    const antes = faturaLida ? Object.fromEntries(CAMPOS.map(id => [id, (document.getElementById(id) || {}).value || ''])) : null;
+    _sel.apply(this, arguments);
+    if (!antes) return;
+    CAMPOS.forEach(id => { const el = document.getElementById(id); if (el && !el.value.trim() && antes[id]) el.value = antes[id]; });
+    if (typeof avisoCpf === 'function') avisoCpf();
+    if (typeof validarProposta === 'function') validarProposta();
+  };
+})();
