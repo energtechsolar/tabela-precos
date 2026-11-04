@@ -132,7 +132,7 @@ const TIPOS_PAG = { kit:'Kit ao fornecedor', comissao:'Comissão', imposto:'Impo
 const TIPOS_REC = { entrada:'Entrada', boleto:'Boleto', banco:'Banco / financiamento', repasse:'Repasse do fornecedor', outro:'Outro' };
 const CATEGORIAS = { aluguel:'Aluguel', energia_agua:'Energia / água', internet_telefone:'Internet / telefone', marketing:'Marketing / anúncios', contador:'Contador', software:'Sistemas / software', veiculo:'Veículo / combustível', prolabore:'Pró-labore', emprestimo:'Empréstimo / financiamento', outros:'Outros' };
 let perfil = null, aba = 'fluxo', REC = [], PAG = [], FIXOS = [], PRM = {}, GANHOS = [], verTodas = false, formNovo = false;
-let LANC = [], SAIDAS = [], obrasSoMes = false, obraAberta = null;
+let LANC = [], SAIDAS = [], obrasSoMes = false, obraAberta = null, PROJS = {};
 
 function msg(t, erro) { const m = $('msg'); m.textContent = t || ''; m.classList.toggle('erro', !!erro); }
 function mostrar(qual, texto) {
@@ -179,20 +179,22 @@ async function carregar() {
   if (s.error) { msg('⚠ ' + s.error.message, true); return; }
   // o mês atual também (salários e custos fixos do mês corrente), se estiver olhando outro mês
   if (ym !== hojeISO().slice(0, 7)) await sb.rpc('financeiro_sincronizar', { p_mes: hojeISO() });
-  const [r, p, f, prm, g, la, sa] = await Promise.all([
+  const [r, p, f, prm, g, la, sa, pjs] = await Promise.all([
     sb.from('recebimentos').select('*, leads(nome)').limit(5000),
     sb.from('pagamentos').select('*, leads(nome), equipe(nome)').limit(10000),
     sb.from('custos_fixos').select('*').order('nome'),
     sb.from('fin_parametros').select('*').eq('id', 1).maybeSingle(),
-    sb.from('leads').select('id, nome, etapa_em, forma_pagamento, orcamento_ganho_id').eq('etapa', 'ganho').limit(5000),
+    sb.from('leads').select('id, nome, etapa_em, forma_pagamento, orcamento_ganho_id, vendedor_id').eq('etapa', 'ganho').limit(5000),
     // custos de cada obra que não passam por "pagamentos" com o cliente: diárias da equipe e material tirado do estoque
     sb.from('equipe_lancamentos').select('lead_id, data, tipo, quantidade, valor, equipe(nome)').not('lead_id', 'is', null).limit(10000),
     sb.from('estoque_movimentos').select('lead_id, data, quantidade, custo_unit, produtos(nome)').eq('tipo', 'saida').not('lead_id', 'is', null).limit(10000),
+    sb.from('projetos').select('*').neq('etapa', 'cancelado').limit(5000),   // kit pago pelo banco (vendas financiadas)
   ]);
   const err = [r, p, f, prm, g, la, sa].find(x => x.error);
   if (err) { msg('⚠ ' + err.error.message, true); return; }
   REC = r.data || []; PAG = p.data || []; FIXOS = f.data || []; PRM = prm.data || {}; GANHOS = g.data || [];
   LANC = la.data || []; SAIDAS = sa.data || [];
+  PROJS = {}; ((pjs && !pjs.error && pjs.data) || []).forEach(x => { PROJS[x.lead_id] = x; });
   const ids = GANHOS.map(l => l.orcamento_ganho_id).filter(Boolean);
   if (ids.length) {
     const [o, c] = await Promise.all([
@@ -258,6 +260,7 @@ function renderFluxo() {
   const comAbertas = coms.filter(c => c.resta > 0.004);
   // vendas ganhas que ainda não têm nenhuma parcela a receber lançada
   const semParcelas = GANHOS.filter(l => !REC.some(r => r.lead_id === l.id));
+  const confFin = conferenciaFinanciadas();
   const totAbertoRec = REC.filter(x => !x.recebido_em).reduce((a, x) => a + +x.valor, 0);
   const totAbertoPag = PAG.filter(x => !x.pago_em && !(x.auto && x.tipo === 'comissao')).reduce((a, x) => a + +x.valor, 0) + coms.reduce((a, c) => a + c.resta, 0);
   $('aba-fluxo').innerHTML = `
@@ -265,6 +268,11 @@ function renderFluxo() {
       ${semParcelas.map(l => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #242424;flex-wrap:wrap">
         <span><a href="crm.html?lead=${l.id}">${esc(l.nome)}</a> <span class="muted">· ganho em ${dBR(l.etapa_em)} · ${fmtR(l.valor)}${l.forma_pagamento ? ' · ' + esc(l.forma_pagamento) : ''}</span></span>
         <button class="btn btn-p" onclick="gerarParcelas(${l.id})">⚡ Gerar parcelas da proposta</button></div>`).join('')}</div>` : ''}
+    ${confFin.length ? `<div class="card" style="border-color:#1e3a5f"><div class="linha-topo"><h2>🏦 Conferência dos financiamentos</h2><span class="muted">Kit pago pelo banco + liberação para a empresa = valor da proposta</span></div>
+      ${confFin.map(c => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #242424;flex-wrap:wrap">
+        <span><a href="crm.html?lead=${c.l.id}">${esc(c.l.nome)}</a> <span class="muted">· proposta ${fmtR(c.l.valor)} − kit pago pelo banco ${fmtR(c.kit)} = esperado ${fmtR(c.esperado)} · lançado a receber ${fmtR(c.lancado)}</span>
+          <b class="neg"> · ${c.dif > 0 ? 'a receber está ' + fmtR(c.dif) + ' abaixo do esperado' : 'a receber está ' + fmtR(-c.dif) + ' acima do esperado'}</b></span>
+        ${c.ajustavel ? `<button class="btn btn-p" onclick="ajustarLiberacao(${c.l.id}, ${c.esperado})">Ajustar a receber para ${fmtR(c.esperado)}</button>` : ''}</div>`).join('')}</div>` : ''}
     <div class="kpis">
       ${kp(fmtR0(recebidoMes), '✅ Recebido no mês', 'verde')}
       ${kp(fmtR0(somaRecMes), '⏳ A receber no mês (vencendo)')}
@@ -287,6 +295,28 @@ function renderFluxo() {
       <div class="card"><h2>💸 Pago em ${nomeMes(ym)}</h2>${tab('<th>Data</th><th>Descrição</th><th class="num">Valor</th><th></th>', pagos.sort((a, b) => a.pago_em < b.pago_em ? -1 : 1).map(x => `<tr><td>${dBR(x.pago_em)}</td><td>${esc(TIPOS_PAG[x.tipo] || '')} <span class="muted">${esc(x.descricao || '')}</span></td><td class="num">${fmtR(x.valor)}</td><td class="num"><a href="#" onclick="desfazerPag(${x.id});return false" class="muted">desfazer</a></td></tr>`).join(''), 'Nada pago no mês.')}</div>
     </div>`;
 }
+// financiadas com o valor do kit pago pelo banco: confere kit + liberação = proposta (o que conta é o valor final)
+function conferenciaFinanciadas() {
+  return GANHOS.filter(l => l.financ && PROJS[l.id] && PROJS[l.id].kit_pago_valor != null).map(l => {
+    const kit = +PROJS[l.id].kit_pago_valor, esperado = Math.round(((+l.valor || 0) - kit) * 100) / 100;
+    const bancos = REC.filter(x => x.lead_id === l.id && x.tipo === 'banco');
+    const lancado = bancos.reduce((a, x) => a + (+x.valor || 0), 0);
+    const recebidos = bancos.filter(x => x.recebido_em);
+    const recebido = recebidos.length === bancos.length && bancos.length ? recebidos.reduce((a, x) => a + +(x.valor_recebido ?? x.valor), 0) : null;
+    const dif = Math.round((esperado - (recebido != null ? recebido : lancado)) * 100) / 100;
+    return { l, kit, esperado, lancado, recebido, dif, ajustavel: recebido == null && bancos.filter(x => !x.recebido_em).length === 1 };
+  }).filter(c => c.recebido == null && Math.abs(c.dif) > 0.5);   // depois de recebido, a diferença aparece no Lucro por obra
+}
+async function ajustarLiberacao(leadId, esperado) {
+  const abertos = REC.filter(x => x.lead_id === leadId && x.tipo === 'banco' && !x.recebido_em);
+  if (abertos.length !== 1) return;
+  const outros = REC.filter(x => x.lead_id === leadId && x.tipo === 'banco' && x.recebido_em).reduce((a, x) => a + +(x.valor_recebido ?? x.valor), 0);
+  const novo = Math.round((esperado - outros) * 100) / 100;
+  if (!confirm('Ajustar a liberação do banco a receber de ' + fmtR(abertos[0].valor) + ' para ' + fmtR(novo) + '?')) return;
+  const { error } = await sb.from('recebimentos').update({ valor: novo }).eq('id', abertos[0].id);
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  abertos[0].valor = novo; msg('✅ Liberação do banco ajustada para ' + fmtR(novo) + '.'); render();
+}
 // gera as parcelas a receber de uma venda pela condição salva na proposta (mesma regra do CRM)
 async function gerarParcelas(leadId) {
   const l = GANHOS.find(x => x.id === leadId); if (!l) return;
@@ -308,9 +338,16 @@ async function receber(id) {
   const x = REC.find(r => r.id === id); if (!x) return;
   const d = prompt('Data do recebimento (DD/MM/AAAA):', dBR(hojeISO())); if (!d) return;
   const iso = paraISO(d); if (!iso) { msg('⚠ Data inválida.', true); return; }
-  const { error } = await sb.from('recebimentos').update({ recebido_em: iso, valor_recebido: x.valor }).eq('id', id);
+  // valor que entrou de fato (banco pode descontar taxa/IOF): a diferença vira custo da obra no Lucro por obra
+  const vt = prompt('Valor que entrou na conta (R$):', (+x.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })); if (vt === null) return;
+  const v = numBR(vt);
+  if (v === null || v < 0) { msg('⚠ Valor inválido.', true); return; }
+  const { error } = await sb.from('recebimentos').update({ recebido_em: iso, valor_recebido: v }).eq('id', id);
   if (error) { msg('⚠ ' + error.message, true); return; }
-  x.recebido_em = iso; x.valor_recebido = x.valor; msg('✅ Recebimento registrado.'); render();
+  x.recebido_em = iso; x.valor_recebido = v;
+  const dif = Math.round((+x.valor - v) * 100) / 100;
+  msg(Math.abs(dif) > 0.004 ? '✅ Recebimento registrado. ⚠ Entrou ' + fmtR(Math.abs(dif)) + (dif > 0 ? ' a menos' : ' a mais') + ' que o previsto' + (dif > 0 ? ' (entra como custo da obra no Lucro por obra).' : '.') : '✅ Recebimento registrado.', Math.abs(dif) > 0.004);
+  render();
 }
 function paraISO(t) { const m = String(t || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if (!m) return null; return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0'); }
 async function pagar(id) {
@@ -485,7 +522,10 @@ function resultadoObra(l) {
   const lanc = LANC.filter(x => x.lead_id === l.id);
   const equipe = lanc.reduce((a, x) => a + (+x.valor || 0), 0);
   const est = SAIDAS.filter(x => x.lead_id === l.id).map(x => ({ data: x.data, desc: ((x.produtos && x.produtos.nome) || 'Material') + ' × ' + String(+x.quantidade).replace('.', ','), valor: Math.round((+x.quantidade || 0) * (+x.custo_unit || 0) * 100) / 100 }));
-  const avulsos = pg.filter(x => !TIPOS_DIRETOS.includes(x.tipo)).map(x => ({ data: x.pago_em || x.vencimento, desc: x.descricao || TIPOS_PAG[x.tipo] || '', valor: +x.valor || 0 }));
+  const avulsos = pg.filter(x => !TIPOS_DIRETOS.includes(x.tipo)).map(x => ({ data: x.pago_em || x.vencimento, desc: x.descricao || TIPOS_PAG[x.tipo] || '', valor: +x.valor || 0 }))
+    // recebimento que entrou a menos que o previsto (taxa/IOF do banco, desconto): custo da obra
+    .concat(REC.filter(x => x.lead_id === l.id && x.recebido_em && x.valor_recebido != null && +x.valor - +x.valor_recebido > 0.004)
+      .map(x => ({ data: x.recebido_em, desc: 'Entrou a menos: ' + (TIPOS_REC[x.tipo] || x.tipo) + ' (previsto ' + fmtR(x.valor) + ', entrou ' + fmtR(x.valor_recebido) + ')', valor: Math.round((+x.valor - +x.valor_recebido) * 100) / 100 })));
   const outros = est.concat(avulsos).reduce((a, x) => a + x.valor, 0);
   const custos = kit + com + imp + equipe + outros;
   const lucro = Math.round(((+l.valor || 0) - custos) * 100) / 100;
@@ -496,8 +536,10 @@ function resultadoObra(l) {
   const rateio = fatMes > 0 ? Math.round(estrut * (+l.valor || 0) / fatMes * 100) / 100 : 0;
   const avisos = [];
   if (l.custo == null && !kitPag) avisos.push('sem custo do kit');
-  if (!com) avisos.push('sem comissão lançada (vendedor não informado?)');
+  if (!com && !l.vendedor_id) avisos.push('sem comissão lançada (vendedor não informado?)');
   if (!lanc.length) avisos.push('nenhuma diária lançada nesta obra ainda');
+  const pjk = PROJS[l.id];
+  if (l.financ && pjk && pjk.kit_pago_valor != null) { const dk = Math.round(((+l.valor || 0) - +pjk.kit_pago_valor - REC.filter(x => x.lead_id === l.id && x.tipo === 'banco').reduce((a, x) => a + +(x.recebido_em && x.valor_recebido != null ? x.valor_recebido : x.valor), 0)) * 100) / 100; if (Math.abs(dk) > 0.5) avisos.push('financiamento não fecha com a proposta: diferença ' + fmtR(Math.abs(dk))); }
   return { kit, com, imp, equipe, outros, custos, lucro, rateio, liquido: Math.round((lucro - rateio) * 100) / 100, lanc, est, avulsos, avisos, m };
 }
 function renderObras() {
