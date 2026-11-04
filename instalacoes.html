@@ -79,6 +79,7 @@
   .prog:hover { border-color:#555; }
   .prog.realizada { border-left-color:var(--verde); opacity:.85; }
   .prog.atrasada { border-left-color:var(--laranja); }
+  .prog.prevista { border-style:dashed; border-left:3px dashed var(--azul); opacity:.9; }
   .prog.cancelada { border-left-color:var(--vermelho); opacity:.5; text-decoration:line-through; }
   .prog b { font-size:13px; color:#fff; }
   .chip { display:inline-block; font-size:11px; padding:0 6px; border-radius:10px; background:#2a2a2a; margin:2px 2px 0 0; }
@@ -116,6 +117,7 @@
       <button class="btn btn-sec" onclick="mudarSemana(1)">▶</button>
       <b id="titulo-semana" style="margin-left:6px"></b>
       <span style="flex:1"></span>
+      <button class="btn btn-sec" id="btn-prazo" style="display:none" onclick="mudarPrazo()" title="Prazo de entrega do kit usado na pré-programação">⚙ Entrega: <span id="prazo-txt">10</span> dias</button>
       <button class="btn" onclick="abrirProg(null)">+ Programar</button>
       <button class="btn btn-sec" onclick="carregar()" title="Atualizar">🔄</button>
     </div>
@@ -135,6 +137,8 @@
 // Agenda da semana: cada programação tem data, obra (projeto do CRM, cliente da base ou nome digitado) e a equipe escalada.
 // "Confirmar realizado" (engenharia/admin) lança o dia de cada pessoa na tela Equipe (função confirmar_programacao),
 // pode marcar a instalação como concluída (vence a parcela do banco) e, na limpeza, atualiza o cliente no pós-venda.
+// Pré-programação: ao marcar o kit como pago no Financeiro, o banco cria uma programação "prevista" (pago + prazo de
+// entrega, função pre_programar_instalacao). Aqui ela aparece tracejada: confere a data, escolhe a equipe e confirma.
 const $ = id => document.getElementById(id);
 const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const isoLocal = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -145,7 +149,8 @@ const dBR = iso => iso ? iso.slice(0, 10).split('-').reverse().join('/') : '—'
 const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const TIPOS = { instalacao: ['🔧', 'Instalação'], manutencao: ['🛠', 'Manutenção'], limpeza: ['🧽', 'Limpeza'], vistoria: ['📋', 'Vistoria'], visita: ['👀', 'Visita técnica'], outro: ['📌', 'Outro'] };
 const PERIODOS = { dia: 'Dia inteiro', manha: 'Manhã', tarde: 'Tarde' };
-let perfil = null, inicioSemana = null, PROG = [], PROJ = [], LEADS = {}, CLI = [], EQ = [], progAberta = null, ATRASADAS = [];
+let perfil = null, inicioSemana = null, PROG = [], PROJ = [], LEADS = {}, CLI = [], EQ = [], progAberta = null, ATRASADAS = [], PRAZO = null;
+const ABERTA = st => st === 'programada' || st === 'prevista';   // ainda não realizada nem cancelada
 const podeConfirmar = () => !!perfil && (perfil.admin || perfil.papel === 'engenheiro');
 
 function msg(t, erro) { const m = $('msg'); m.textContent = t || ''; m.classList.toggle('erro', !!erro); }
@@ -196,10 +201,15 @@ async function carregar() {
     sb.from('clientes').select('id, nome, telefone, cidade, endereco, manut_status, manut_agendada_para').eq('ativo', true).order('nome').limit(5000),
     sb.rpc('equipe_escala'),
     // programações que tiram a obra de "Aguardando": programada (qualquer data) ou já realizada
-    sb.from('programacao').select('id, projeto_id, cliente_id, data, status').in('status', ['programada', 'realizada']).limit(5000),
+    sb.from('programacao').select('id, projeto_id, cliente_id, data, status').in('status', ['prevista', 'programada', 'realizada']).limit(5000),
     // data passada e não confirmada (fora da semana também)
-    sb.from('programacao').select('*').eq('status', 'programada').lt('data', hojeISO()).order('data').limit(300),
+    sb.from('programacao').select('*').in('status', ['prevista', 'programada']).lt('data', hojeISO()).order('data').limit(300),
   ]);
+  if (perfil.admin) {   // prazo de entrega do kit (pré-programação)
+    const f = await sb.from('fin_parametros').select('dias_entrega').eq('id', 1).maybeSingle();
+    PRAZO = f.error || !f.data || f.data.dias_entrega == null ? null : f.data.dias_entrega;
+    if (PRAZO != null) { $('btn-prazo').style.display = ''; $('prazo-txt').textContent = PRAZO; }
+  }
   const err = [p, pj, c, e].find(x => x.error); if (err) { msg('⚠ ' + err.error.message, true); return; }
   PROG = p.data || []; PROJ = pj.data || []; CLI = c.data || []; EQ = e.data || [];
   window._futuras = pend.data || [];
@@ -242,7 +252,7 @@ function render() {
   $('semana').style.gridTemplateColumns = window.innerWidth > 900 ? `repeat(${dias.length}, minmax(0, 1fr))` : '';
   $('semana').innerHTML = dias.map(iso => {
     const d = deIso(iso), lista = PROG.filter(x => x.data === iso);
-    const ativos = lista.filter(x => x.status !== 'cancelada');
+    const ativos = lista.filter(x => x.status !== 'cancelada' && x.status !== 'prevista');
     return `<div class="dia ${iso === hoje ? 'hoje' : ''} ${d.getDay() === 6 || d.getDay() === 0 ? 'fds' : ''}">
       <div class="dia-topo"><span>${DIAS[d.getDay()]} <span class="muted">${dBR(iso).slice(0, 5)}</span></span>
         <span>${ativos.length ? `<button class="btn btn-sec btn-p" title="Mandar a escala do dia no WhatsApp" onclick="escalaWhats('${iso}')">📤</button> ` : ''}<button class="btn btn-sec btn-p" title="Programar neste dia" onclick="abrirProg(null, { data: '${iso}' })">+</button></span></div>
@@ -251,6 +261,14 @@ function render() {
   }).join('');
   renderPendentes();
   renderParaConfirmar();
+}
+async function mudarPrazo() {
+  const v = prompt('Prazo de entrega do kit, em dias corridos (usado para pré-programar a instalação quando o kit é pago):', PRAZO ?? 10);
+  if (v === null) return;
+  const n = parseInt(v, 10); if (!(n >= 0 && n <= 120)) { msg('⚠ Informe de 0 a 120 dias.', true); return; }
+  const { error } = await sb.from('fin_parametros').update({ dias_entrega: n }).eq('id', 1);
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  PRAZO = n; $('prazo-txt').textContent = n; msg('✅ Prazo de entrega: ' + n + ' dias. Vale para os próximos kits pagos.');
 }
 function renderParaConfirmar() {
   const card = $('card-confirmar'); if (!card) return;
@@ -261,11 +279,11 @@ function renderParaConfirmar() {
 }
 function cardProg(x) {
   const o = obraDe(x), t = TIPOS[x.tipo] || TIPOS.outro, cf = conflitos(x);
-  const atrasada = x.status === 'programada' && x.data < hojeISO();
+  const atrasada = ABERTA(x.status) && x.data < hojeISO();
   return `<div class="prog ${x.status}${atrasada ? ' atrasada' : ''}" onclick="abrirProg(${x.id})">
     <div>${t[0]} <b>${esc(o.nome)}</b></div>
-    <div class="muted" style="font-size:11px">${esc(t[1])}${x.periodo !== 'dia' ? ' · ' + PERIODOS[x.periodo] : ''}${o.cidade ? ' · ' + esc(o.cidade) : ''}${x.status === 'realizada' ? ' · ✅ realizada' : x.status === 'cancelada' ? ' · cancelada' : atrasada ? ' · <span style="color:var(--laranja)">⏳ confirmar</span>' : ''}</div>
-    <div>${(x.equipe_ids || []).map(pid => `<span class="chip ${cf.includes(pid) ? 'conflito' : ''}" title="${cf.includes(pid) ? 'Escalado em outra obra no mesmo horário' : ''}">${esc(primeiro(nomeP(pid)))}</span>`).join('') || '<span class="chip conflito">sem equipe</span>'}</div>
+    <div class="muted" style="font-size:11px">${esc(t[1])}${x.periodo !== 'dia' ? ' · ' + PERIODOS[x.periodo] : ''}${o.cidade ? ' · ' + esc(o.cidade) : ''}${x.status === 'realizada' ? ' · ✅ realizada' : x.status === 'cancelada' ? ' · cancelada' : x.status === 'prevista' ? ' · <span style="color:var(--azul)">🕓 prevista</span>' + (atrasada ? ' <span style="color:var(--laranja)">⏳</span>' : '') : atrasada ? ' · <span style="color:var(--laranja)">⏳ confirmar</span>' : ''}</div>
+    <div>${(x.equipe_ids || []).map(pid => `<span class="chip ${cf.includes(pid) ? 'conflito' : ''}" title="${cf.includes(pid) ? 'Escalado em outra obra no mesmo horário' : ''}">${esc(primeiro(nomeP(pid)))}</span>`).join('') || (x.status === 'prevista' ? '<span class="chip">definir equipe</span>' : '<span class="chip conflito">sem equipe</span>')}</div>
   </div>`;
 }
 function renderPendentes() {
@@ -295,7 +313,7 @@ function abrirProg(id, pre) {
   if (!x.data) x.data = hojeISO();
   progAberta = id || null;
   const sel = x.projeto_id ? 'p' + x.projeto_id : x.cliente_id ? 'c' + x.cliente_id : x.obra_nome ? 'txt' : '';
-  const travada = x.status !== 'programada';
+  const travada = !ABERTA(x.status);
   const dis = travada ? 'disabled' : '';
   const o = id ? obraDe(x) : null;
   const pj = x.projeto_id && PROJ.find(p => p.id === x.projeto_id);
@@ -303,7 +321,7 @@ function abrirProg(id, pre) {
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
       <h2 style="font-family:'Barlow Condensed',sans-serif;color:var(--amarelo)">${id ? (TIPOS[x.tipo] || TIPOS.outro)[0] + ' ' + esc(o.nome) : '📅 Programar'}</h2>
       <button class="fechar" onclick="fecharProg()">×</button></div>
-    ${id ? `<div class="muted">Programação nº ${x.id} · ${x.status === 'realizada' ? '✅ realizada' + (x.realizado_por ? ' por ' + esc(x.realizado_por.split('@')[0]) : '') : x.status === 'cancelada' ? '❌ cancelada' : '⏳ programada'}${o.endereco ? ' · ' + esc(o.endereco) : ''}${o.cidade ? ' · ' + esc(o.cidade) : ''}</div>` : ''}
+    ${id ? `<div class="muted">Programação nº ${x.id} · ${x.status === 'realizada' ? '✅ realizada' + (x.realizado_por ? ' por ' + esc(x.realizado_por.split('@')[0]) : '') : x.status === 'cancelada' ? '❌ cancelada' : x.status === 'prevista' ? '🕓 prevista (pré-programada quando o kit foi pago)' : '⏳ programada'}${o.endereco ? ' · ' + esc(o.endereco) : ''}${o.cidade ? ' · ' + esc(o.cidade) : ''}</div>` : ''}
     ${o && o.lead ? `<div style="margin-top:6px"><a href="crm.html?lead=${o.lead}">🗂 Abrir no CRM</a>${x.projeto_id ? ` · <a href="crm.html?projeto=${x.projeto_id}">🛠 Projeto</a>` : ''}</div>` : ''}
     <h3>Quando e onde</h3>
     <div class="grade">
@@ -326,13 +344,13 @@ function abrirProg(id, pre) {
         <label style="display:flex;gap:6px;align-items:center;margin-top:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="pg-feito-concluir" checked> Instalação <b>concluída</b> (marca a data de instalação no projeto)</label>
       </div></div>` : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-      ${!travada ? `<button class="btn" onclick="salvarProg(${id || 'null'})">💾 ${id ? 'Salvar' : 'Programar'}</button>` : ''}
-      ${id && x.status === 'programada' ? `<button class="btn btn-sec" onclick="cancelarProg(${id})">❌ Cancelar</button><button class="btn btn-sec" style="color:var(--vermelho)" onclick="excluirProg(${id})">🗑 Excluir</button>` : ''}
+      ${!travada ? `<button class="btn" onclick="salvarProg(${id || 'null'})">${x.status === 'prevista' ? '📅 Confirmar data e equipe' : '💾 ' + (id ? 'Salvar' : 'Programar')}</button>` : ''}
+      ${id && ABERTA(x.status) ? `<button class="btn btn-sec" onclick="cancelarProg(${id})">❌ Cancelar</button><button class="btn btn-sec" style="color:var(--vermelho)" onclick="excluirProg(${id})">🗑 Excluir</button>` : ''}
       ${id && x.status === 'cancelada' ? `<button class="btn btn-sec" onclick="reativarProg(${id})">↺ Reativar</button>` : ''}
     </div>
     <div class="status-msg" id="pg-msg"></div>
-    ${id && x.status === 'programada' && podeConfirmar() ? blocoConfirmar(x, pj) : ''}
-    ${id && x.status === 'programada' && !podeConfirmar() ? '<p class="muted" style="margin-top:14px">A confirmação do dia (que lança os dias da equipe) é feita pela engenharia ou pelo admin.</p>' : ''}
+    ${id && ABERTA(x.status) && podeConfirmar() ? blocoConfirmar(x, pj) : ''}
+    ${id && ABERTA(x.status) && !podeConfirmar() ? '<p class="muted" style="margin-top:14px">A confirmação do dia (que lança os dias da equipe) é feita pela engenharia ou pelo admin.</p>' : ''}
     ${id && x.status === 'realizada' && podeConfirmar() ? `<h3>Realizada</h3><p class="muted">Os dias da equipe já foram lançados na tela Equipe.</p><button class="btn btn-sec" style="margin-top:8px" onclick="desfazerProg(${id})">↺ Desfazer confirmação</button><div class="status-msg" id="pg-msg2"></div>` : ''}`;
   $('ov-prog').classList.add('visivel');
   avisoConflito();
@@ -372,6 +390,8 @@ async function salvarProg(id) {
   if (!reg.projeto_id && !reg.cliente_id && !reg.obra_nome) { m.textContent = 'Escolha a obra ou digite o nome.'; return; }
   if (!reg.equipe_ids.length && !confirm('Programar sem ninguém da equipe?')) return;
   if (id) {
+    const atual = acharProg(id);
+    if (atual && atual.status === 'prevista') reg.status = 'programada';   // conferida: vira programação firme
     const { error } = await sb.from('programacao').update(reg).eq('id', id);
     if (error) { m.textContent = '⚠ ' + error.message; return; }
   } else {
@@ -435,7 +455,7 @@ async function desfazerProg(id) {
 }
 // escala do dia para o grupo da equipe no WhatsApp
 function escalaWhats(iso) {
-  const d = deIso(iso), lista = PROG.filter(x => x.data === iso && x.status !== 'cancelada');
+  const d = deIso(iso), lista = PROG.filter(x => x.data === iso && x.status !== 'cancelada' && x.status !== 'prevista');
   const linhas = ['📅 *Escala Energtech — ' + DIAS[d.getDay()] + ' ' + dBR(iso) + '*', ''];
   lista.forEach(x => { const o = obraDe(x), t = TIPOS[x.tipo] || TIPOS.outro;
     linhas.push(t[0] + ' *' + o.nome + '*' + (x.periodo !== 'dia' ? ' (' + PERIODOS[x.periodo].toLowerCase() + ')' : ''));
