@@ -277,9 +277,14 @@ async function kitPagoBanco(pid) {
   const d = prompt('Data em que o banco pagou o kit de ' + (l.nome || 'cliente') + ' (DD/MM/AAAA):', dBR(hojeISO())); if (!d) return;
   const m = String(d).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if (!m) { msg('⚠ Data inválida.', true); return; }
   const iso = m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
-  const { error } = await sb.rpc('registrar_kit_pago', { p_projeto: pid, p_data: iso });
+  // valor que o banco pagou ao fornecedor: o Financeiro confere kit pago + liberação = valor da proposta
+  const vt = prompt('Valor que o banco pagou ao fornecedor (R$) — opcional, vem no aviso do banco:', '');
+  if (vt === null) return;
+  let valor = null;
+  if (vt.trim()) { let t = vt.replace(/[R$\s]/g, ''); if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.'); valor = Math.round(Number(t) * 100) / 100; if (!isFinite(valor) || valor < 0) { msg('⚠ Valor inválido.', true); return; } }
+  const { error } = await sb.rpc('registrar_kit_pago', { p_projeto: pid, p_data: iso, p_valor: valor });
   if (error) { msg('⚠ ' + error.message, true); return; }
-  await carregar(); msg('✅ Kit pago pelo banco em ' + dBR(iso) + ': se a obra ainda não tinha data, a instalação entra como prevista na agenda' + (PRAZO != null ? ' (~' + PRAZO + ' dias depois)' : '') + '.');
+  await carregar(); msg('✅ Kit pago pelo banco em ' + dBR(iso) + (valor != null ? ' (' + valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) + ')' : '') + ': se a obra ainda não tinha data, a instalação entra como prevista na agenda' + (PRAZO != null ? ' (~' + PRAZO + ' dias depois)' : '') + '.');
 }
 function renderParaConfirmar() {
   const card = $('card-confirmar'); if (!card) return;
