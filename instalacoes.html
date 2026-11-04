@@ -197,7 +197,7 @@ async function carregar() {
   const fim = somaDias(inicioSemana, 6);
   const [p, pj, c, e, pend, atr] = await Promise.all([
     sb.from('programacao').select('*').gte('data', inicioSemana).lte('data', fim).order('data').order('id'),
-    sb.from('projetos').select('id, lead_id, etapa, instalacao_data').neq('etapa', 'cancelado').order('etapa_em', { ascending: false }).limit(2000),
+    sb.from('projetos').select('*').neq('etapa', 'cancelado').order('etapa_em', { ascending: false }).limit(2000),
     sb.from('clientes').select('id, nome, telefone, cidade, endereco, manut_status, manut_agendada_para').eq('ativo', true).order('nome').limit(5000),
     sb.rpc('equipe_escala'),
     // programações que tiram a obra de "Aguardando": programada (qualquer data) ou já realizada
@@ -217,7 +217,7 @@ async function carregar() {
   const ids = [...new Set(PROJ.map(x => x.lead_id).concat(PROG.map(x => x.lead_id), ATRASADAS.map(x => x.lead_id)).filter(Boolean))];
   LEADS = {};
   for (let i = 0; i < ids.length; i += 300) {
-    const { data } = await sb.from('leads').select('id, nome, telefone, cidade, endereco').in('id', ids.slice(i, i + 300));
+    const { data } = await sb.from('leads').select('id, nome, telefone, cidade, endereco, forma_pagamento').in('id', ids.slice(i, i + 300));
     (data || []).forEach(l => LEADS[l.id] = l);
   }
   msg(''); render();
@@ -270,6 +270,17 @@ async function mudarPrazo() {
   if (error) { msg('⚠ ' + error.message, true); return; }
   PRAZO = n; $('prazo-txt').textContent = n; msg('✅ Prazo de entrega: ' + n + ' dias. Vale para os próximos kits pagos.');
 }
+const financiada = l => /financ|finame|banco|bndes|caixa/i.test((l && l.forma_pagamento) || '');
+// venda financiada: o banco paga o kit direto ao fornecedor e informa a data → pré-programa a instalação
+async function kitPagoBanco(pid) {
+  const pj = PROJ.find(p => p.id === pid), l = (pj && LEADS[pj.lead_id]) || {};
+  const d = prompt('Data em que o banco pagou o kit de ' + (l.nome || 'cliente') + ' (DD/MM/AAAA):', dBR(hojeISO())); if (!d) return;
+  const m = String(d).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if (!m) { msg('⚠ Data inválida.', true); return; }
+  const iso = m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+  const { error } = await sb.rpc('registrar_kit_pago', { p_projeto: pid, p_data: iso });
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  await carregar(); msg('✅ Kit pago pelo banco em ' + dBR(iso) + ': se a obra ainda não tinha data, a instalação entra como prevista na agenda' + (PRAZO != null ? ' (~' + PRAZO + ' dias depois)' : '') + '.');
+}
 function renderParaConfirmar() {
   const card = $('card-confirmar'); if (!card) return;
   card.style.display = ATRASADAS.length ? '' : 'none';
@@ -293,8 +304,8 @@ function renderPendentes() {
   const limp = CLI.filter(c => c.manut_status === 'agendada' && !fut.some(f => f.cliente_id === c.id));
   const nomeEt = { documentacao: 'Documentação', elaboracao: 'Projeto em elaboração', protocolado: 'Protocolado', aprovado: 'Aprovado / Instalação' };
   $('pendentes').innerHTML = (projSem.length || limp.length) ? projSem.map(p => { const l = LEADS[p.lead_id] || {};
-      return `<div class="pend"><span>🔧 <b>${esc(l.nome || 'Cliente #' + p.lead_id)}</b> <span class="muted">· ${esc(l.cidade || '')} · ${nomeEt[p.etapa] || p.etapa}</span>${p.etapa === 'aprovado' ? ' <span class="tag ok">pronto para instalar</span>' : ''}</span>
-        <button class="btn btn-sec btn-p" onclick="abrirProg(null, { projeto_id: ${p.id} })">📅 Programar</button></div>`; }).join('')
+      return `<div class="pend"><span>🔧 <b>${esc(l.nome || 'Cliente #' + p.lead_id)}</b> <span class="muted">· ${esc(l.cidade || '')} · ${nomeEt[p.etapa] || p.etapa}</span>${p.etapa === 'aprovado' ? ' <span class="tag ok">pronto para instalar</span>' : ''}${p.kit_pago_em ? ' <span class="tag azul">📦 kit pago ' + dBR(p.kit_pago_em).slice(0, 5) + (p.kit_pago_por === 'banco' ? ' (banco)' : '') + '</span>' : ''}</span>
+        <span class="acoes-l">${financiada(l) && !p.kit_pago_em && 'kit_pago_em' in p ? `<button class="btn btn-sec btn-p" title="O banco pagou o kit ao fornecedor: pré-programa a instalação" onclick="kitPagoBanco(${p.id})">🏦 Banco pagou o kit</button>` : ''}<button class="btn btn-sec btn-p" onclick="abrirProg(null, { projeto_id: ${p.id} })">📅 Programar</button></span></div>`; }).join('')
     + limp.map(c => `<div class="pend"><span>🧽 <b>${esc(c.nome)}</b> <span class="muted">· ${esc(c.cidade || '')} · limpeza agendada${c.manut_agendada_para ? ' para ' + dBR(c.manut_agendada_para) : ''}</span></span>
         <button class="btn btn-sec btn-p" onclick="abrirProg(null, { tipo: 'limpeza', cliente_id: ${c.id}, data: '${c.manut_agendada_para || ''}' })">📅 Programar</button></div>`).join('')
     : '<div class="vazio">Nenhuma obra aprovada ou limpeza agendada esperando data. ✅</div>';
