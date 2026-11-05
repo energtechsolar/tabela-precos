@@ -8,6 +8,15 @@
 (function () {
   if (typeof enviarDoc !== 'function' || typeof gravarDocs !== 'function') return;
   const LEITURA = ['fatura', 'cnh'];
+  const _ordMes = m => { const [mm, aa] = String(m).split('/'); return (+aa < 100 ? 2000 + +aa : +aa) * 12 + +mm; };
+  // média de consumo: os 12 meses mais recentes, sem os meses zerados (imóvel sem uso, ligação nova)
+  const mediaFat = f => {
+    const ult = (f.historico || []).slice().sort((a, b) => _ordMes(b.mes) - _ordMes(a.mes)).slice(0, 12);
+    const com = ult.filter(x => +x.kwh > 0), zerados = ult.length - com.length;
+    if (com.length) return { media: Math.round(com.reduce((s, x) => s + +x.kwh, 0) / com.length), meses: com.length, zerados };
+    if (+f.consumo_mes_kwh > 0) return { media: Math.round(f.consumo_mes_kwh), meses: 1, zerados };
+    return { media: null, meses: 0, zerados };
+  };
   const docDe = (id, docId) => ((leads.find(x => x.id === id) || {}).documentos || []).find(d => d.id === docId);
   const podeApagar = d => !!perfil && (perfil.admin || (d && d.autor && d.autor === perfil.email));
   const msgDoc = (t, erro) => { const m = $('doc-msg'); if (!m) return; m.classList.toggle('erro', !!erro); m.innerHTML = t || ''; };
@@ -80,9 +89,8 @@
       if (error) { try { r = await error.context.json(); } catch (_) { r = null; } if (!r) throw new Error(/fetch|network/i.test(error.message || '') ? 'sem conexão com o servidor' : (error.message || 'falha na leitura')); }
       if (!r || !r.ok) throw new Error((r && r.erro) || 'não foi possível ler a fatura');
       const f = r.dados || {};
-      const h = (f.historico || []).slice(0, 12);
-      const media = h.length ? Math.round(h.reduce((s, x) => s + (+x.kwh || 0), 0) / h.length) : (f.consumo_mes_kwh != null ? Math.round(f.consumo_mes_kwh) : null);
-      _fatLida = { id, docId: d.id, f, media, meses: h.length || (media ? 1 : 0) };
+      const { media, meses, zerados } = mediaFat(f);
+      _fatLida = { id, docId: d.id, f, media, meses, zerados };
       // o resumo da leitura fica guardado no documento: a Nova proposta usa o consumo médio
       const l = leads.find(x => x.id === id);
       const docs = (l.documentos || []).map(x => x.id === d.id ? { ...x, dados: { media_kwh: media, meses: _fatLida.meses, valor_total: f.valor_total ?? null, concessionaria: f.concessionaria || null, classificacao: f.classificacao || null, lida_em: new Date().toISOString() } } : x);
@@ -107,7 +115,8 @@
     if (f.legibilidade && f.legibilidade !== 'boa') avisos.push('Leitura ' + (f.legibilidade === 'parcial' ? 'parcial' : 'ruim') + ': confira os campos.');
     if (f.classificacao && /^\s*A\s*\d/i.test(f.classificacao)) avisos.push('Grupo A (média tensão): precisa de análise de demanda.');
     if (f.tem_geracao_propria) avisos.push('A fatura já mostra geração própria/créditos: o consumo pode estar menor que o real.');
-    if (L.meses && L.meses < 12) avisos.push('Consumo médio com ' + L.meses + (L.meses === 1 ? ' mês' : ' meses') + ' lidos (o ideal são 12).');
+    if (L.zerados) avisos.push(L.zerados + (L.zerados === 1 ? ' mês sem consumo (0 kWh) ficou' : ' meses sem consumo (0 kWh) ficaram') + ' fora da média (imóvel sem uso ou ligação nova).');
+    if (L.meses && L.meses < 12) avisos.push('Consumo médio com ' + L.meses + (L.meses === 1 ? ' mês' : ' meses') + ' (o ideal são 12).');
     const val = v => v ? '<b>' + esc(v) + '</b>' : '<span style="color:var(--amarelo)">não lido</span>';
     msgDoc(`<div style="background:var(--bg);border:1px solid var(--borda);border-radius:10px;padding:10px 12px;margin-top:6px;line-height:1.7;color:var(--texto)">
       <div style="font-weight:700;color:var(--amarelo)">🔎 Dados lidos da fatura</div>

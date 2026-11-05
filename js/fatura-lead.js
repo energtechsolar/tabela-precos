@@ -4,7 +4,16 @@
 // "documentos" do cliente (aparece na ficha como "Fatura de energia") e o consumo lido vai para o histórico.
 // (carregado pelo crm.html depois de js/crm.js; envolve novoLead e salvarNovoLead sem mudar o crm.js)
 
-let _fatNovo = null;   // { blob, ext, nome, dados, media }
+let _fatNovo = null;   // { blob, ext, nome, dados, media, meses, zerados }
+// média de consumo: os 12 meses mais recentes do histórico, sem os meses zerados (imóvel sem uso, ligação nova)
+const _ordMes = m => { const [mm, aa] = String(m).split('/'); return (+aa < 100 ? 2000 + +aa : +aa) * 12 + +mm; };
+function mediaFaturaLida(d) {
+  const ult = (d.historico || []).slice().sort((a, b) => _ordMes(b.mes) - _ordMes(a.mes)).slice(0, 12);
+  const com = ult.filter(x => +x.kwh > 0), zerados = ult.length - com.length;
+  if (com.length) return { media: Math.round(com.reduce((s, x) => s + +x.kwh, 0) / com.length), meses: com.length, zerados };
+  if (+d.consumo_mes_kwh > 0) return { media: Math.round(d.consumo_mes_kwh), meses: 1, zerados };
+  return { media: null, meses: 0, zerados };
+}
 
 function _fatReduzir(arq, max) {
   return new Promise((ok, erro) => {
@@ -36,9 +45,8 @@ async function lerFaturaNovoLead(input) {
     if (error) { try { resp = error.context && typeof error.context.json === 'function' ? await error.context.json() : null; } catch (e) { resp = null; } }
     if (!resp || !resp.ok) { _fatStatus('⚠ ' + esc((resp && resp.erro) || (error && error.message) || 'Não foi possível ler a fatura.') + ' Preencha à mão.', 'erro'); return; }
     const d = resp.dados || {};
-    const h = (d.historico || []).slice(0, 12);
-    const media = h.length ? Math.round(h.reduce((s, x) => s + (+x.kwh || 0), 0) / h.length) : (d.consumo_mes_kwh != null ? Math.round(d.consumo_mes_kwh) : null);
-    _fatNovo = { blob, ext: ehPdf ? 'pdf' : 'jpg', nome: arq.name || (ehPdf ? 'fatura.pdf' : 'fatura.jpg'), dados: d, media };
+    const { media, meses, zerados } = mediaFaturaLida(d);
+    _fatNovo = { blob, ext: ehPdf ? 'pdf' : 'jpg', nome: arq.name || (ehPdf ? 'fatura.pdf' : 'fatura.jpg'), dados: d, media, meses, zerados };
     // só preenche: o que já foi digitado no campo não é apagado; o nome do lead só vem do titular se estiver vazio
     const por = (id, v) => { const el = document.getElementById('nl-' + id); if (el && v && !el.value.trim()) el.value = v; };
     por('nome', d.titular);
@@ -46,13 +54,14 @@ async function lerFaturaNovoLead(input) {
     por('titular', d.titular); por('uc', d.uc); por('end', d.endereco); por('cep', d.cep);
     por('cidade', d.cidade ? d.cidade + (d.uf ? ' / ' + d.uf : '') : null); por('conc', d.concessionaria);
     const obs = document.getElementById('nl-obs');
-    const linha = 'Fatura lida: ' + [d.concessionaria, d.classificacao, media ? 'consumo médio ' + media + ' kWh/mês (' + (h.length || 1) + (h.length === 1 || !h.length ? ' mês' : ' meses') + ')' : '', d.valor_total != null ? 'última fatura ' + fmtR(d.valor_total) : ''].filter(Boolean).join(' · ') + '.';
+    const linha = 'Fatura lida: ' + [d.concessionaria, d.classificacao, media ? 'consumo médio ' + media + ' kWh/mês (' + meses + (meses === 1 ? ' mês' : ' meses') + (zerados ? ', sem ' + zerados + ' zerado(s)' : '') + ')' : '', d.valor_total != null ? 'última fatura ' + fmtR(d.valor_total) : ''].filter(Boolean).join(' · ') + '.';
     if (obs && !obs.value.includes('Fatura lida:')) obs.value = (obs.value.trim() ? obs.value.trim() + '\n' : '') + linha;
     const avisos = [];
     if (d.cpf_cnpj && d.cpf_cnpj.includes('*')) avisos.push('CPF/CNPJ mascarado na fatura: peça o documento ao cliente');
     if (d.legibilidade && d.legibilidade !== 'boa') avisos.push('leitura ' + (d.legibilidade === 'parcial' ? 'parcial' : 'ruim') + ': confira os campos');
     if (d.classificacao && /^\s*A\s*\d/i.test(d.classificacao)) avisos.push('grupo A (média tensão): precisa de análise de demanda');
     if (d.tem_geracao_propria) avisos.push('a fatura já mostra geração própria/créditos');
+    if (zerados) avisos.push(zerados + (zerados === 1 ? ' mês sem consumo ficou' : ' meses sem consumo ficaram') + ' fora da média');
     _fatStatus('✅ Fatura lida' + (media ? ': consumo médio <b>' + media + ' kWh/mês</b>' : '') + '. Confira os campos abaixo; ao criar o lead, a fatura fica guardada na ficha.'
       + (avisos.length ? '<br><span style="color:var(--amarelo)">⚠ ' + esc(avisos.join(' · ')) + '</span>' : ''), 'ok');
   } catch (e) {
@@ -69,7 +78,7 @@ async function _fatGuardar(leadId) {
     const path = 'lead-' + leadId + '/fatura-' + Date.now() + '.' + a.ext;
     const up = await sb.storage.from('documentos').upload(path, a.blob, { contentType: a.ext === 'pdf' ? 'application/pdf' : 'image/jpeg', upsert: false });
     if (up.error) throw up.error;
-    const d = a.dados || {}, meses = (d.historico || []).slice(0, 12).length || (a.media ? 1 : 0);
+    const d = a.dados || {}, meses = a.meses || (a.media ? 1 : 0);
     // resumo da leitura no documento: a Nova proposta (precificador) usa o consumo médio
     const doc = { id: String(Date.now()), tipo: 'fatura', nome: a.nome, path, em: new Date().toISOString(), autor: perfil.email,
       dados: a.media ? { media_kwh: a.media, meses, valor_total: d.valor_total ?? null, concessionaria: d.concessionaria || null, classificacao: d.classificacao || null, lida_em: new Date().toISOString() } : undefined };

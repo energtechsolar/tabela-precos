@@ -54,17 +54,18 @@ async function lerFatura(input) {
   }
 }
 
-// média do consumo: só com os meses lidos (os 12 mais recentes)
+// média do consumo: os 12 meses mais recentes do histórico, sem os meses zerados (imóvel sem uso, ligação nova)
 function mediaConsumo(d) {
-  const h = (d.historico || []).slice().sort((a, b) => MESES_ORDEM(b.mes) - MESES_ORDEM(a.mes)).slice(0, 12);
-  if (h.length) return { media: Math.round(h.reduce((s, x) => s + x.kwh, 0) / h.length), meses: h.length };
-  if (d.consumo_mes_kwh != null) return { media: Math.round(d.consumo_mes_kwh), meses: 1 };
-  return { media: null, meses: 0 };
+  const ult = (d.historico || []).slice().sort((a, b) => MESES_ORDEM(b.mes) - MESES_ORDEM(a.mes)).slice(0, 12);
+  const com = ult.filter(x => +x.kwh > 0), zerados = ult.length - com.length;
+  if (com.length) return { media: Math.round(com.reduce((s, x) => s + +x.kwh, 0) / com.length), meses: com.length, zerados };
+  if (+d.consumo_mes_kwh > 0) return { media: Math.round(d.consumo_mes_kwh), meses: 1, zerados };
+  return { media: null, meses: 0, zerados };
 }
 
 function mostrarFatura(d) {
   _faturaTela = d;
-  const { media, meses } = mediaConsumo(d);
+  const { media, meses, zerados } = mediaConsumo(d);
   const tipo = propostaTipo || (typeof abaAtual !== 'undefined' && abaAtual) || 'importado';
   const tarifa = +(tipo === 'importado' ? valorCampo('imp-tarifa') : valorCampo('input-tarifa')) || 0.89;
   const contaEst = media != null ? Math.round(media * tarifa) : null;
@@ -77,7 +78,8 @@ function mostrarFatura(d) {
   };
   if (d.legibilidade !== 'boa') avisos.push('Leitura ' + (d.legibilidade === 'parcial' ? 'parcial' : 'ruim') + ': confira todos os campos com a fatura.');
   if (d.cpf_cnpj && d.cpf_cnpj.includes('*')) avisos.push('O CPF/CNPJ aparece mascarado na fatura — peça o documento ao cliente (não vai para a proposta assim).');
-  if (meses && meses < 12) avisos.push('Média calculada com ' + meses + (meses === 1 ? ' mês' : ' meses') + ' de consumo lidos (o ideal são 12).');
+  if (zerados) avisos.push(zerados + (zerados === 1 ? ' mês sem consumo (0 kWh) ficou' : ' meses sem consumo (0 kWh) ficaram') + ' fora da média (imóvel sem uso ou ligação nova).');
+  if (meses && meses < 12) avisos.push('Média calculada com ' + meses + (meses === 1 ? ' mês' : ' meses') + ' de consumo (o ideal são 12).');
   if (!meses) avisos.push('Não foi possível ler o consumo: informe a média à mão.');
   if (d.classificacao && /^\s*A\s*\d/i.test(d.classificacao)) avisos.push('Fatura do grupo A (média tensão): a proposta precisa de análise de demanda — fale com o engenheiro.');
   if (d.tem_geracao_propria) avisos.push('A fatura mostra geração própria/créditos: o consumo da fatura pode estar menor que o real.');
