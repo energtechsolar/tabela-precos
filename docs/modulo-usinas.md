@@ -11,8 +11,8 @@ A trava é no banco (RLS + `usinas_acesso(empresa_id)`), não só na tela.
 | `empresas`, `empresa_membros`, `empresa_modulos` | base multiempresa (conta, quem acessa, módulos ativos) |
 | `emitentes` | quem assina (CNPJ/CPF), endereço e dados bancários — só admin |
 | `contrapartes` | destinatário (ex.: Cooperativa MOVE) |
-| `usinas` | UC, cooperativa, emitente de cada documento, numeração (base nº 13 = 08/2026), textos |
-| `usina_competencias` | 1 linha por usina × mês: valores do boletim, nº do recibo (trigger), NF, status |
+| `usinas` | UC, cooperativa, emitente de cada documento, base da numeração (nº 13 = 08/2026, só sugestão), textos |
+| `usina_competencias` | 1 linha por usina × mês: valores do boletim, nº do recibo (dado ao emitir, único por usina), NF, status, `historico` |
 | `usina_documentos` | arquivos (boletim, recibos, NF PDF/XML). **Sem delete**; versão nova marca a antiga em `substituido_por` |
 | `erros_app` | erros das telas (para depuração) |
 
@@ -32,7 +32,20 @@ Arquivos: bucket privado `usinas`, caminho `<empresa_id>/<codigo>/<AAAA-MM>/<tim
    CNPJ, o valor (≠ O&M) ou a referência (REF. MM/AAAA) não batem. Quando o módulo NFS-e existir, este passo vira "emitir".
 4. **Enviado**: marca a competência como enviada para a cooperativa.
 
-Status: `lancado` → `recibos` → `nf` → `enviado`.
+Status: `lancado` → `recibos` → `nf` → `enviado`. Resultado negativo: `sem_emissao` (sem NF e sem recibos).
+
+## Numeração dos recibos
+
+- Sequência só nos meses emitidos: mês negativo não gasta número.
+- O nº é confirmado na primeira emissão (sugestão = último nº antes do mês + 1; sem anterior, base cadastrada + meses).
+- Terra e Equipamento usam o mesmo nº. O banco impede nº repetido na mesma usina e troca de nº depois que há recibo guardado.
+
+## Meses antigos (histórico)
+
+- Lançar o boletim normalmente (vários de uma vez). Se o leitor não entender o PDF (layout antigo), usar **✍ Preencher à mão**.
+- Resultado negativo → fica `sem_emissao`.
+- Recibos já emitidos fora da plataforma: **📂 Recibos antigos** (PDF, Word ou foto), informando o nº real → `historico = true`.
+- NF antiga: **📎 Anexar NF** (mesma leitura do DANFSe). **✉ Enviado** pergunta a data real do envio.
 
 ## Outra cooperativa / outro cliente do produto
 
@@ -42,9 +55,12 @@ Status: `lancado` → `recibos` → `nf` → `enviado`.
 
 ## Testes (fora do repositório, Playwright com o banco simulado)
 
+Atenção: tabela nova precisa de `grant` para `authenticated` (o projeto não libera sozinho); conferir no banco real.
+
 - leitura dos boletins 370 e 371 de 08/2026 (todas as conferências ✓) e do DANFSe nº 9;
 - fluxo completo: 2 boletins → salvar → recibos nº 000013 → anexar NF nº 9 → enviado;
-- valor por extenso (17 casos) e menu dos módulos no CRM e no Financeiro.
+- valor por extenso (17 casos) e menu dos módulos no CRM e no Financeiro;
+- histórico: mês negativo (sem emissão), preenchimento à mão, recibos antigos com nº real, enviado com data.
 
 ## Depois
 
