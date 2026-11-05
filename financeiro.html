@@ -94,6 +94,7 @@
   <div id="conteudo">
     <div class="abas">
       <button class="aba ativa" data-aba="fluxo" onclick="trocarAba('fluxo')">📅 Contas do mês</button>
+      <button class="aba" data-aba="hist" onclick="trocarAba('hist')">📁 Pagas e recebidas</button>
       <button class="aba" data-aba="saude" onclick="trocarAba('saude')">📈 Saúde financeira</button>
       <button class="aba" data-aba="obras" onclick="trocarAba('obras')">🏗 Lucro por obra</button>
       <button class="aba" data-aba="fixos" onclick="trocarAba('fixos')">🏢 Custos fixos</button>
@@ -104,6 +105,7 @@
     </div>
     <div class="status-msg" id="msg"></div>
     <div id="aba-fluxo"></div>
+    <div id="aba-hist" style="display:none"></div>
     <div id="aba-saude" style="display:none"></div>
     <div id="aba-obras" style="display:none"></div>
     <div id="aba-fixos" style="display:none"></div>
@@ -113,6 +115,7 @@
 
 <script src="js/comum.js?v=20261019a"></script>
 <script src="js/parcelas.js?v=20261103a"></script>
+<script src="js/modulos.js?v=20261105a"></script>
 <script>
 // Energtech — Financeiro (só admin)
 // Contas do mês: o que entra (recebimentos) e o que sai (a pagar). O "a pagar" automático (kit ao fornecedor,
@@ -132,7 +135,7 @@ const TIPOS_PAG = { kit:'Kit ao fornecedor', comissao:'Comissão', imposto:'Impo
 const TIPOS_REC = { entrada:'Entrada', boleto:'Boleto', banco:'Banco / financiamento', repasse:'Repasse do fornecedor', outro:'Outro' };
 const CATEGORIAS = { aluguel:'Aluguel', energia_agua:'Energia / água', internet_telefone:'Internet / telefone', marketing:'Marketing / anúncios', contador:'Contador', software:'Sistemas / software', veiculo:'Veículo / combustível', prolabore:'Pró-labore', emprestimo:'Empréstimo / financiamento', outros:'Outros' };
 let perfil = null, aba = 'fluxo', REC = [], PAG = [], FIXOS = [], PRM = {}, GANHOS = [], verTodas = false, formNovo = false;
-let LANC = [], SAIDAS = [], obrasSoMes = false, obraAberta = null, PROJS = {};
+let LANC = [], SAIDAS = [], obrasSoMes = false, obraAberta = null, PROJS = {}, histTodos = false;
 
 function msg(t, erro) { const m = $('msg'); m.textContent = t || ''; m.classList.toggle('erro', !!erro); }
 function mostrar(qual, texto) {
@@ -168,7 +171,7 @@ async function sair() { await sb.auth.signOut(); perfil = null; await iniciar();
 function trocarAba(a) {
   aba = a;
   document.querySelectorAll('.aba').forEach(b => b.classList.toggle('ativa', b.dataset.aba === a));
-  ['fluxo', 'saude', 'obras', 'fixos', 'param'].forEach(k => $('aba-' + k).style.display = k === a ? '' : 'none');
+  ['fluxo', 'hist', 'saude', 'obras', 'fixos', 'param'].forEach(k => $('aba-' + k).style.display = k === a ? '' : 'none');
   render();
 }
 
@@ -216,7 +219,7 @@ async function carregar() {
   msg('');
   render();
 }
-function render() { if (aba === 'fluxo') renderFluxo(); else if (aba === 'saude') renderSaude(); else if (aba === 'obras') renderObras(); else if (aba === 'fixos') renderFixos(); else renderParam(); }
+function render() { if (aba === 'fluxo') renderFluxo(); else if (aba === 'hist') renderHist(); else if (aba === 'saude') renderSaude(); else if (aba === 'obras') renderObras(); else if (aba === 'fixos') renderFixos(); else renderParam(); }
 
 // ── comissão: liberada conforme o cliente paga (parcelas do cliente/banco recebidas ÷ total das parcelas) ──
 function fracaoRecebida(leadId) {
@@ -290,10 +293,38 @@ function renderFluxo() {
       ${tab('<th>Tipo</th><th>Descrição</th><th>Vencimento</th><th class="num">Valor</th><th></th>', aPagar.map(linhaPag).join(''), 'Nada a pagar até o fim do mês. ✅')}</div>
     <div class="card"><div class="linha-topo"><h2>🤝 Comissões</h2><span class="muted">Liberadas conforme o cliente paga (sobre o valor total da venda)</span></div>
       ${tab('<th>Vendedor</th><th>Venda</th><th class="num">Liberada</th><th class="num">A pagar agora</th><th></th>', comAbertas.map(linhaCom).join(''), 'Nenhuma comissão em aberto.')}</div>
-    <div class="grade2">
-      <div class="card"><h2>✅ Recebido em ${nomeMes(ym)}</h2>${tab('<th>Data</th><th>Cliente</th><th class="num">Valor</th>', recebidos.sort((a, b) => a.recebido_em < b.recebido_em ? -1 : 1).map(x => `<tr><td>${dBR(x.recebido_em)}</td><td>${linkCli(x)} <span class="muted">${esc(TIPOS_REC[x.tipo] || '')}</span></td><td class="num">${fmtR(x.valor_recebido ?? x.valor)}</td></tr>`).join(''), 'Nada recebido no mês.')}</div>
-      <div class="card"><h2>💸 Pago em ${nomeMes(ym)}</h2>${tab('<th>Data</th><th>Descrição</th><th class="num">Valor</th><th></th>', pagos.sort((a, b) => a.pago_em < b.pago_em ? -1 : 1).map(x => `<tr><td>${dBR(x.pago_em)}</td><td>${esc(TIPOS_PAG[x.tipo] || '')} <span class="muted">${esc(x.descricao || '')}</span></td><td class="num">${fmtR(x.valor)}</td><td class="num"><a href="#" onclick="desfazerPag(${x.id});return false" class="muted">desfazer</a></td></tr>`).join(''), 'Nada pago no mês.')}</div>
-    </div>`;
+    <p class="muted" style="text-align:center">O que já foi pago ou recebido sai desta tela e fica em <a href="#" onclick="trocarAba('hist');return false">📁 Pagas e recebidas</a> (${recebidos.length} recebida(s) e ${pagos.length} paga(s) em ${nomeMes(ym)}).</p>`;
+}
+// ── pagas e recebidas (histórico): o que saiu da tela do mês ──
+function renderHist() {
+  const ym = $('f-mes').value, ini = ym + '-01', fim = ultimoDia(ym);
+  const noPer = d => d && (histTodos || (d >= ini && d <= fim));
+  const ord = (a, b, k) => (a[k] < b[k] ? 1 : -1);
+  const rec = REC.filter(x => noPer(x.recebido_em)).sort((a, b) => ord(a, b, 'recebido_em'));
+  const pag = PAG.filter(x => noPer(x.pago_em) && x.tipo !== 'comissao').sort((a, b) => ord(a, b, 'pago_em'));
+  const com = PAG.filter(x => noPer(x.pago_em) && x.tipo === 'comissao' && !x.auto).sort((a, b) => ord(a, b, 'pago_em'));
+  const soma = (l, f) => l.reduce((a, x) => a + (+f(x) || 0), 0);
+  const tab = (cab, linhas, vazio) => `<div class="tabela-wrap"><table><thead><tr>${cab}</tr></thead><tbody>${linhas || `<tr><td colspan="9" class="vazio">${vazio}</td></tr>`}</tbody></table></div>`;
+  const per = histTodos ? 'todos os meses' : nomeMes(ym);
+  $('aba-hist').innerHTML = `
+    <div class="kpis">
+      <div class="kpi verde"><div class="kpi-val">${fmtR0(soma(rec, x => x.valor_recebido ?? x.valor))}</div><div class="kpi-lbl">✅ Recebido (${per})</div></div>
+      <div class="kpi"><div class="kpi-val">${fmtR0(soma(pag, x => x.valor))}</div><div class="kpi-lbl">💸 Pago (${per})</div></div>
+      <div class="kpi"><div class="kpi-val">${fmtR0(soma(com, x => x.valor))}</div><div class="kpi-lbl">🤝 Comissões pagas (${per})</div></div>
+    </div>
+    <div class="card" style="padding:10px 18px"><label class="muted" style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" ${histTodos ? 'checked' : ''} onchange="histTodos=this.checked;render()"> Mostrar todos os meses (o mês escolhido lá em cima vale quando desmarcado)</label></div>
+    <div class="card"><h2>✅ Contas recebidas — ${per}</h2>
+      ${tab('<th>Data</th><th>Cliente</th><th>Parcela</th><th class="num">Previsto</th><th class="num">Entrou</th><th></th>', rec.map(x => `<tr><td>${dBR(x.recebido_em)}</td><td>${linkCli(x)}</td><td>${esc(TIPOS_REC[x.tipo] || x.tipo)}${x.descricao ? '<br><span class="muted">' + esc(x.descricao) + '</span>' : ''}</td><td class="num">${fmtR(x.valor)}</td><td class="num">${fmtR(x.valor_recebido ?? x.valor)}</td><td class="num"><a href="#" onclick="desfazerRec(${x.id});return false" class="muted">desfazer</a></td></tr>`).join(''), 'Nada recebido no período.')}</div>
+    <div class="card"><h2>💸 Contas pagas — ${per}</h2>
+      ${tab('<th>Data</th><th>Tipo</th><th>Descrição</th><th class="num">Valor</th><th></th>', pag.map(x => `<tr><td>${dBR(x.pago_em)}</td><td>${esc(TIPOS_PAG[x.tipo] || x.tipo)}</td><td>${esc(x.descricao || '')}${x.lead_id ? '<br>' + linkCli(x) : ''}</td><td class="num">${fmtR(x.valor)}</td><td class="num"><a href="#" onclick="desfazerPag(${x.id});return false" class="muted">desfazer</a></td></tr>`).join(''), 'Nada pago no período.')}</div>
+    <div class="card"><h2>🤝 Comissões pagas — ${per}</h2>
+      ${tab('<th>Data</th><th>Vendedor</th><th>Venda</th><th class="num">Valor</th><th></th>', com.map(x => `<tr><td>${dBR(x.pago_em)}</td><td>${esc((x.equipe && x.equipe.nome) || '')}</td><td>${linkCli(x)}</td><td class="num">${fmtR(x.valor)}</td><td class="num"><a href="#" onclick="desfazerPag(${x.id});return false" class="muted">desfazer</a></td></tr>`).join(''), 'Nenhuma comissão paga no período.')}</div>`;
+}
+async function desfazerRec(id) {
+  const x = REC.find(r => r.id === id); if (!x || !confirm('Desfazer o recebimento de ' + fmtR(x.valor_recebido ?? x.valor) + '? (volta para "A receber")')) return;
+  const { error } = await sb.from('recebimentos').update({ recebido_em: null, valor_recebido: null }).eq('id', id);
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  x.recebido_em = null; x.valor_recebido = null; msg('↺ Recebimento desfeito.'); render();
 }
 // financiadas com o valor do kit pago pelo banco: confere kit + liberação = proposta (o que conta é o valor final)
 function conferenciaFinanciadas() {
