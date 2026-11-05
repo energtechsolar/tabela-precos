@@ -69,7 +69,10 @@ async function _fatGuardar(leadId) {
     const path = 'lead-' + leadId + '/fatura-' + Date.now() + '.' + a.ext;
     const up = await sb.storage.from('documentos').upload(path, a.blob, { contentType: a.ext === 'pdf' ? 'application/pdf' : 'image/jpeg', upsert: false });
     if (up.error) throw up.error;
-    const doc = { id: String(Date.now()), tipo: 'fatura', nome: a.nome, path, em: new Date().toISOString(), autor: perfil.email };
+    const d = a.dados || {}, meses = (d.historico || []).slice(0, 12).length || (a.media ? 1 : 0);
+    // resumo da leitura no documento: a Nova proposta (precificador) usa o consumo médio
+    const doc = { id: String(Date.now()), tipo: 'fatura', nome: a.nome, path, em: new Date().toISOString(), autor: perfil.email,
+      dados: a.media ? { media_kwh: a.media, meses, valor_total: d.valor_total ?? null, concessionaria: d.concessionaria || null, classificacao: d.classificacao || null, lida_em: new Date().toISOString() } : undefined };
     const l = leads.find(x => x.id === leadId);
     const docs = Array.isArray(l && l.documentos) ? l.documentos : [];
     const { error } = await sb.from('leads').update({ documentos: [...docs, doc] }).eq('id', leadId);
