@@ -2,7 +2,7 @@
 // Páginas: tenta a internet primeiro e guarda uma cópia; sem internet usa a cópia.
 // Bibliotecas, fontes e fotos: usa a cópia guardada e atualiza em segundo plano.
 // Dados do banco (Supabase) nunca passam por aqui, exceto as fotos públicas da proposta.
-const VERSAO = 'energtech-20261106b';
+const VERSAO = 'energtech-20261106c';
 const CASCA = ['./', 'index.html', 'crm.html', 'manifest.webmanifest',
   'css/precificador.css?v=20261019a', 'js/comum.js?v=20261019a', 'js/precificador.js?v=20261103a', 'js/logo.js?v=20261019a', 'js/pdf.js?v=20261103a', 'js/proposta.js?v=20261103a', 'js/admin.js?v=20261030a', 'js/app.js?v=20261103a', 'js/kit.js?v=20261028e', 'js/fatura.js?v=20261028e', 'js/crm.js?v=20261103a', 'js/fatura-lead.js?v=20261106a', 'js/docs-lead.js?v=20261106a', 'js/projetos.js?v=20261028a', 'js/contrato.js?v=20261019a', 'icone-192.png', 'icone-512.png', 'apple-touch-icon.png', 'proposta-capa.jpg',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
@@ -27,7 +27,10 @@ self.addEventListener('fetch', ev => {
   const url = new URL(req.url);
   if (url.hostname.endsWith('supabase.co')) {
     if (!url.pathname.includes('/storage/v1/object/public/')) return;      // dados: sempre online
-    ev.respondWith(caches.match(req).then(c => c || fetch(req).then(r => guardar(req, r))));
+    // a foto pode estar guardada "opaca" (veio como fundo da tela de login): ela não serve para o PDF (pedido cors),
+    // então nesse caso busca de novo na internet e guarda a versão que serve para os dois
+    ev.respondWith(caches.match(req).then(c => (c && (c.type !== 'opaque' || req.mode === 'no-cors')) ? c
+      : fetch(req).then(r => guardar(req, r)).catch(e => { if (c && req.mode === 'no-cors') return c; throw e; })));
     return;
   }
   if (url.hostname.includes('nominatim') || url.hostname.includes('wa.me')) return;

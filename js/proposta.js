@@ -116,14 +116,17 @@ function urlImagem(slot) { const im = PROPOSTA_CFG.imagens || {}; return im[slot
 let ultimoOrcamentoId = null;
 const _cacheImg = {};
 
-// carrega uma foto do site e recorta no formato pedido (como "cobrir")
+// carrega uma foto do site e recorta no formato pedido (como "cobrir").
+// Falha não fica guardada: tenta de novo (e uma segunda vez sem cópia guardada) na próxima proposta.
 async function fotoRecortada(url, wmm, hmm, larguraPx) {
   const chave = url + '|' + wmm + 'x' + hmm;
-  if (chave in _cacheImg) return _cacheImg[chave];
+  if (_cacheImg[chave]) return _cacheImg[chave];
   try {
     let src = url;
     if (!/^data:/.test(url)) {
-      const r = await fetch(url, { cache:'no-cache' });
+      let r = null;
+      try { r = await fetch(url, { cache:'no-cache' }); } catch (e) { r = null; }
+      if (!r || !r.ok) r = await fetch(url + (url.includes('?') ? '&' : '?') + 'r=' + Date.now(), { cache:'reload' });
       if (!r.ok) throw new Error('sem foto');
       src = URL.createObjectURL(await r.blob());
     }
@@ -135,7 +138,19 @@ async function fotoRecortada(url, wmm, hmm, larguraPx) {
     const dw = img.width * esc, dh = img.height * esc;
     ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
     return (_cacheImg[chave] = cv.toDataURL('image/jpeg', 0.82));
-  } catch (e) { return (_cacheImg[chave] = null); }
+  } catch (e) { console.warn('Foto da proposta não carregou:', url, e); return null; }
+}
+// fotos de todas as páginas (capa: a escolhida para esta proposta, a da empresa ou a padrão do site)
+async function fotosDaProposta(capaEscolhida) {
+  const fotos = {};
+  await Promise.all(SLOTS_IMAGEM.map(async ([slot, , w, h]) => {
+    const url = slot === 'capa' && capaEscolhida ? capaEscolhida : urlImagem(slot);
+    let img = url ? await fotoRecortada(url, w, h, 1400) : null;
+    if (!img && slot === 'capa' && url !== urlImagem('capa')) img = await fotoRecortada(urlImagem('capa'), w, h, 1400);
+    if (!img && slot === 'capa' && urlImagem('capa') !== FOTOS_PROPOSTA.capa) img = await fotoRecortada(FOTOS_PROPOSTA.capa, w, h, 1400);
+    fotos[slot] = img;
+  }));
+  return fotos;
 }
 
 function itensPadraoKit(item, tipo) {
@@ -279,16 +294,10 @@ async function reimprimirProposta(id) {
     vendedor, fornecedor: forn, contaPag, descontoSoAVista: !!dd.desconto_so_avista,
     boleto: dd.boleto && +dd.boleto.parcelas > 0 ? { n: +dd.boleto.parcelas, juros: +dd.boleto.juros_mes || 0, modo: dd.boleto.modo, entrada: dd.boleto.entrada, parcela: dd.boleto.parcela, parcela_fixa: !!dd.boleto.parcela_fixa } : null,
   });
-  const fotos = {};
-  await Promise.all(SLOTS_IMAGEM.map(async ([slot, , w, h]) => {
-    const url = urlImagem(slot);
-    let img = url ? await fotoRecortada(url, w, h, 1400) : null;
-    if (!img && slot === 'capa' && url !== FOTOS_PROPOSTA.capa) img = await fotoRecortada(FOTOS_PROPOSTA.capa, w, h, 1400);
-    fotos[slot] = img;
-  }));
+  const fotos = await fotosDaProposta(null);
   const { doc, arq } = montarPropostaPDF(d, fotos);
   doc.save(arq);
-  msg('✅ PDF da proposta Nº ' + d.numero + ' (' + d.nome + ', emitida em ' + d.data + ') gerado: ' + arq);
+  msg('✅ PDF da proposta Nº ' + d.numero + ' (' + d.nome + ', emitida em ' + d.data + ') gerado: ' + arq + (fotos.capa ? '' : ' ⚠ A foto de capa não carregou (internet instável?): gere de novo para sair com a foto.'), !fotos.capa);
 }
 
 async function gerarPDF(modo) {
@@ -299,13 +308,8 @@ async function gerarPDF(modo) {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando…'; }
   try {
     const d = coletarDadosProposta();
-    const fotos = {};
-    await Promise.all(SLOTS_IMAGEM.map(async ([slot, , w, h]) => {
-      let url = slot === 'capa' && capaDaProposta ? capaDaProposta : urlImagem(slot);
-      let img = url ? await fotoRecortada(url, w, h, 1400) : null;
-      if (!img && slot === 'capa' && url !== FOTOS_PROPOSTA.capa) img = await fotoRecortada(FOTOS_PROPOSTA.capa, w, h, 1400);
-      fotos[slot] = img;
-    }));
+    const fotos = await fotosDaProposta(capaDaProposta);
+    if (!fotos.capa && !confirm('⚠ A foto de capa não carregou (internet instável?).\n\nOK = gerar o PDF sem a foto · Cancelar = tentar de novo depois')) return;
     const { doc, arq } = montarPropostaPDF(d, fotos);
     if (modo === 'compartilhar') {
       const arquivo = new File([doc.output('blob')], arq, { type:'application/pdf' });
