@@ -239,9 +239,28 @@ async function anexarFaturaAoLead(leadId, r) {
   selecionarLead = function () {
     const antes = faturaLida ? Object.fromEntries(CAMPOS.map(id => [id, (document.getElementById(id) || {}).value || ''])) : null;
     _sel.apply(this, arguments);
+    if (!antes) consumoDaFichaCrm(+(document.getElementById('prop-lead') || {}).value || null);
     if (!antes) return;
     CAMPOS.forEach(id => { const el = document.getElementById(id); if (el && !el.value.trim() && antes[id]) el.value = antes[id]; });
     if (typeof avisoCpf === 'function') avisoCpf();
     if (typeof validarProposta === 'function') validarProposta();
   };
 })();
+
+// fatura lida na ficha do CRM: o consumo médio guardado no documento já vem para a proposta (se o campo estiver vazio)
+async function consumoDaFichaCrm(id) {
+  if (!id || !sb) return;
+  try {
+    const { data } = await sb.from('leads').select('documentos').eq('id', id).maybeSingle();
+    const docs = ((data && data.documentos) || []).filter(d => d.tipo === 'fatura' && d.dados && d.dados.media_kwh > 0);
+    const d = docs.sort((a, b) => String(b.dados.lida_em || b.em) < String(a.dados.lida_em || a.em) ? -1 : 1)[0];
+    if (!d || +(document.getElementById('prop-lead') || {}).value !== id) return;
+    const cc = document.getElementById('campo-consumo'), pc = document.getElementById('prop-consumo');
+    if ((cc && +cc.value) || (pc && +pc.value)) return;   // já digitado: não troca
+    if (cc) cc.value = d.dados.media_kwh;
+    if (pc) pc.value = d.dados.media_kwh;
+    if (typeof sugerirKit === 'function') sugerirKit();
+    if (typeof propostaItem !== 'undefined' && propostaItem && typeof calcularProducao === 'function') calcularProducao();
+    statusFatura('✅ Consumo médio da fatura guardada no CRM: ' + d.dados.media_kwh.toLocaleString('pt-BR') + ' kWh/mês' + (d.dados.meses && d.dados.meses < 12 ? ' (' + d.dados.meses + (d.dados.meses === 1 ? ' mês lido' : ' meses lidos') + ')' : '') + '. Confira e escolha o kit.', 'ok');
+  } catch (e) { console.warn('consumo do CRM', e); }
+}
