@@ -31,8 +31,8 @@
   .card h2 { font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:900; letter-spacing:.1em; text-transform:uppercase; color:var(--amarelo); margin-bottom:12px; }
   .muted { color:var(--muted); font-size:13px; }
   .login { max-width:360px; margin:40px auto; text-align:center; }
-  .input { background:var(--card2); border:1px solid var(--borda); color:var(--texto); font-family:'Barlow',sans-serif; font-size:14px; padding:7px 9px; border-radius:8px; outline:none; width:100%; }
-  .input:focus { border-color:var(--amarelo); }
+  .input, .select { background:var(--card2); border:1px solid var(--borda); color:var(--texto); font-family:'Barlow',sans-serif; font-size:14px; padding:7px 9px; border-radius:8px; outline:none; width:100%; }
+  .input:focus, .select:focus { border-color:var(--amarelo); }
   .login .input { margin-bottom:10px; }
   .btn { background:var(--amarelo); color:var(--preto); font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:900; letter-spacing:.05em; padding:8px 14px; border:none; border-radius:8px; cursor:pointer; white-space:nowrap; display:inline-block; }
   .btn:hover { background:var(--amarelo-dim); }
@@ -50,7 +50,7 @@
   td { padding:8px; border-bottom:1px solid #242424; vertical-align:middle; }
   td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
   .tag { display:inline-block; font-size:11px; padding:1px 7px; border-radius:20px; background:#1a1a1a; border:1px solid var(--borda); color:var(--muted); white-space:nowrap; }
-  .tag.lancado { color:var(--amarelo); border-color:#7c5a00; } .tag.recibos { color:var(--azul); border-color:#1e3a5f; } .tag.nf { color:var(--laranja); border-color:#7c2d12; } .tag.enviado { color:var(--verde); border-color:#1f4d33; }
+  .tag.lancado { color:var(--amarelo); border-color:#7c5a00; } .tag.recibos { color:var(--azul); border-color:#1e3a5f; } .tag.nf { color:var(--laranja); border-color:#7c2d12; } .tag.enviado { color:var(--verde); border-color:#1f4d33; } .tag.sem_emissao { color:var(--muted); }
   .status-msg { font-size:13px; min-height:18px; color:var(--verde); margin-bottom:8px; } .status-msg.erro { color:var(--vermelho); }
   .rev { background:var(--card2); border:1px solid var(--borda); border-radius:12px; padding:14px; margin-bottom:12px; }
   .grade { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:8px 12px; }
@@ -84,7 +84,7 @@
   <div id="conteudo">
     <div class="card"><div class="linha-topo"><h2>📄 Lançar boletim da cooperativa</h2>
       <label class="btn" style="cursor:pointer">📄 Escolher PDF(s) do boletim<input type="file" accept="application/pdf" multiple style="display:none" onchange="lerBoletins(this)"></label></div>
-      <p class="muted">Pode escolher os boletins das duas usinas de uma vez. O sistema lê os valores, confere as somas e mostra aqui para você conferir antes de salvar. Se algo não fechar, nada é gerado.</p>
+      <p class="muted">Pode escolher vários boletins de uma vez (das duas usinas e de meses antigos). O sistema lê os valores, confere as somas e mostra aqui para você conferir antes de salvar. Se algo não fechar, nada é gerado. Mês com resultado negativo fica registrado como <b>sem emissão</b> (sem NF e sem recibo, e não gasta número de recibo).</p>
       <div id="revisao" style="margin-top:12px"></div>
     </div>
     <div class="status-msg" id="msg"></div>
@@ -108,7 +108,7 @@ const fmtR = v => v == null ? '—' : (+v).toLocaleString('pt-BR', { style:'curr
 const dBR = iso => iso ? String(iso).slice(0, 10).split('-').reverse().join('/') : '—';
 const hojeISO = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
 const mesBR = iso => iso ? String(iso).slice(5, 7) + '/' + String(iso).slice(0, 4) : '—';
-const STATUS = { lancado: '📥 lançado', recibos: '🧾 recibos gerados', nf: '📎 NF anexada', enviado: '✉ enviado' };
+const STATUS = { lancado: '📥 lançado', sem_emissao: '➖ sem emissão (negativo)', recibos: '🧾 recibos gerados', nf: '📎 NF anexada', enviado: '✉ enviado' };
 const TIPOS_DOC = { boletim: 'Boletim', recibo_terra: 'Recibo Terra', recibo_equip: 'Recibo Equipamento', nf_pdf: 'NF (PDF)', nf_xml: 'NF (XML)', outro: 'Outro' };
 let perfil = null, USINAS = [], EMIT = {}, CONTRA = {}, COMP = [], DOCS = [], REVISOES = [];
 
@@ -162,8 +162,17 @@ async function carregar() {
   msg(''); render();
 }
 
-// nº do recibo de uma competência (mesma regra do banco: base + meses desde a base)
-const numeroRecibo = (u, comp) => u.recibo_base_numero + (+comp.slice(0, 4) - +u.recibo_base_comp.slice(0, 4)) * 12 + (+comp.slice(5, 7) - +u.recibo_base_comp.slice(5, 7));
+// nº do recibo: sequência só nos meses emitidos (mês negativo não gasta número). Sugestão = último nº antes deste mês + 1;
+// sem nenhum anterior, usa a base cadastrada (08/2026 = 13) contando os meses. O nº é confirmado na hora de emitir.
+const mesesEntre = (a, b) => (+b.slice(0, 4) - +a.slice(0, 4)) * 12 + (+b.slice(5, 7) - +a.slice(5, 7));
+function sugerirNumero(u, comp) {
+  const ant = COMP.filter(c => c.usina_id === u.id && c.recibo_numero && c.competencia < comp).sort((a, b) => b.recibo_numero - a.recibo_numero)[0];
+  if (ant) return ant.recibo_numero + 1;
+  const n = u.recibo_base_numero + mesesEntre(u.recibo_base_comp, comp);
+  return n >= 1 ? n : null;
+}
+const numFmt = n => n ? String(n).padStart(6, '0') : '—';
+const negativo = v => v.resultado != null && +v.resultado < 0;
 const docsDe = cid => DOCS.filter(x => x.competencia_id === cid && !x.substituido_por);
 
 function render() {
@@ -182,13 +191,14 @@ function linhaComp(u, c) {
   const links = docs.map(x => `<a href="#" onclick="abrirDoc(${x.id});return false">${esc(TIPOS_DOC[x.tipo] || x.tipo)}</a>`).join('');
   const nf = c.nf_numero ? `<br><span class="muted">NF nº ${esc(c.nf_numero)}${c.nf_emitida_em ? ' · ' + dBR(c.nf_emitida_em) : ''}</span>` : '';
   return `<tr><td><b>${mesBR(c.competencia)}</b>${c.conferido ? '' : ' <span class="tag lancado" title="Os valores não fecharam na leitura e foram aceitos manualmente">conferir</span>'}</td>
-    <td class="num">${String(c.recibo_numero).padStart(6, '0')}</td><td class="num">${fmtR(c.valor_terra)}</td><td class="num">${fmtR(c.valor_equip)}</td>
+    <td class="num">${numFmt(c.recibo_numero)}${c.historico ? '<br><span class="muted">antigo</span>' : ''}</td><td class="num">${fmtR(c.valor_terra)}</td><td class="num">${fmtR(c.valor_equip)}</td>
     <td class="num">${fmtR(c.valor_om)}${nf}</td><td class="num">${fmtR(c.resultado)}</td><td><span class="tag ${c.status}">${STATUS[c.status] || c.status}</span>${c.enviado_em ? '<br><span class="muted">' + dBR(c.enviado_em) + '</span>' : ''}</td>
     <td class="docs">${links || '<span class="muted">—</span>'}</td>
-    <td><div class="acoes">
+    <td><div class="acoes">${c.status === 'sem_emissao' ? '<span class="muted">resultado negativo: sem NF e sem recibos</span>' : `
       <button class="btn btn-p" onclick="gerarRecibos(${c.id})">🧾 ${tem('recibo_terra') ? 'Refazer' : 'Gerar'} recibos</button>
+      ${tem('recibo_terra') && tem('recibo_equip') ? '' : `<label class="btn btn-sec btn-p" style="cursor:pointer" title="Recibos já emitidos fora da plataforma (PDF, Word ou foto)">📂 Recibos antigos<input type="file" accept="application/pdf,.doc,.docx,image/jpeg,image/png" multiple style="display:none" onchange="anexarRecibosAntigos(${c.id}, this)"></label>`}
       <label class="btn btn-sec btn-p" style="cursor:pointer">📎 ${tem('nf_pdf') ? 'Trocar' : 'Anexar'} NF<input type="file" accept="application/pdf,.xml,text/xml,application/xml" multiple style="display:none" onchange="anexarNF(${c.id}, this)"></label>
-      ${c.status !== 'enviado' ? `<button class="btn btn-sec btn-p" onclick="marcarEnviado(${c.id})" ${tem('recibo_terra') && tem('recibo_equip') ? '' : 'disabled title="Gere os recibos antes"'}>✉ Enviado</button>` : ''}
+      ${c.status !== 'enviado' ? `<button class="btn btn-sec btn-p" onclick="marcarEnviado(${c.id})" ${tem('recibo_terra') && tem('recibo_equip') ? '' : 'disabled title="Gere ou anexe os recibos antes"'}>✉ Enviado</button>` : ''}`}
     </div></td></tr>`;
 }
 
@@ -212,12 +222,14 @@ const numCampo = t => { const s = String(t ?? '').trim(); if (!s) return null; c
 const numTxt = (v, mwh) => v == null ? '' : (+v).toLocaleString('pt-BR', { minimumFractionDigits: mwh ? 3 : 2, maximumFractionDigits: mwh ? 3 : 2 });
 function renderRevisoes() {
   $('revisao').innerHTML = REVISOES.map(rv => {
-    if (!rv.r.ok) return `<div class="rev"><b>${esc(rv.arq.name)}</b><div class="conf falha">⚠ ${esc(rv.r.erro)}</div><button class="btn btn-sec btn-p" style="margin-top:6px" onclick="descartar(${rv.id})">Descartar</button></div>`;
+    if (!rv.r.ok) return `<div class="rev"><b>${esc(rv.arq.name)}</b><div class="conf falha">⚠ ${esc(rv.r.erro)}</div><div style="display:flex;gap:8px;margin-top:6px"><button class="btn btn-p" onclick="preencherMao(${rv.id})">✍ Preencher à mão</button><button class="btn btn-sec btn-p" onclick="descartar(${rv.id})">Descartar</button></div></div>`;
     const v = rv.r.valores, u = USINAS.find(x => x.codigo === v.usina_codigo);
+    const manual = rv.r.manual ? `<div class="grade" style="margin-bottom:8px"><div><label>Usina</label><select class="select" onchange="mudarManual(${rv.id}, 'usina_codigo', this.value)"><option value="">—</option>${USINAS.map(x => `<option value="${esc(x.codigo)}" ${x.codigo === v.usina_codigo ? 'selected' : ''}>${esc(x.codigo + '. ' + x.nome)}</option>`).join('')}</select></div>
+        <div><label>Competência</label><input class="input" type="month" value="${v.competencia ? v.competencia.slice(0, 7) : ''}" onchange="mudarManual(${rv.id}, 'competencia', this.value ? this.value + '-01' : null)"></div></div>` : '';
     const existe = u && v.competencia && COMP.find(c => c.usina_id === u.id && c.competencia === v.competencia);
     return `<div class="rev" id="rv-${rv.id}">
-      <div class="linha-topo"><b>${esc(rv.arq.name)}</b><span class="muted">${u ? '☀️ ' + esc(u.codigo + '. ' + u.nome) : '<span style="color:var(--vermelho)">⚠ usina ' + esc(v.usina_codigo || '?') + ' não cadastrada</span>'} · competência <b>${mesBR(v.competencia)}</b>${u && v.competencia ? ' · recibo nº <b>' + String(numeroRecibo(u, v.competencia)).padStart(6, '0') + '</b>' : ''}</span></div>
-      <div class="grade">${CAMPOS.map(([k, rot]) => `<div><label>${rot}</label><input class="input" id="rv-${rv.id}-${k}" inputmode="decimal" value="${numTxt(v[k], /mwh/.test(k))}" ${v[k] == null && ['terra', 'equip', 'om'].includes(k) ? 'style="border-color:var(--vermelho)"' : ''}></div>`).join('')}</div>
+      <div class="linha-topo"><b>${esc(rv.arq.name)}</b><span class="muted">${u ? '☀️ ' + esc(u.codigo + '. ' + u.nome) : '<span style="color:var(--vermelho)">⚠ usina ' + esc(v.usina_codigo || '?') + ' não cadastrada</span>'} · competência <b>${mesBR(v.competencia)}</b>${u && v.competencia ? (negativo(v) ? ' · <b>resultado negativo: sem emissão</b>' : ' · recibo nº sugerido <b>' + numFmt(sugerirNumero(u, v.competencia)) + '</b> (confirmado ao emitir)') : ''}</span></div>
+      ${manual}<div class="grade">${CAMPOS.map(([k, rot]) => `<div><label>${rot}</label><input class="input" id="rv-${rv.id}-${k}" inputmode="decimal" value="${numTxt(v[k], /mwh/.test(k))}" ${v[k] == null && ['terra', 'equip', 'om'].includes(k) ? 'style="border-color:var(--vermelho)"' : ''}></div>`).join('')}</div>
       <div style="margin-top:10px">${rv.r.conferencias.map(c => `<div class="conf ${c.ok ? 'ok' : 'falha'}">${c.ok ? '✓' : '✗'} ${esc(c.nome)}${c.ok ? '' : ' — ' + fmtR(c.a) + ' × ' + fmtR(c.b)}</div>`).join('')}</div>
       ${rv.r.avisos.map(a => `<div class="conf falha">⚠ ${esc(a)}</div>`).join('')}
       ${existe ? `<div class="conf falha">⚠ Já existe ${mesBR(v.competencia)} desta usina (${STATUS[existe.status]}). Salvar atualiza os valores e guarda este boletim como versão nova${existe.status !== 'lancado' ? '; os recibos já gerados precisam ser refeitos' : ''}.</div>` : ''}
@@ -229,6 +241,17 @@ function renderRevisoes() {
   }).join('');
 }
 function descartar(id) { REVISOES = REVISOES.filter(x => x.id !== id); renderRevisoes(); }
+// boletim que o leitor não entendeu (layout antigo, PDF escaneado): preencher os valores olhando o PDF
+function preencherMao(id) {
+  const rv = REVISOES.find(x => x.id === id); if (!rv) return;
+  rv.r = { ok: true, manual: true, valores: { usina_codigo: null, competencia: null }, conferencias: [], fecha: false, avisos: ['Preenchido à mão: confira com o boletim antes de salvar.'] };
+  renderRevisoes();
+}
+function guardarDigitado(id) {   // não perde o que foi digitado quando a tela é redesenhada
+  const rv = REVISOES.find(x => x.id === id); if (!rv) return;
+  CAMPOS.forEach(([k]) => { const el = $('rv-' + id + '-' + k); if (el) rv.r.valores[k] = numCampo(el.value); });
+}
+function mudarManual(id, campo, valor) { const rv = REVISOES.find(x => x.id === id); if (!rv) return; guardarDigitado(id); rv.r.valores[campo] = valor || null; renderRevisoes(); }
 const pastaComp = (u, comp) => u.empresa_id + '/' + u.codigo + '/' + comp.slice(0, 7);
 async function enviarArquivo(u, comp, nome, blob, tipoMime) {
   const path = pastaComp(u, comp) + '/' + Date.now() + '-' + nome.replace(/[^\w.-]+/g, '_');
@@ -250,8 +273,8 @@ async function salvarRevisao(id) {
   const v = rv.r.valores, u = USINAS.find(x => x.codigo === v.usina_codigo); if (!u || !v.competencia) return;
   const lido = k => numCampo($('rv-' + id + '-' + k).value);
   const val = Object.fromEntries(CAMPOS.map(([k]) => [k, lido(k)]));
-  if (val.terra == null || val.equip == null || val.om == null) { msg('⚠ Preencha Terra, Equipamento e O&M.', true); return; }
-  const editou = CAMPOS.some(([k]) => (val[k] ?? null) !== (v[k] ?? null));
+  if (val.terra == null || val.equip == null || val.om == null || val.resultado == null) { msg('⚠ Preencha Terra, Equipamento, O&M e Resultado financeiro.', true); return; }
+  const editou = rv.r.manual || CAMPOS.some(([k]) => (val[k] ?? null) !== (v[k] ?? null));
   const aceito = rv.r.fecha && !editou ? true : !!($('rv-' + id + '-aceito') && $('rv-' + id + '-aceito').checked);
   if (!aceito) { msg(editou && rv.r.fecha ? '⚠ Você alterou valores lidos: marque "Conferi no boletim…" para salvar.' : '⚠ O boletim não fechou: confira os valores e marque "Conferi no boletim…".', true); if (editou && rv.r.fecha) { rv.r.fecha = false; renderRevisoes(); } return; }
   try {
@@ -261,22 +284,42 @@ async function salvarRevisao(id) {
       inadimplencia: val.inadimplencia, gestao: val.gestao, ajuste: val.ajuste, resultado: val.resultado, injetada_mwh: val.injetada_mwh, compensada_mwh: val.compensada_mwh,
       leitura: { arquivo: rv.arq.name, lido: v, conferencias: rv.r.conferencias, editado: editou }, conferido: rv.r.fecha && !editou };
     const existe = COMP.find(c => c.usina_id === u.id && c.competencia === v.competencia);
+    const neg = val.resultado != null && val.resultado < 0;
+    if (neg && existe && existe.recibo_numero) throw new Error('Este mês já tem recibo nº ' + numFmt(existe.recibo_numero) + ' e o boletim novo dá resultado negativo. Confira antes de salvar.');
+    if (!existe || ['lancado', 'sem_emissao'].includes(existe.status)) reg.status = neg ? 'sem_emissao' : 'lancado';
     let c;
     if (existe) { const r = await sb.from('usina_competencias').update(reg).eq('id', existe.id).select('*').single(); if (r.error) throw r.error; c = r.data; Object.assign(existe, c); c = existe; }
     else { const r = await sb.from('usina_competencias').insert(reg).select('*').single(); if (r.error) throw r.error; c = r.data; COMP.unshift(c); COMP.sort((a, b) => a.competencia < b.competencia ? 1 : -1); }
     const path = await enviarArquivo(u, c.competencia, 'boletim.pdf', rv.arq, 'application/pdf');
     await registrarDoc(u, c, 'boletim', path, rv.arq.name, rv.arq.size);
     REVISOES = REVISOES.filter(x => x.id !== id); renderRevisoes(); render();
-    msg('✅ ' + u.codigo + ' ' + mesBR(c.competencia) + ' salva (recibo nº ' + String(c.recibo_numero).padStart(6, '0') + '). Agora gere os recibos.');
+    msg(c.status === 'sem_emissao' ? '✅ ' + u.codigo + ' ' + mesBR(c.competencia) + ' registrada: resultado negativo, sem NF e sem recibos.'
+      : '✅ ' + u.codigo + ' ' + mesBR(c.competencia) + ' salva. Agora gere os recibos (ou anexe os antigos, se já foram emitidos).');
   } catch (e) { msg('⚠ ' + (e.message || e), true); registrarErro('salvarRevisao', e); }
 }
 
 // ── 2) recibos ──
-const nomeArq = (u, tipo, c) => (tipo === 'terra' ? 'Recibo_Arrendamento_Terra_' : 'Recibo_Aluguel_Equipamento_') + u.codigo + '_N' + String(c.recibo_numero).padStart(6, '0') + '_' + c.competencia.slice(5, 7) + '-' + c.competencia.slice(0, 4) + '.pdf';
+const nomeArq = (u, tipo, c, ext) => (tipo === 'terra' ? 'Recibo_Arrendamento_Terra_' : 'Recibo_Aluguel_Equipamento_') + u.codigo + '_N' + numFmt(c.recibo_numero) + '_' + c.competencia.slice(5, 7) + '-' + c.competencia.slice(0, 4) + (ext || '.pdf');
+// confirma e grava o nº do recibo da competência (só na primeira emissão; depois o nº fica travado)
+async function garantirNumero(u, c, antigo) {
+  if (c.recibo_numero) return true;
+  const sug = sugerirNumero(u, c.competencia);
+  const t = prompt((antigo ? 'Nº dos recibos antigos' : 'Nº dos recibos') + ' de ' + u.codigo + ' ' + mesBR(c.competencia) + ' (Terra e Equipamento usam o mesmo nº):', sug || '');
+  if (t === null) return false;
+  const n = parseInt(String(t).replace(/\D/g, ''), 10);
+  if (!n || n < 1) { msg('⚠ Número inválido.', true); return false; }
+  const usado = COMP.find(x => x.usina_id === u.id && x.recibo_numero === n && x.id !== c.id);
+  if (usado) { msg('⚠ O nº ' + numFmt(n) + ' já é de ' + mesBR(usado.competencia) + ' desta usina.', true); return false; }
+  const r = await sb.from('usina_competencias').update({ recibo_numero: n }).eq('id', c.id);
+  if (r.error) { msg('⚠ ' + r.error.message, true); registrarErro('garantirNumero', r.error); return false; }
+  c.recibo_numero = n; return true;
+}
 async function gerarRecibos(cid) {
   const c = COMP.find(x => x.id === cid), u = c && USINAS.find(x => x.id === c.usina_id); if (!u) return;
   const jaTem = docsDe(cid).some(x => x.tipo === 'recibo_terra');
+  if (c.status === 'sem_emissao') { msg('⚠ ' + mesBR(c.competencia) + ' teve resultado negativo: não se emite recibo.', true); return; }
   if (jaTem && !confirm('Refazer os recibos de ' + mesBR(c.competencia) + '? Os anteriores ficam guardados no histórico.')) return;
+  if (!(await garantirNumero(u, c, false))) return;
   const emissao = prompt('Data de emissão dos recibos (DD/MM/AAAA):', dBR(hojeISO())); if (!emissao) return;
   const m = emissao.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if (!m) { msg('⚠ Data inválida.', true); return; }
   const isoEm = m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
@@ -294,6 +337,33 @@ async function gerarRecibos(cid) {
     if (novo !== c.status) { const r = await sb.from('usina_competencias').update({ status: novo }).eq('id', c.id); if (r.error) throw r.error; c.status = novo; }
     render(); msg('✅ Recibos nº ' + String(c.recibo_numero).padStart(6, '0') + ' de ' + u.codigo + ' (' + mesBR(c.competencia) + ') gerados e guardados.');
   } catch (e) { msg('⚠ ' + (e.message || e), true); registrarErro('gerarRecibos', e); }
+}
+
+// recibos emitidos fora da plataforma (meses antigos): só anexa, com o nº real
+async function anexarRecibosAntigos(cid, input) {
+  const arqs = [...(input.files || [])]; input.value = '';
+  const c = COMP.find(x => x.id === cid), u = c && USINAS.find(x => x.id === c.usina_id); if (!u || !arqs.length) return;
+  if (arqs.length > 2) { msg('⚠ Escolha no máximo 2 arquivos: o recibo de Terra e o de Equipamento.', true); return; }
+  if (!(await garantirNumero(u, c, true))) return;
+  try {
+    const usados = [];
+    for (const a of arqs) {
+      let tipo = /terra|arrend/i.test(a.name) ? 'terra' : /equip|alug|loca/i.test(a.name) ? 'equip' : null;
+      if (!tipo || usados.includes(tipo)) tipo = confirm('O arquivo "' + a.name + '" é o recibo de ARRENDAMENTO DE TERRA?\n\nOK = Terra · Cancelar = Equipamento') ? 'terra' : 'equip';
+      if (usados.includes(tipo)) { msg('⚠ Os dois arquivos são do mesmo tipo. Anexe um de cada vez.', true); return; }
+      usados.push(tipo);
+      const ext = (a.name.match(/\.[a-z0-9]+$/i) || ['.pdf'])[0].toLowerCase();
+      const mime = a.type || ({ '.pdf': 'application/pdf', '.doc': 'application/msword', '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png' })[ext] || 'application/pdf';
+      const nome = nomeArq(u, tipo, c, ext);
+      const path = await enviarArquivo(u, c.competencia, nome, a, mime);
+      await registrarDoc(u, c, tipo === 'terra' ? 'recibo_terra' : 'recibo_equip', path, a.name, a.size);
+    }
+    const mud = { historico: true }; if (c.status === 'lancado') mud.status = 'recibos';
+    const r = await sb.from('usina_competencias').update(mud).eq('id', c.id); if (r.error) throw r.error;
+    Object.assign(c, mud); render();
+    const falta = ['recibo_terra', 'recibo_equip'].filter(t => !docsDe(c.id).some(x => x.tipo === t));
+    msg('✅ Recibo(s) antigo(s) nº ' + numFmt(c.recibo_numero) + ' anexado(s)' + (falta.length ? '. Falta o de ' + (falta[0] === 'recibo_terra' ? 'Terra' : 'Equipamento') + '.' : '.'), !!falta.length);
+  } catch (e) { msg('⚠ ' + (e.message || e), true); registrarErro('anexarRecibosAntigos', e); }
 }
 
 // ── 3) NF de O&M (emitida no Portal Emissor Nacional) ──
@@ -328,7 +398,9 @@ async function anexarNF(cid, input) {
 async function marcarEnviado(cid) {
   const c = COMP.find(x => x.id === cid); if (!c) return;
   if (!c.nf_numero && !confirm('A NF de O&M ainda não foi anexada. Marcar como enviado mesmo assim?')) return;
-  const mud = { status: 'enviado', enviado_em: new Date().toISOString() };
+  const d = prompt('Data em que foi enviado para a cooperativa (DD/MM/AAAA):', dBR(hojeISO())); if (!d) return;
+  const m = d.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if (!m) { msg('⚠ Data inválida.', true); return; }
+  const mud = { status: 'enviado', enviado_em: m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0') + 'T12:00:00-03:00' };
   const r = await sb.from('usina_competencias').update(mud).eq('id', cid);
   if (r.error) { msg('⚠ ' + r.error.message, true); registrarErro('marcarEnviado', r.error); return; }
   Object.assign(c, mud); render(); msg('✅ Marcado como enviado para a cooperativa.');
