@@ -63,7 +63,7 @@
   .overlay { position:fixed; inset:0; background:rgba(0,0,0,.7); display:none; justify-content:flex-end; z-index:50; }
   .overlay.visivel { display:flex; }
   .ficha { background:var(--card); width:min(560px, 100%); height:100%; overflow-y:auto; border-left:1px solid var(--borda); padding:18px; }
-  .ficha h3 { font-family:'Barlow Condensed',sans-serif; font-size:14px; letter-spacing:.1em; text-transform:uppercase; color:var(--amarelo); margin:16px 0 8px; }
+  .ficha h3, .modal h3 { font-family:'Barlow Condensed',sans-serif; font-size:14px; letter-spacing:.1em; text-transform:uppercase; color:var(--amarelo); margin:16px 0 8px; }
   .fechar { background:none; border:1px solid var(--borda); color:var(--texto); border-radius:8px; width:34px; height:34px; cursor:pointer; font-size:18px; }
   .evento { border-left:2px solid var(--borda); padding:4px 0 8px 10px; font-size:13px; }
   .evento .quando { font-size:11px; color:var(--muted); }
@@ -84,6 +84,11 @@
   .prog b { font-size:13px; color:#fff; }
   .chip { display:inline-block; font-size:11px; padding:0 6px; border-radius:10px; background:#2a2a2a; margin:2px 2px 0 0; }
   .chip.conflito { background:#7f1d1d; color:#fff; }
+  #ov-reag { justify-content:center; align-items:center; z-index:60; }
+  .modal { background:var(--card); border:1px solid var(--borda); border-radius:14px; padding:18px; width:min(560px, 94vw); max-height:90vh; overflow-y:auto; }
+  .opc { display:flex; gap:8px; align-items:flex-start; background:var(--card2); border:1px solid var(--borda); border-radius:10px; padding:10px; margin-top:8px; cursor:pointer; font-size:13px; }
+  .opc input { margin-top:3px; }
+  .mov { font-size:13px; padding:4px 0; border-bottom:1px solid #242424; }
   .pessoas-sel { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:6px; }
   .pessoas-sel label { display:flex; gap:6px; align-items:center; font-size:13px; background:var(--card2); border:1px solid var(--borda); border-radius:8px; padding:6px 8px; cursor:pointer; text-transform:none; letter-spacing:0; color:var(--texto); margin:0; }
   .pend { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid #242424; font-size:13px; }
@@ -130,6 +135,7 @@
 </div>
 
 <div class="overlay" id="ov-prog" onclick="if(event.target===this)fecharProg()"><div class="ficha" id="ficha-prog"></div></div>
+<div class="overlay" id="ov-reag" onclick="if(event.target===this)fecharReag()"><div class="modal" id="reag-corpo"></div></div>
 
 <script src="js/comum.js?v=20261019a"></script>
 <script>
@@ -149,6 +155,7 @@ const dBR = iso => iso ? iso.slice(0, 10).split('-').reverse().join('/') : '—'
 const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const TIPOS = { instalacao: ['🔧', 'Instalação'], manutencao: ['🛠', 'Manutenção'], limpeza: ['🧽', 'Limpeza'], vistoria: ['📋', 'Vistoria'], visita: ['👀', 'Visita técnica'], outro: ['📌', 'Outro'] };
 const PERIODOS = { dia: 'Dia inteiro', manha: 'Manhã', tarde: 'Tarde' };
+let FERIADOS = null, REAG = null;
 let perfil = null, inicioSemana = null, PROG = [], PROJ = [], LEADS = {}, CLI = [], EQ = [], progAberta = null, ATRASADAS = [], PRAZO = null;
 const ABERTA = st => st === 'programada' || st === 'prevista';   // ainda não realizada nem cancelada
 const podeConfirmar = () => !!perfil && (perfil.admin || perfil.papel === 'engenheiro');
@@ -211,6 +218,7 @@ async function carregar() {
     if (PRAZO != null) { $('btn-prazo').style.display = ''; $('prazo-txt').textContent = PRAZO; }
   }
   const err = [p, pj, c, e].find(x => x.error); if (err) { msg('⚠ ' + err.error.message, true); return; }
+  if (!FERIADOS) { const f = await sb.from('feriados').select('data, nome, abrangencia').eq('abrangencia', 'nacional'); FERIADOS = f.error ? [] : (f.data || []); }
   PROG = p.data || []; PROJ = pj.data || []; CLI = c.data || []; EQ = e.data || [];
   window._futuras = pend.data || [];
   ATRASADAS = (atr && atr.data) || [];
@@ -255,7 +263,7 @@ function render() {
     const ativos = lista.filter(x => x.status !== 'cancelada' && x.status !== 'prevista');
     return `<div class="dia ${iso === hoje ? 'hoje' : ''} ${d.getDay() === 6 || d.getDay() === 0 ? 'fds' : ''}">
       <div class="dia-topo"><span>${DIAS[d.getDay()]} <span class="muted">${dBR(iso).slice(0, 5)}</span></span>
-        <span>${ativos.length ? `<button class="btn btn-sec btn-p" title="Mandar a escala do dia no WhatsApp" onclick="escalaWhats('${iso}')">📤</button> ` : ''}<button class="btn btn-sec btn-p" title="Programar neste dia" onclick="abrirProg(null, { data: '${iso}' })">+</button></span></div>
+        <span>${lista.some(x => ABERTA(x.status)) ? `<button class="btn btn-sec btn-p" title="Choveu / dia perdido: reagendar as atividades deste dia" onclick="abrirReag(null, '${iso}')">🌧</button> ` : ''}${ativos.length ? `<button class="btn btn-sec btn-p" title="Mandar a escala do dia no WhatsApp" onclick="escalaWhats('${iso}')">📤</button> ` : ''}<button class="btn btn-sec btn-p" title="Programar neste dia" onclick="abrirProg(null, { data: '${iso}' })">+</button></span></div>
       ${lista.map(cardProg).join('') || '<div class="muted" style="font-size:12px">—</div>'}
     </div>`;
   }).join('');
@@ -361,7 +369,7 @@ function abrirProg(id, pre) {
       </div></div>` : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
       ${!travada ? `<button class="btn" onclick="salvarProg(${id || 'null'})">${x.status === 'prevista' ? '📅 Confirmar data e equipe' : '💾 ' + (id ? 'Salvar' : 'Programar')}</button>` : ''}
-      ${id && ABERTA(x.status) ? `<button class="btn btn-sec" onclick="cancelarProg(${id})">❌ Cancelar</button><button class="btn btn-sec" style="color:var(--vermelho)" onclick="excluirProg(${id})">🗑 Excluir</button>` : ''}
+      ${id && ABERTA(x.status) ? `<button class="btn btn-sec" onclick="abrirReag(${id})">🌧 Reagendar</button><button class="btn btn-sec" onclick="cancelarProg(${id})">❌ Cancelar</button><button class="btn btn-sec" style="color:var(--vermelho)" onclick="excluirProg(${id})">🗑 Excluir</button>` : ''}
       ${id && x.status === 'cancelada' ? `<button class="btn btn-sec" onclick="reativarProg(${id})">↺ Reativar</button>` : ''}
     </div>
     <div class="status-msg" id="pg-msg"></div>
@@ -469,6 +477,86 @@ async function desfazerProg(id) {
   if (error) { const m = $('pg-msg2'); m.classList.add('erro'); m.textContent = '⚠ ' + error.message; return; }
   await carregar(); msg('↺ Confirmação desfeita (a data de instalação concluída, se marcada, continua no projeto).');
 }
+// ── reagendar (chuva / dia perdido) ──
+// "Empurrar": as atividades vão para o novo dia e o que já estava lá (e nos dias seguintes, em sequência) anda um dia útil,
+// até achar um dia livre. Obra de vários dias anda inteira. "Encaixar": vai para o novo dia junto com o que já está lá.
+// Dia útil = segunda a sábado, sem feriado nacional. Cada atividade movida guarda o histórico nas observações.
+const util = iso => deIso(iso).getDay() !== 0 && !(FERIADOS || []).some(f => f.data === iso);
+const proxUtil = iso => { let d = somaDias(iso, 1); while (!util(d)) d = somaDias(d, 1); return d; };
+function abrirReag(id, dia) {
+  const base = id ? [acharProg(id)].filter(Boolean) : PROG.filter(x => x.data === dia && ABERTA(x.status));
+  if (!base.length) return;
+  const de = base[0].data, hoje = hojeISO();
+  let para = proxUtil(de); if (para < hoje) { para = util(hoje) ? hoje : proxUtil(hoje); }
+  REAG = { ids: base.map(x => x.id), de, para, modo: 'empurrar', motivo: 'chuva', plano: null };
+  if (id) fecharProg();
+  $('ov-reag').classList.add('visivel');
+  planejarReag();
+}
+function fecharReag() { REAG = null; $('ov-reag').classList.remove('visivel'); }
+async function planejarReag() {
+  if (!REAG) return;
+  const R = REAG, corpo = $('reag-corpo');
+  corpo.innerHTML = '<div class="muted">⏳ Calculando…</div>';
+  // atividades em aberto do novo dia em diante (fora da semana na tela também)
+  const { data, error } = await sb.from('programacao').select('*').in('status', ['prevista', 'programada']).gte('data', R.para).order('data').order('id').limit(500);
+  if (error) { corpo.innerHTML = '<div class="status-msg erro">⚠ ' + esc(error.message) + '</div>'; return; }
+  const abertas = (data || []).filter(x => !R.ids.includes(x.id));
+  [...ATRASADAS, ...PROG].forEach(x => { if (!abertas.some(y => y.id === x.id) && !R.ids.includes(x.id) && ABERTA(x.status) && x.data >= R.para) abertas.push(x); });
+  const mov = R.ids.map(id => ({ x: acharProg(id), de: R.de, para: R.para, origem: true }));
+  if (R.modo === 'empurrar') {
+    let dia = R.para;
+    for (let g = 0; g < 120; g++) {   // corrente: quem está no dia ocupado anda para o próximo dia útil
+      const ali = abertas.filter(x => x.data === dia && !mov.some(m => m.x.id === x.id));
+      if (!ali.length) break;
+      const prox = proxUtil(dia);
+      ali.forEach(x => mov.push({ x, de: dia, para: prox }));
+      dia = prox;
+    }
+  }
+  R.plano = mov;
+  const juntos = R.modo === 'encaixar' ? abertas.filter(x => x.data === R.para) : [];
+  const nomeX = x => { const o = obraDe(x); return (TIPOS[x.tipo] || TIPOS.outro)[0] + ' ' + o.nome; };
+  const eqX = x => (x.equipe_ids || []).map(nomeP).map(primeiro).join(', ') || 'sem equipe';
+  // conflito no encaixe: mesma pessoa em duas obras no mesmo dia/período
+  const conf = R.modo === 'encaixar' ? mov.flatMap(m => (m.x.equipe_ids || []).filter(pid => juntos.some(y => (y.equipe_ids || []).includes(pid) && (m.x.periodo === 'dia' || y.periodo === 'dia' || m.x.periodo === y.periodo)))) : [];
+  corpo.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h3 style="font-family:'Barlow Condensed',sans-serif;color:var(--amarelo);font-size:20px">🌧 Reagendar</h3><button class="fechar" onclick="fecharReag()">×</button></div>
+    <p class="muted">${R.ids.length === 1 ? esc(nomeX(acharProg(R.ids[0]))) : R.ids.length + ' atividades'} de ${DIAS[deIso(R.de).getDay()]} ${dBR(R.de)}</p>
+    <div class="grade" style="margin-top:10px">
+      <div><label>Novo dia</label><input class="input" type="date" id="rg-para" value="${R.para}" onchange="REAG.para=this.value;planejarReag()"></div>
+      <div><label>Motivo</label><input class="input" id="rg-motivo" value="${esc(R.motivo)}" onchange="REAG.motivo=this.value"></div>
+    </div>
+    ${!util(R.para) ? '<div class="status-msg erro">⚠ O novo dia é domingo ou feriado nacional.</div>' : ''}
+    <label class="opc"><input type="radio" name="rg-modo" ${R.modo === 'empurrar' ? 'checked' : ''} onchange="REAG.modo='empurrar';planejarReag()"><span><b>Empurrar as seguintes</b><br><span class="muted">O que já está programado a partir de ${dBR(R.para)} anda um dia útil, em sequência, até o primeiro dia livre.</span></span></label>
+    <label class="opc"><input type="radio" name="rg-modo" ${R.modo === 'encaixar' ? 'checked' : ''} onchange="REAG.modo='encaixar';planejarReag()"><span><b>Encaixar junto</b><br><span class="muted">Vai para ${dBR(R.para)} junto com o que já está lá. Nada mais muda.</span></span></label>
+    <h3 style="margin-top:14px">O que vai mudar (${mov.length})</h3>
+    ${mov.map(m => `<div class="mov">${m.origem ? '🌧' : '➡'} <b>${esc(nomeX(m.x))}</b> <span class="muted">· ${esc(eqX(m.x))}</span><br>${DIAS[deIso(m.de).getDay()]} ${dBR(m.de)} → <b>${DIAS[deIso(m.para).getDay()]} ${dBR(m.para)}</b>${m.x.status === 'prevista' ? ' <span class="muted">(prevista)</span>' : ''}</div>`).join('')}
+    ${juntos.length ? `<p class="muted" style="margin-top:8px">Já em ${dBR(R.para)}: ${juntos.map(y => esc(nomeX(y)) + ' (' + esc(eqX(y)) + ')').join(' · ')}</p>` : ''}
+    ${conf.length ? `<div class="status-msg erro">⚠ ${[...new Set(conf)].map(nomeP).map(primeiro).join(', ')} ficaria(m) em duas obras no mesmo dia/período. Ajuste a equipe depois ou escolha "Empurrar".</div>` : ''}
+    <div style="display:flex;gap:8px;margin-top:12px"><button class="btn" onclick="aplicarReag()">✅ Reagendar ${mov.length > 1 ? mov.length + ' atividades' : ''}</button><button class="btn btn-sec" onclick="fecharReag()">Cancelar</button></div>
+    <div class="status-msg" id="rg-msg"></div>`;
+}
+async function aplicarReag() {
+  const R = REAG; if (!R || !R.plano) return;
+  const m = $('rg-msg'); m.classList.remove('erro'); m.textContent = '⏳ Reagendando…';
+  const motivo = ($('rg-motivo').value || '').trim();
+  // de trás para frente: quem vai mais longe anda primeiro
+  const ord = R.plano.slice().sort((a, b) => a.para < b.para ? 1 : -1);
+  let feitos = 0;
+  for (const mv of ord) {
+    const nota = '↷ ' + dBR(mv.de).slice(0, 5) + ' → ' + dBR(mv.para).slice(0, 5) + (mv.origem ? (motivo ? ' (' + motivo + ')' : '') : ' (empurrada)');
+    const obs = [mv.x.obs, nota].filter(Boolean).join('\n');
+    const { error } = await sb.from('programacao').update({ data: mv.para, obs }).eq('id', mv.x.id);
+    if (error) { m.classList.add('erro'); m.textContent = '⚠ Parou em ' + feitos + ' de ' + ord.length + ': ' + error.message; await carregar(); return; }
+    feitos++;
+  }
+  fecharReag();
+  if (R.para > somaDias(inicioSemana, 6)) inicioSemana = segundaDe(R.para);
+  await carregar();
+  msg('✅ ' + feitos + ' atividade(s) reagendada(s)' + (R.modo === 'empurrar' && feitos > R.ids.length ? ' (' + (feitos - R.ids.length) + ' empurrada(s) para frente)' : '') + '. Avise a equipe: 📤 manda a escala do dia no WhatsApp.');
+}
+
 // escala do dia para o grupo da equipe no WhatsApp
 function escalaWhats(iso) {
   const d = deIso(iso), lista = PROG.filter(x => x.data === iso && x.status !== 'cancelada' && x.status !== 'prevista');
@@ -482,7 +570,7 @@ function escalaWhats(iso) {
   });
   window.open('https://wa.me/?text=' + encodeURIComponent(linhas.join('\n').trim()), '_blank', 'noopener');
 }
-document.addEventListener('keydown', e => { if (e.key === 'Escape') fecharProg(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { fecharReag(); fecharProg(); } });
 window.addEventListener('resize', () => { if (PROG && $('semana').innerHTML) render(); });
 iniciar();
 </script>
