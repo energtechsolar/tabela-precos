@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; worker-src blob: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://cmrndntnaaooapbdmgip.supabase.co https://cdn.jsdelivr.net; frame-src blob: https://cmrndntnaaooapbdmgip.supabase.co;">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Usinas — Energtech</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  :root {
+    --amarelo:#FFC107; --amarelo-dim:#e6ac00; --preto:#111; --bg:#0f0f0f; --card:#1a1a1a; --card2:#222;
+    --borda:#2e2e2e; --texto:#e0e0e0; --muted:#8a8a8a; --verde:#4ade80; --vermelho:#f87171; --azul:#60a5fa; --laranja:#fb923c;
+  }
+  body { background:var(--bg); font-family:'Barlow',sans-serif; color:var(--texto); min-height:100vh; padding-bottom:60px; }
+  a { color:var(--azul); }
+  .header { background:var(--amarelo); padding:16px 24px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+  .logo-area { display:flex; align-items:center; gap:12px; }
+  .logo-icon { width:42px; height:42px; background:var(--preto); border-radius:50%; display:flex; align-items:center; justify-content:center; }
+  .brand-name { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:900; color:var(--preto); line-height:1; }
+  .brand-sub { font-size:10px; font-weight:600; color:var(--preto); letter-spacing:.2em; text-transform:uppercase; opacity:.6; }
+  .header-title { text-align:right; }
+  .header-title h1 { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:700; color:var(--preto); text-transform:uppercase; letter-spacing:.05em; }
+  .header-links { font-size:12px; color:var(--preto); margin-top:3px; }
+  .header-links a { color:var(--preto); font-weight:700; }
+  .page { max-width:1200px; margin:0 auto; padding:20px 16px; }
+  .card { background:var(--card); border:1px solid var(--borda); border-radius:14px; padding:18px; margin-bottom:16px; }
+  .card h2 { font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:900; letter-spacing:.1em; text-transform:uppercase; color:var(--amarelo); margin-bottom:12px; }
+  .muted { color:var(--muted); font-size:13px; }
+  .login { max-width:360px; margin:40px auto; text-align:center; }
+  .input { background:var(--card2); border:1px solid var(--borda); color:var(--texto); font-family:'Barlow',sans-serif; font-size:14px; padding:7px 9px; border-radius:8px; outline:none; width:100%; }
+  .input:focus { border-color:var(--amarelo); }
+  .login .input { margin-bottom:10px; }
+  .btn { background:var(--amarelo); color:var(--preto); font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:900; letter-spacing:.05em; padding:8px 14px; border:none; border-radius:8px; cursor:pointer; white-space:nowrap; display:inline-block; }
+  .btn:hover { background:var(--amarelo-dim); }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+  .btn-sec { background:var(--card2); color:var(--texto); border:1px solid var(--borda); }
+  .btn-verde { background:#166534; color:#fff; }
+  .btn-p { padding:4px 9px; font-size:12px; }
+  .erro { color:var(--vermelho); font-size:13px; margin-top:8px; min-height:16px; }
+  #conteudo { display:none; }
+  .linha-topo { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+  .linha-topo h2 { margin-bottom:0; }
+  .tabela-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); font-weight:600; padding:7px 8px; border-bottom:1px solid var(--borda); white-space:nowrap; }
+  td { padding:8px; border-bottom:1px solid #242424; vertical-align:middle; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .tag { display:inline-block; font-size:11px; padding:1px 7px; border-radius:20px; background:#1a1a1a; border:1px solid var(--borda); color:var(--muted); white-space:nowrap; }
+  .tag.lancado { color:var(--amarelo); border-color:#7c5a00; } .tag.recibos { color:var(--azul); border-color:#1e3a5f; } .tag.nf { color:var(--laranja); border-color:#7c2d12; } .tag.enviado { color:var(--verde); border-color:#1f4d33; }
+  .status-msg { font-size:13px; min-height:18px; color:var(--verde); margin-bottom:8px; } .status-msg.erro { color:var(--vermelho); }
+  .rev { background:var(--card2); border:1px solid var(--borda); border-radius:12px; padding:14px; margin-bottom:12px; }
+  .grade { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:8px 12px; }
+  .grade label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; display:block; }
+  .conf { font-size:13px; margin:2px 0; } .conf.ok { color:var(--verde); } .conf.falha { color:var(--vermelho); }
+  .docs a { margin-right:8px; font-size:12px; white-space:nowrap; }
+  .acoes { display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end; }
+  @media (max-width:640px) { .header-title { text-align:left; } td, th { padding:6px 5px; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo-area">
+    <div class="logo-icon"><svg width="26" height="26" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="13" fill="#FFC107"/><path d="M16 3L8 15h7l-3 10 10-13h-7l1-9z" fill="#111"/></svg></div>
+    <div><div class="brand-name">Energtech</div><div class="brand-sub">Engenharia Solar</div></div>
+  </div>
+  <div class="header-title"><h1>Usinas</h1><div class="header-links" id="header-links"><a href="crm.html">CRM</a></div></div>
+</div>
+
+<div class="page">
+  <div class="card login" id="login" style="display:none">
+    <h2 style="font-family:'Barlow Condensed',sans-serif;color:var(--amarelo)">🔑 Entrar</h2>
+    <p class="muted" style="margin-bottom:16px">Use o mesmo login do CRM.</p>
+    <input class="input" type="email" id="login-email" placeholder="E-mail" autocomplete="username">
+    <input class="input" type="password" id="login-senha" placeholder="Senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')entrar()">
+    <button class="btn" id="login-btn" style="width:100%" onclick="entrar()">Entrar</button>
+    <div class="erro" id="login-erro"></div>
+  </div>
+  <div class="card" id="aviso" style="display:none"><p id="aviso-txt" class="muted"></p></div>
+
+  <div id="conteudo">
+    <div class="card"><div class="linha-topo"><h2>📄 Lançar boletim da cooperativa</h2>
+      <label class="btn" style="cursor:pointer">📄 Escolher PDF(s) do boletim<input type="file" accept="application/pdf" multiple style="display:none" onchange="lerBoletins(this)"></label></div>
+      <p class="muted">Pode escolher os boletins das duas usinas de uma vez. O sistema lê os valores, confere as somas e mostra aqui para você conferir antes de salvar. Se algo não fechar, nada é gerado.</p>
+      <div id="revisao" style="margin-top:12px"></div>
+    </div>
+    <div class="status-msg" id="msg"></div>
+    <div id="usinas"></div>
+  </div>
+</div>
+
+<script src="js/comum.js?v=20261019a"></script>
+<script src="js/modulos.js?v=20261105a"></script>
+<script src="js/boletim-leitor.js?v=20261105a"></script>
+<script src="js/recibo-usina.js?v=20261105a"></script>
+<script>
+// Energtech — módulo Usinas (só o admin; o banco trava por RLS e pelo módulo "usinas" ativo)
+// Fluxo por competência: boletim (PDF) → conferir valores → recibos de Terra e Equipamento (PDF) → NF de O&M (anexada do
+// Portal Emissor Nacional; depois emitida pelo módulo NFS-e) → enviado. Tudo fica guardado: nada se apaga.
+// Arquivos: armazenamento privado "usinas", caminho <empresa>/<usina>/<AAAA-MM>/<arquivo>.
+if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+const $ = id => document.getElementById(id);
+const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtR = v => v == null ? '—' : (+v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+const dBR = iso => iso ? String(iso).slice(0, 10).split('-').reverse().join('/') : '—';
+const hojeISO = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+const mesBR = iso => iso ? String(iso).slice(5, 7) + '/' + String(iso).slice(0, 4) : '—';
+const STATUS = { lancado: '📥 lançado', recibos: '🧾 recibos gerados', nf: '📎 NF anexada', enviado: '✉ enviado' };
+const TIPOS_DOC = { boletim: 'Boletim', recibo_terra: 'Recibo Terra', recibo_equip: 'Recibo Equipamento', nf_pdf: 'NF (PDF)', nf_xml: 'NF (XML)', outro: 'Outro' };
+let perfil = null, USINAS = [], EMIT = {}, CONTRA = {}, COMP = [], DOCS = [], REVISOES = [];
+
+function msg(t, erro) { const m = $('msg'); m.textContent = t || ''; m.classList.toggle('erro', !!erro); }
+function mostrar(qual, texto) {
+  $('login').style.display = qual === 'login' ? '' : 'none';
+  $('aviso').style.display = qual === 'aviso' ? '' : 'none';
+  $('conteudo').style.display = qual === 'conteudo' ? 'block' : 'none';
+  if (texto) $('aviso-txt').innerHTML = texto;
+}
+function renderHeader() {
+  let h = '<a href="crm.html">🗂 CRM</a> · <a href="financeiro.html">💰 Financeiro</a>';
+  if (perfil) h += ` · 👤 ${esc(perfil.nome || perfil.email)} · <a href="#" onclick="sair();return false">Sair</a>`;
+  $('header-links').innerHTML = h;
+}
+async function registrarErro(onde, e) {
+  console.error(onde, e);
+  try { await sb.from('erros_app').insert({ empresa_id: (USINAS[0] || {}).empresa_id || null, tela: 'usinas:' + onde, mensagem: String((e && e.message) || e).slice(0, 500) }); } catch (x) { /* sem log */ }
+}
+async function iniciar() {
+  if (!sb) { mostrar('aviso', '⚠ Sem conexão com o servidor.'); return; }
+  const { data } = await sb.auth.getSession();
+  if (!data || !data.session) { perfil = null; renderHeader(); mostrar('login'); return; }
+  const r = await sb.rpc('meu_perfil'); perfil = r.data || {};
+  renderHeader();
+  if (!perfil.admin) { mostrar('aviso', 'O módulo Usinas é só para o administrador.'); return; }
+  mostrar('conteudo');
+  await carregar();
+}
+async function entrar() {
+  const { error } = await sb.auth.signInWithPassword({ email: $('login-email').value.trim(), password: $('login-senha').value });
+  if (error) { $('login-erro').textContent = 'E-mail ou senha incorretos.'; return; }
+  await iniciar();
+}
+async function sair() { await sb.auth.signOut(); perfil = null; await iniciar(); }
+
+async function carregar() {
+  msg('⏳ Carregando…');
+  const [u, e, c, cp, d] = await Promise.all([
+    sb.from('usinas').select('*').eq('ativo', true).order('codigo'),
+    sb.from('emitentes').select('*'),
+    sb.from('contrapartes').select('*'),
+    sb.from('usina_competencias').select('*').order('competencia', { ascending: false }).limit(2000),
+    sb.from('usina_documentos').select('*').order('criado_em', { ascending: false }).limit(5000),
+  ]);
+  const err = [u, e, c, cp, d].find(x => x.error);
+  if (err) { msg('⚠ ' + err.error.message, true); registrarErro('carregar', err.error); return; }
+  USINAS = u.data || []; COMP = cp.data || []; DOCS = d.data || [];
+  EMIT = Object.fromEntries((e.data || []).map(x => [x.id, x])); CONTRA = Object.fromEntries((c.data || []).map(x => [x.id, x]));
+  if (!USINAS.length) { mostrar('aviso', 'Nenhuma usina cadastrada ou o módulo Usinas não está ativo para a sua empresa.'); return; }
+  msg(''); render();
+}
+
+// nº do recibo de uma competência (mesma regra do banco: base + meses desde a base)
+const numeroRecibo = (u, comp) => u.recibo_base_numero + (+comp.slice(0, 4) - +u.recibo_base_comp.slice(0, 4)) * 12 + (+comp.slice(5, 7) - +u.recibo_base_comp.slice(5, 7));
+const docsDe = cid => DOCS.filter(x => x.competencia_id === cid && !x.substituido_por);
+
+function render() {
+  $('usinas').innerHTML = USINAS.map(u => {
+    const lista = COMP.filter(c => c.usina_id === u.id);
+    const ult12 = lista.slice(0, 12), tot12 = ult12.reduce((a, c) => a + (+c.resultado || 0), 0);
+    return `<div class="card"><div class="linha-topo"><h2>☀️ ${esc(u.codigo)}. ${esc(u.nome)}</h2>
+      <span class="muted">UC ${esc(u.uc || '—')} · ${esc((CONTRA[u.contraparte_id] || {}).nome || '')}${ult12.length ? ' · resultado dos últimos ' + ult12.length + ' meses lançados: <b style="color:var(--verde)">' + fmtR(tot12) + '</b>' : ''}</span></div>
+      ${lista.length ? `<div class="tabela-wrap"><table><thead><tr><th>Competência</th><th class="num">Recibo</th><th class="num">Terra</th><th class="num">Equipamento</th><th class="num">NF O&M</th><th class="num">Resultado</th><th>Status</th><th>Documentos</th><th></th></tr></thead><tbody>
+        ${lista.map(c => linhaComp(u, c)).join('')}</tbody></table></div>` : '<div class="muted">Nenhuma competência lançada. Envie o boletim acima.</div>'}
+    </div>`;
+  }).join('');
+}
+function linhaComp(u, c) {
+  const docs = docsDe(c.id), tem = t => docs.some(x => x.tipo === t);
+  const links = docs.map(x => `<a href="#" onclick="abrirDoc(${x.id});return false">${esc(TIPOS_DOC[x.tipo] || x.tipo)}</a>`).join('');
+  const nf = c.nf_numero ? `<br><span class="muted">NF nº ${esc(c.nf_numero)}${c.nf_emitida_em ? ' · ' + dBR(c.nf_emitida_em) : ''}</span>` : '';
+  return `<tr><td><b>${mesBR(c.competencia)}</b>${c.conferido ? '' : ' <span class="tag lancado" title="Os valores não fecharam na leitura e foram aceitos manualmente">conferir</span>'}</td>
+    <td class="num">${String(c.recibo_numero).padStart(6, '0')}</td><td class="num">${fmtR(c.valor_terra)}</td><td class="num">${fmtR(c.valor_equip)}</td>
+    <td class="num">${fmtR(c.valor_om)}${nf}</td><td class="num">${fmtR(c.resultado)}</td><td><span class="tag ${c.status}">${STATUS[c.status] || c.status}</span>${c.enviado_em ? '<br><span class="muted">' + dBR(c.enviado_em) + '</span>' : ''}</td>
+    <td class="docs">${links || '<span class="muted">—</span>'}</td>
+    <td><div class="acoes">
+      <button class="btn btn-p" onclick="gerarRecibos(${c.id})">🧾 ${tem('recibo_terra') ? 'Refazer' : 'Gerar'} recibos</button>
+      <label class="btn btn-sec btn-p" style="cursor:pointer">📎 ${tem('nf_pdf') ? 'Trocar' : 'Anexar'} NF<input type="file" accept="application/pdf,.xml,text/xml,application/xml" multiple style="display:none" onchange="anexarNF(${c.id}, this)"></label>
+      ${c.status !== 'enviado' ? `<button class="btn btn-sec btn-p" onclick="marcarEnviado(${c.id})" ${tem('recibo_terra') && tem('recibo_equip') ? '' : 'disabled title="Gere os recibos antes"'}>✉ Enviado</button>` : ''}
+    </div></td></tr>`;
+}
+
+// ── 1) boletim: ler, conferir, salvar ──
+async function lerBoletins(input) {
+  const arqs = [...(input.files || [])]; input.value = '';
+  if (!arqs.length) return;
+  if (!window.pdfjsLib) { msg('⚠ Não foi possível carregar o leitor de PDF. Atualize a página.', true); return; }
+  msg('⏳ Lendo ' + arqs.length + ' boletim(ns)…');
+  for (const arq of arqs) {
+    try {
+      const buf = new Uint8Array(await arq.arrayBuffer());
+      const r = await LEITORES_BOLETIM.move(buf.slice());
+      REVISOES.push({ id: Date.now() + Math.random(), arq, r });
+    } catch (e) { REVISOES.push({ id: Date.now() + Math.random(), arq, r: { ok: false, erro: 'Não consegui ler este PDF (' + (e.message || e) + ').' } }); registrarErro('lerBoletim', e); }
+  }
+  msg(''); renderRevisoes();
+}
+const CAMPOS = [['terra', 'Arrendamento de Terra'], ['equip', 'Aluguel de Equipamento'], ['om', 'O&M (NF)'], ['equip_contratual', 'Equipamento contratual'], ['fatura_usina', 'Fatura da usina'], ['inadimplencia', 'Inadimplência'], ['gestao', 'Gestão'], ['ajuste', 'Ajuste'], ['resultado', 'Resultado financeiro'], ['injetada_mwh', 'Injetada (MWh)'], ['compensada_mwh', 'Compensada (MWh)']];
+const numCampo = t => { const s = String(t ?? '').trim(); if (!s) return null; const n = Number(s.replace(/[R$\s]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.')); return isFinite(n) ? n : null; };
+const numTxt = (v, mwh) => v == null ? '' : (+v).toLocaleString('pt-BR', { minimumFractionDigits: mwh ? 3 : 2, maximumFractionDigits: mwh ? 3 : 2 });
+function renderRevisoes() {
+  $('revisao').innerHTML = REVISOES.map(rv => {
+    if (!rv.r.ok) return `<div class="rev"><b>${esc(rv.arq.name)}</b><div class="conf falha">⚠ ${esc(rv.r.erro)}</div><button class="btn btn-sec btn-p" style="margin-top:6px" onclick="descartar(${rv.id})">Descartar</button></div>`;
+    const v = rv.r.valores, u = USINAS.find(x => x.codigo === v.usina_codigo);
+    const existe = u && v.competencia && COMP.find(c => c.usina_id === u.id && c.competencia === v.competencia);
+    return `<div class="rev" id="rv-${rv.id}">
+      <div class="linha-topo"><b>${esc(rv.arq.name)}</b><span class="muted">${u ? '☀️ ' + esc(u.codigo + '. ' + u.nome) : '<span style="color:var(--vermelho)">⚠ usina ' + esc(v.usina_codigo || '?') + ' não cadastrada</span>'} · competência <b>${mesBR(v.competencia)}</b>${u && v.competencia ? ' · recibo nº <b>' + String(numeroRecibo(u, v.competencia)).padStart(6, '0') + '</b>' : ''}</span></div>
+      <div class="grade">${CAMPOS.map(([k, rot]) => `<div><label>${rot}</label><input class="input" id="rv-${rv.id}-${k}" inputmode="decimal" value="${numTxt(v[k], /mwh/.test(k))}" ${v[k] == null && ['terra', 'equip', 'om'].includes(k) ? 'style="border-color:var(--vermelho)"' : ''}></div>`).join('')}</div>
+      <div style="margin-top:10px">${rv.r.conferencias.map(c => `<div class="conf ${c.ok ? 'ok' : 'falha'}">${c.ok ? '✓' : '✗'} ${esc(c.nome)}${c.ok ? '' : ' — ' + fmtR(c.a) + ' × ' + fmtR(c.b)}</div>`).join('')}</div>
+      ${rv.r.avisos.map(a => `<div class="conf falha">⚠ ${esc(a)}</div>`).join('')}
+      ${existe ? `<div class="conf falha">⚠ Já existe ${mesBR(v.competencia)} desta usina (${STATUS[existe.status]}). Salvar atualiza os valores e guarda este boletim como versão nova${existe.status !== 'lancado' ? '; os recibos já gerados precisam ser refeitos' : ''}.</div>` : ''}
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px">
+        ${rv.r.fecha ? '<span class="conf ok"><b>✓ O boletim fecha.</b></span>' : `<label class="conf falha" style="cursor:pointer"><input type="checkbox" id="rv-${rv.id}-aceito"> Conferi no boletim e os valores acima estão certos</label>`}
+        <button class="btn btn-verde" onclick="salvarRevisao(${rv.id})" ${u ? '' : 'disabled'}>💾 Salvar competência</button>
+        <button class="btn btn-sec btn-p" onclick="descartar(${rv.id})">Descartar</button></div>
+    </div>`;
+  }).join('');
+}
+function descartar(id) { REVISOES = REVISOES.filter(x => x.id !== id); renderRevisoes(); }
+const pastaComp = (u, comp) => u.empresa_id + '/' + u.codigo + '/' + comp.slice(0, 7);
+async function enviarArquivo(u, comp, nome, blob, tipoMime) {
+  const path = pastaComp(u, comp) + '/' + Date.now() + '-' + nome.replace(/[^\w.-]+/g, '_');
+  const { error } = await sb.storage.from('usinas').upload(path, blob, { contentType: tipoMime, upsert: false });
+  if (error) throw error;
+  return path;
+}
+// guarda o documento; a versão anterior do mesmo tipo fica marcada como substituída (não se apaga)
+async function registrarDoc(u, c, tipo, path, nome, bytes) {
+  const { data, error } = await sb.from('usina_documentos').insert({ empresa_id: u.empresa_id, competencia_id: c.id, tipo, path, nome, bytes }).select('*').single();
+  if (error) throw error;
+  const antigos = DOCS.filter(x => x.competencia_id === c.id && x.tipo === tipo && !x.substituido_por);
+  for (const a of antigos) { await sb.from('usina_documentos').update({ substituido_por: data.id }).eq('id', a.id); a.substituido_por = data.id; }
+  DOCS.unshift(data);
+  return data;
+}
+async function salvarRevisao(id) {
+  const rv = REVISOES.find(x => x.id === id); if (!rv) return;
+  const v = rv.r.valores, u = USINAS.find(x => x.codigo === v.usina_codigo); if (!u || !v.competencia) return;
+  const lido = k => numCampo($('rv-' + id + '-' + k).value);
+  const val = Object.fromEntries(CAMPOS.map(([k]) => [k, lido(k)]));
+  if (val.terra == null || val.equip == null || val.om == null) { msg('⚠ Preencha Terra, Equipamento e O&M.', true); return; }
+  const editou = CAMPOS.some(([k]) => (val[k] ?? null) !== (v[k] ?? null));
+  const aceito = rv.r.fecha && !editou ? true : !!($('rv-' + id + '-aceito') && $('rv-' + id + '-aceito').checked);
+  if (!aceito) { msg(editou && rv.r.fecha ? '⚠ Você alterou valores lidos: marque "Conferi no boletim…" para salvar.' : '⚠ O boletim não fechou: confira os valores e marque "Conferi no boletim…".', true); if (editou && rv.r.fecha) { rv.r.fecha = false; renderRevisoes(); } return; }
+  try {
+    msg('⏳ Salvando ' + u.codigo + ' ' + mesBR(v.competencia) + '…');
+    const reg = { empresa_id: u.empresa_id, usina_id: u.id, competencia: v.competencia,
+      valor_terra: val.terra, valor_equip: val.equip, valor_om: val.om, equip_contratual: val.equip_contratual, fatura_usina: val.fatura_usina,
+      inadimplencia: val.inadimplencia, gestao: val.gestao, ajuste: val.ajuste, resultado: val.resultado, injetada_mwh: val.injetada_mwh, compensada_mwh: val.compensada_mwh,
+      leitura: { arquivo: rv.arq.name, lido: v, conferencias: rv.r.conferencias, editado: editou }, conferido: rv.r.fecha && !editou };
+    const existe = COMP.find(c => c.usina_id === u.id && c.competencia === v.competencia);
+    let c;
+    if (existe) { const r = await sb.from('usina_competencias').update(reg).eq('id', existe.id).select('*').single(); if (r.error) throw r.error; c = r.data; Object.assign(existe, c); c = existe; }
+    else { const r = await sb.from('usina_competencias').insert(reg).select('*').single(); if (r.error) throw r.error; c = r.data; COMP.unshift(c); COMP.sort((a, b) => a.competencia < b.competencia ? 1 : -1); }
+    const path = await enviarArquivo(u, c.competencia, 'boletim.pdf', rv.arq, 'application/pdf');
+    await registrarDoc(u, c, 'boletim', path, rv.arq.name, rv.arq.size);
+    REVISOES = REVISOES.filter(x => x.id !== id); renderRevisoes(); render();
+    msg('✅ ' + u.codigo + ' ' + mesBR(c.competencia) + ' salva (recibo nº ' + String(c.recibo_numero).padStart(6, '0') + '). Agora gere os recibos.');
+  } catch (e) { msg('⚠ ' + (e.message || e), true); registrarErro('salvarRevisao', e); }
+}
+
+// ── 2) recibos ──
+const nomeArq = (u, tipo, c) => (tipo === 'terra' ? 'Recibo_Arrendamento_Terra_' : 'Recibo_Aluguel_Equipamento_') + u.codigo + '_N' + String(c.recibo_numero).padStart(6, '0') + '_' + c.competencia.slice(5, 7) + '-' + c.competencia.slice(0, 4) + '.pdf';
+async function gerarRecibos(cid) {
+  const c = COMP.find(x => x.id === cid), u = c && USINAS.find(x => x.id === c.usina_id); if (!u) return;
+  const jaTem = docsDe(cid).some(x => x.tipo === 'recibo_terra');
+  if (jaTem && !confirm('Refazer os recibos de ' + mesBR(c.competencia) + '? Os anteriores ficam guardados no histórico.')) return;
+  const emissao = prompt('Data de emissão dos recibos (DD/MM/AAAA):', dBR(hojeISO())); if (!emissao) return;
+  const m = emissao.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if (!m) { msg('⚠ Data inválida.', true); return; }
+  const isoEm = m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+  const banco = (EMIT[u.emitente_banco_id] || {}).banco || {}, dest = CONTRA[u.contraparte_id] || {}, tx = u.textos || {};
+  try {
+    msg('⏳ Gerando recibos…');
+    for (const [tipo, emitId, valor, disc] of [['terra', u.emitente_terra_id, c.valor_terra, tx.terra_discriminacao], ['equip', u.emitente_equip_id, c.valor_equip, tx.equip_discriminacao]]) {
+      const doc = reciboUsinaPDF({ tipo, numero: c.recibo_numero, emissao: isoEm, competencia: c.competencia, valor, emitente: EMIT[emitId], destinatario: dest, banco, discriminacao: disc || '' });
+      const nome = nomeArq(u, tipo, c), blob = doc.output('blob');
+      const path = await enviarArquivo(u, c.competencia, nome, blob, 'application/pdf');
+      await registrarDoc(u, c, tipo === 'terra' ? 'recibo_terra' : 'recibo_equip', path, nome, blob.size);
+      doc.save(nome);
+    }
+    const novo = c.status === 'lancado' ? 'recibos' : c.status;
+    if (novo !== c.status) { const r = await sb.from('usina_competencias').update({ status: novo }).eq('id', c.id); if (r.error) throw r.error; c.status = novo; }
+    render(); msg('✅ Recibos nº ' + String(c.recibo_numero).padStart(6, '0') + ' de ' + u.codigo + ' (' + mesBR(c.competencia) + ') gerados e guardados.');
+  } catch (e) { msg('⚠ ' + (e.message || e), true); registrarErro('gerarRecibos', e); }
+}
+
+// ── 3) NF de O&M (emitida no Portal Emissor Nacional) ──
+async function anexarNF(cid, input) {
+  const arqs = [...(input.files || [])]; input.value = '';
+  const c = COMP.find(x => x.id === cid), u = c && USINAS.find(x => x.id === c.usina_id); if (!u || !arqs.length) return;
+  try {
+    msg('⏳ Lendo a NF…');
+    const pdf = arqs.find(a => /pdf$/i.test(a.type) || /\.pdf$/i.test(a.name)), xml = arqs.find(a => /xml/i.test(a.type) || /\.xml$/i.test(a.name));
+    let info = {};
+    if (pdf) info = await lerDanfse(new Uint8Array(await pdf.arrayBuffer()));
+    if (xml) { const t = await xml.text(); info.chave = info.chave || (t.match(/\b(\d{50})\b/) || [])[1]; info.numero = info.numero || (t.match(/<nNFSe>(\d+)<\/nNFSe>/) || [])[1]; }
+    const emit = EMIT[u.emitente_nf_id] || {}, avisos = [];
+    if (info.cnpj_prestador && emit.documento && info.cnpj_prestador !== emit.documento) avisos.push('O CNPJ da NF (' + info.cnpj_prestador + ') não é o da ' + (emit.nome || 'emitente cadastrada') + '.');
+    if (info.valor != null && c.valor_om != null && Math.abs(info.valor - c.valor_om) > 0.015) avisos.push('Valor da NF ' + fmtR(info.valor) + ' ≠ O&M do boletim ' + fmtR(c.valor_om) + '.');
+    if (info.ref && info.ref !== c.competencia) avisos.push('A NF diz REF. ' + mesBR(info.ref) + ', mas a competência é ' + mesBR(c.competencia) + '.');
+    const num = prompt((avisos.length ? '⚠ ' + avisos.join('\n⚠ ') + '\n\n' : '') + 'Número da NF de O&M de ' + u.codigo + ' ' + mesBR(c.competencia) + ':', info.numero || c.nf_numero || '');
+    if (num === null) { msg(''); return; }
+    for (const a of [pdf, xml].filter(Boolean)) {
+      const tipo = a === pdf ? 'nf_pdf' : 'nf_xml';
+      const nome = 'NFSe_' + u.codigo + '_N' + String(num).trim() + '_' + c.competencia.slice(5, 7) + '-' + c.competencia.slice(0, 4) + (tipo === 'nf_pdf' ? '.pdf' : '.xml');
+      const path = await enviarArquivo(u, c.competencia, nome, a, tipo === 'nf_pdf' ? 'application/pdf' : 'application/xml');
+      await registrarDoc(u, c, tipo, path, nome, a.size);
+    }
+    const mud = { nf_numero: String(num).trim() || null, nf_chave: info.chave || c.nf_chave || null, nf_emitida_em: info.emitida_em || c.nf_emitida_em || null };
+    if (c.status === 'lancado' || c.status === 'recibos') mud.status = 'nf';
+    const r = await sb.from('usina_competencias').update(mud).eq('id', c.id); if (r.error) throw r.error;
+    Object.assign(c, mud); render();
+    msg('✅ NF nº ' + (mud.nf_numero || '?') + ' anexada' + (avisos.length ? ' — ⚠ ' + avisos.join(' ') : '.'), !!avisos.length);
+  } catch (e) { msg('⚠ ' + (e.message || e), true); registrarErro('anexarNF', e); }
+}
+async function marcarEnviado(cid) {
+  const c = COMP.find(x => x.id === cid); if (!c) return;
+  if (!c.nf_numero && !confirm('A NF de O&M ainda não foi anexada. Marcar como enviado mesmo assim?')) return;
+  const mud = { status: 'enviado', enviado_em: new Date().toISOString() };
+  const r = await sb.from('usina_competencias').update(mud).eq('id', cid);
+  if (r.error) { msg('⚠ ' + r.error.message, true); registrarErro('marcarEnviado', r.error); return; }
+  Object.assign(c, mud); render(); msg('✅ Marcado como enviado para a cooperativa.');
+}
+async function abrirDoc(id) {
+  const d = DOCS.find(x => x.id === id); if (!d) return;
+  const { data, error } = await sb.storage.from('usinas').createSignedUrl(d.path, 300);
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  window.open(data.signedUrl, '_blank', 'noopener');
+}
+iniciar();
+</script>
+</body>
+</html>
