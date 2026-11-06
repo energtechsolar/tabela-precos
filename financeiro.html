@@ -131,7 +131,7 @@ const ultimoDia = ym => { const [a, m] = ym.split('-').map(Number); return ym + 
 const somaMes = (ym, n) => { const [a, m] = ym.split('-').map(Number); const d = new Date(a, m - 1 + n, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
 const nomeMes = ym => { const [a, m] = ym.split('-').map(Number); return new Date(a, m - 1, 1).toLocaleDateString('pt-BR', { month:'short' }).replace('.', '') + '/' + String(a).slice(2); };
 function numBR(t) { let s = String(t ?? '').replace(/[R$\s]/g, ''); if (!s) return null; if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return isFinite(n) ? Math.round(n * 100) / 100 : null; }
-const TIPOS_PAG = { kit:'Kit ao fornecedor', comissao:'Comissão', imposto:'Imposto (Simples)', salario:'Salário', diarias:'Diárias / instalações', instalacao:'Instalação', fixo:'Custo fixo', material:'Compra de material (NF)', outro:'Outro' };
+const TIPOS_PAG = { kit:'Kit ao fornecedor', comissao:'Comissão', indicacao:'Comissão de indicação', imposto:'Imposto (Simples)', salario:'Salário', diarias:'Diárias / instalações', instalacao:'Instalação', fixo:'Custo fixo', material:'Compra de material (NF)', outro:'Outro' };
 const TIPOS_REC = { entrada:'Entrada', boleto:'Boleto', banco:'Banco / financiamento', repasse:'Repasse do fornecedor', outro:'Outro' };
 const CATEGORIAS = { aluguel:'Aluguel', energia_agua:'Energia / água', internet_telefone:'Internet / telefone', marketing:'Marketing / anúncios', contador:'Contador', software:'Sistemas / software', veiculo:'Veículo / combustível', prolabore:'Pró-labore', emprestimo:'Empréstimo / financiamento', outros:'Outros' };
 let perfil = null, aba = 'fluxo', REC = [], PAG = [], FIXOS = [], PRM = {}, GANHOS = [], verTodas = false, formNovo = false;
@@ -221,6 +221,9 @@ async function carregar() {
 }
 function render() { if (aba === 'fluxo') renderFluxo(); else if (aba === 'hist') renderHist(); else if (aba === 'saude') renderSaude(); else if (aba === 'obras') renderObras(); else if (aba === 'fixos') renderFixos(); else renderParam(); }
 
+// comissões: do vendedor ("comissao") e de quem indicou o cliente ("indicacao")
+const TIPOS_COM = ['comissao', 'indicacao'];
+const ehCom = t => TIPOS_COM.includes(t);
 // ── comissão: liberada conforme o cliente paga (parcelas do cliente/banco recebidas ÷ total das parcelas) ──
 function fracaoRecebida(leadId) {
   const ps = REC.filter(x => x.lead_id === leadId && x.tipo !== 'repasse');
@@ -229,8 +232,8 @@ function fracaoRecebida(leadId) {
   return tot > 0 ? Math.min(1, rec / tot) : 0;
 }
 function comissoes() {
-  return PAG.filter(p => p.auto && p.tipo === 'comissao').map(p => {
-    const pago = PAG.filter(x => !x.auto && x.tipo === 'comissao' && x.lead_id === p.lead_id && x.pago_em).reduce((a, x) => a + (+x.valor || 0), 0);
+  return PAG.filter(p => p.auto && ehCom(p.tipo)).map(p => {
+    const pago = PAG.filter(x => !x.auto && x.tipo === p.tipo && x.lead_id === p.lead_id && x.pago_em).reduce((a, x) => a + (+x.valor || 0), 0);
     const fr = fracaoRecebida(p.lead_id), liberada = Math.round(+p.valor * fr * 100) / 100;
     return { ...p, pago, fr, liberada, agora: Math.max(0, Math.round((liberada - pago) * 100) / 100), resta: Math.max(0, Math.round((+p.valor - pago) * 100) / 100) };
   });
@@ -248,8 +251,8 @@ function renderFluxo() {
   const somaRecMes = REC.filter(x => !x.recebido_em && noMes(x.vencimento)).reduce((a, x) => a + +x.valor, 0);
   const recebidoMes = recebidos.reduce((a, x) => a + +(x.valor_recebido ?? x.valor), 0);
   const coms = comissoes();
-  const aPagar = PAG.filter(x => !x.pago_em && !(x.auto && x.tipo === 'comissao') && (verTodas || !x.vencimento || x.vencimento <= fim)).sort((a, b) => (a.vencimento || '9') < (b.vencimento || '9') ? -1 : 1);
-  const pagos = PAG.filter(x => noMes(x.pago_em) && !(x.auto && x.tipo === 'comissao'));
+  const aPagar = PAG.filter(x => !x.pago_em && !(x.auto && ehCom(x.tipo)) && (verTodas || !x.vencimento || x.vencimento <= fim)).sort((a, b) => (a.vencimento || '9') < (b.vencimento || '9') ? -1 : 1);
+  const pagos = PAG.filter(x => noMes(x.pago_em) && !(x.auto && ehCom(x.tipo)));
   const comAgora = coms.reduce((a, c) => a + c.agora, 0);
   const somaPagMes = aPagar.filter(x => !x.vencimento || x.vencimento <= fim).reduce((a, x) => a + +x.valor, 0) + comAgora;
   const pagoMes = pagos.reduce((a, x) => a + +x.valor, 0);
@@ -258,14 +261,14 @@ function renderFluxo() {
   const stRec = x => x.vencimento && x.vencimento < hoje ? `<span class="tag atraso">atrasado</span>` : (x.vencimento ? '' : '<span class="tag">sem data</span>');
   const linhaRec = x => `<tr class="${x.vencimento && x.vencimento < hoje ? 'atraso' : ''}"><td>${linkCli(x)}</td><td>${esc(TIPOS_REC[x.tipo] || x.tipo)}${x.descricao ? '<br><span class="muted">' + esc(x.descricao) + '</span>' : ''}</td><td>${dBR(x.vencimento)} ${stRec(x)}</td><td class="num">${fmtR(x.valor)}</td><td class="num"><button class="btn btn-verde btn-p" onclick="receber(${x.id})">✔ Recebi</button></td></tr>`;
   const linhaPag = x => `<tr class="${x.vencimento && x.vencimento < hoje ? 'atraso' : ''}"><td>${esc(TIPOS_PAG[x.tipo] || x.tipo)}${x.auto ? ' <span class="tag auto">auto</span>' : ''}</td><td>${esc(x.descricao || '')}${x.lead_id ? '<br>' + linkCli(x) : ''}${x.obs ? '<br><span class="muted">' + esc(x.obs) + '</span>' : ''}</td><td>${dBR(x.vencimento)}${x.vencimento && x.vencimento < hoje ? ' <span class="tag atraso">vencido</span>' : ''}</td><td class="num">${fmtR(x.valor)}</td><td class="num" style="white-space:nowrap"><button class="btn btn-verde btn-p" onclick="pagar(${x.id})">✔ Paguei</button> ${editavel(x) ? `<button class="btn btn-sec btn-p" onclick="editarPag(${x.id})">✏</button>` : ''} ${!x.auto ? `<button class="btn btn-sec btn-p" style="color:var(--vermelho)" onclick="apagarPag(${x.id})">🗑</button>` : ''}</td></tr>`;
-  const linhaCom = c => `<tr><td>${esc((c.equipe && c.equipe.nome) || 'Vendedor não informado')}</td><td>${linkCli(c)}<br><span class="muted">comissão ${fmtR(c.valor)} · cliente pagou ${Math.round(c.fr * 100)}% · já pago ${fmtR(c.pago)}</span></td><td class="num">${fmtR(c.liberada)}</td><td class="num"><b>${fmtR(c.agora)}</b></td><td class="num">${c.agora > 0 ? `<button class="btn btn-verde btn-p" onclick="pagarComissao(${c.id})">✔ Paguei</button>` : '<span class="muted">—</span>'}</td></tr>`;
+  const linhaCom = c => `<tr><td>${esc((c.equipe && c.equipe.nome) || (c.tipo === 'indicacao' ? 'Indicação' : 'Vendedor não informado'))}${c.tipo === 'indicacao' ? ' <span class="tag auto">indicação</span>' : ''}</td><td>${linkCli(c)}<br><span class="muted">${c.tipo === 'indicacao' ? 'indicação' : 'comissão'} ${fmtR(c.valor)} · cliente pagou ${Math.round(c.fr * 100)}% · já pago ${fmtR(c.pago)}</span></td><td class="num">${fmtR(c.liberada)}</td><td class="num"><b>${fmtR(c.agora)}</b></td><td class="num">${c.agora > 0 ? `<button class="btn btn-verde btn-p" onclick="pagarComissao(${c.id})">✔ Paguei</button>` : '<span class="muted">—</span>'}</td></tr>`;
   const tab = (cab, linhas, vazio) => `<div class="tabela-wrap"><table><thead><tr>${cab}</tr></thead><tbody>${linhas || `<tr><td colspan="9" class="vazio">${vazio}</td></tr>`}</tbody></table></div>`;
   const comAbertas = coms.filter(c => c.resta > 0.004);
   // vendas ganhas que ainda não têm nenhuma parcela a receber lançada
   const semParcelas = GANHOS.filter(l => !REC.some(r => r.lead_id === l.id));
   const confFin = conferenciaFinanciadas();
   const totAbertoRec = REC.filter(x => !x.recebido_em).reduce((a, x) => a + +x.valor, 0);
-  const totAbertoPag = PAG.filter(x => !x.pago_em && !(x.auto && x.tipo === 'comissao')).reduce((a, x) => a + +x.valor, 0) + coms.reduce((a, c) => a + c.resta, 0);
+  const totAbertoPag = PAG.filter(x => !x.pago_em && !(x.auto && ehCom(x.tipo))).reduce((a, x) => a + +x.valor, 0) + coms.reduce((a, c) => a + c.resta, 0);
   $('aba-fluxo').innerHTML = `
     ${semParcelas.length ? `<div class="card" style="border-color:#7c5a00"><div class="linha-topo"><h2>⚠ Vendas sem parcelas a receber</h2><span class="muted">Sem as parcelas, a venda não aparece em "A receber"</span></div>
       ${semParcelas.map(l => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #242424;flex-wrap:wrap">
@@ -301,8 +304,8 @@ function renderHist() {
   const noPer = d => d && (histTodos || (d >= ini && d <= fim));
   const ord = (a, b, k) => (a[k] < b[k] ? 1 : -1);
   const rec = REC.filter(x => noPer(x.recebido_em)).sort((a, b) => ord(a, b, 'recebido_em'));
-  const pag = PAG.filter(x => noPer(x.pago_em) && x.tipo !== 'comissao').sort((a, b) => ord(a, b, 'pago_em'));
-  const com = PAG.filter(x => noPer(x.pago_em) && x.tipo === 'comissao' && !x.auto).sort((a, b) => ord(a, b, 'pago_em'));
+  const pag = PAG.filter(x => noPer(x.pago_em) && !ehCom(x.tipo)).sort((a, b) => ord(a, b, 'pago_em'));
+  const com = PAG.filter(x => noPer(x.pago_em) && ehCom(x.tipo) && !x.auto).sort((a, b) => ord(a, b, 'pago_em'));
   const soma = (l, f) => l.reduce((a, x) => a + (+f(x) || 0), 0);
   const tab = (cab, linhas, vazio) => `<div class="tabela-wrap"><table><thead><tr>${cab}</tr></thead><tbody>${linhas || `<tr><td colspan="9" class="vazio">${vazio}</td></tr>`}</tbody></table></div>`;
   const per = histTodos ? 'todos os meses' : nomeMes(ym);
@@ -318,7 +321,7 @@ function renderHist() {
     <div class="card"><h2>💸 Contas pagas — ${per}</h2>
       ${tab('<th>Data</th><th>Tipo</th><th>Descrição</th><th class="num">Valor</th><th></th>', pag.map(x => `<tr><td>${dBR(x.pago_em)}</td><td>${esc(TIPOS_PAG[x.tipo] || x.tipo)}</td><td>${esc(x.descricao || '')}${x.lead_id ? '<br>' + linkCli(x) : ''}</td><td class="num">${fmtR(x.valor)}</td><td class="num"><a href="#" onclick="desfazerPag(${x.id});return false" class="muted">desfazer</a></td></tr>`).join(''), 'Nada pago no período.')}</div>
     <div class="card"><h2>🤝 Comissões pagas — ${per}</h2>
-      ${tab('<th>Data</th><th>Vendedor</th><th>Venda</th><th class="num">Valor</th><th></th>', com.map(x => `<tr><td>${dBR(x.pago_em)}</td><td>${esc((x.equipe && x.equipe.nome) || '')}</td><td>${linkCli(x)}</td><td class="num">${fmtR(x.valor)}</td><td class="num"><a href="#" onclick="desfazerPag(${x.id});return false" class="muted">desfazer</a></td></tr>`).join(''), 'Nenhuma comissão paga no período.')}</div>`;
+      ${tab('<th>Data</th><th>Vendedor</th><th>Venda</th><th class="num">Valor</th><th></th>', com.map(x => `<tr><td>${dBR(x.pago_em)}</td><td>${esc((x.equipe && x.equipe.nome) || '')}${x.tipo === 'indicacao' ? ' <span class="tag auto">indicação</span>' : ''}</td><td>${linkCli(x)}</td><td class="num">${fmtR(x.valor)}</td><td class="num"><a href="#" onclick="desfazerPag(${x.id});return false" class="muted">desfazer</a></td></tr>`).join(''), 'Nenhuma comissão paga no período.')}</div>`;
 }
 async function desfazerRec(id) {
   const x = REC.find(r => r.id === id); if (!x || !confirm('Desfazer o recebimento de ' + fmtR(x.valor_recebido ?? x.valor) + '? (volta para "A receber")')) return;
@@ -391,10 +394,10 @@ async function pagar(id) {
 }
 async function desfazerPag(id) {
   const x = PAG.find(p => p.id === id); if (!x || !confirm('Desfazer o pagamento de ' + fmtR(x.valor) + '?')) return;
-  if (!x.auto && x.tipo === 'comissao') {   // pagamento de comissão é um lançamento próprio: apaga
+  if (!x.auto && ehCom(x.tipo)) {   // pagamento de comissão é um lançamento próprio: apaga
     const { error } = await sb.from('pagamentos').delete().eq('id', id); if (error) { msg('⚠ ' + error.message, true); return; }
     PAG = PAG.filter(p => p.id !== id);
-    const mae = PAG.find(p => p.auto && p.tipo === 'comissao' && p.lead_id === x.lead_id && p.pago_em);
+    const mae = PAG.find(p => p.auto && p.tipo === x.tipo && p.lead_id === x.lead_id && p.pago_em);
     if (mae) { await sb.from('pagamentos').update({ pago_em: null }).eq('id', mae.id); mae.pago_em = null; }
   } else {
     const { error } = await sb.from('pagamentos').update({ pago_em: null }).eq('id', id); if (error) { msg('⚠ ' + error.message, true); return; }
@@ -406,7 +409,7 @@ async function pagarComissao(id) {
   const c = comissoes().find(x => x.id === id); if (!c) return;
   const v = prompt('Valor pago de comissão (liberado agora: ' + fmtR(c.agora) + '):', c.agora.toLocaleString('pt-BR', { minimumFractionDigits: 2 }));
   const n = numBR(v); if (!n || n <= 0) return;
-  const ins = { tipo: 'comissao', descricao: 'Pagamento · ' + (c.descricao || ''), lead_id: c.lead_id, orcamento_id: c.orcamento_id, pessoa_id: c.pessoa_id, competencia: hojeISO().slice(0, 8) + '01', valor: n, pago_em: hojeISO(), auto: false };
+  const ins = { tipo: c.tipo, descricao: 'Pagamento · ' + (c.descricao || ''), lead_id: c.lead_id, orcamento_id: c.orcamento_id, pessoa_id: c.pessoa_id, competencia: hojeISO().slice(0, 8) + '01', valor: n, pago_em: hojeISO(), auto: false };
   const { data, error } = await sb.from('pagamentos').insert(ins).select('*, leads(nome), equipe(nome)').single();
   if (error) { msg('⚠ ' + error.message, true); return; }
   PAG.push(data);
@@ -464,12 +467,12 @@ async function novoPagamento() {
 // ── saúde financeira ──
 function renderSaude() {
   const ym = $('f-mes').value, meses = Array.from({ length: 12 }, (_, i) => somaMes(ym, i - 11));
-  const grupo = t => ({ kit:'kit', comissao:'comissao', imposto:'imposto', salario:'equipe', diarias:'equipe', instalacao:'equipe', fixo:'fixo', outro:'outro' }[t] || 'outro');
+  const grupo = t => ({ kit:'kit', comissao:'comissao', indicacao:'comissao', imposto:'imposto', salario:'equipe', diarias:'equipe', instalacao:'equipe', fixo:'fixo', outro:'outro' }[t] || 'outro');
   const caixa = meses.map(m => {
     const ini = m + '-01', fim = ultimoDia(m), em = d => d && d >= ini && d <= fim;
     const ent = REC.filter(x => em(x.recebido_em)).reduce((a, x) => a + +(x.valor_recebido ?? x.valor), 0);
     const sai = { kit: 0, comissao: 0, imposto: 0, equipe: 0, fixo: 0, outro: 0 };
-    PAG.filter(x => em(x.pago_em) && !(x.auto && x.tipo === 'comissao')).forEach(x => { sai[grupo(x.tipo)] += +x.valor; });
+    PAG.filter(x => em(x.pago_em) && !(x.auto && ehCom(x.tipo))).forEach(x => { sai[grupo(x.tipo)] += +x.valor; });
     const tot = Object.values(sai).reduce((a, b) => a + b, 0);
     return { m, ent, sai, tot, res: ent - tot };
   });
@@ -481,7 +484,7 @@ function renderSaude() {
   const fat = vendas.reduce((a, l) => a + (+l.valor || 0), 0), idsV = new Set(vendas.map(l => l.id));
   const daVenda = t => PAG.filter(x => x.auto && x.tipo === t && idsV.has(x.lead_id)).reduce((a, x) => a + +x.valor, 0);
   // custo do kit de todas as vendas (nas financiadas o banco paga o fornecedor, mas é custo da venda do mesmo jeito)
-  const custoKit = vendas.reduce((a, l) => a + (l.custo || 0), 0), com = daVenda('comissao'), imp = daVenda('imposto');
+  const custoKit = vendas.reduce((a, l) => a + (l.custo || 0), 0), com = daVenda('comissao') + daVenda('indicacao'), imp = daVenda('imposto');
   const impRep = vendas.reduce((a, l) => a + (l.impRepasse || 0), 0);
   const financ = vendas.filter(l => l.financ), semCusto = vendas.filter(l => l.custo == null);
   const kitBanco = (financ.length ? `<tr><td colspan="2" class="muted" style="font-size:12px">↳ ${financ.length} financiada(s): kit pago pelo banco direto ao fornecedor (é custo da venda, mas não sai do caixa da Energtech).</td></tr>` : '')
@@ -493,7 +496,7 @@ function renderSaude() {
   // ponto de equilíbrio: custos do mês ÷ margem de contribuição média (últimos 3 meses com venda)
   const ult3 = [0, 1, 2].map(i => somaMes(ym, -i)).map(m => {
     const v = GANHOS.filter(l => l.etapa_em && l.etapa_em.slice(0, 7) === m), ids = new Set(v.map(l => l.id));
-    const f = v.reduce((a, l) => a + (+l.valor || 0), 0), c = v.reduce((a, l) => a + (l.custo || 0) + (l.impRepasse || 0), 0) + PAG.filter(x => x.auto && ['comissao', 'imposto'].includes(x.tipo) && ids.has(x.lead_id)).reduce((a, x) => a + +x.valor, 0);
+    const f = v.reduce((a, l) => a + (+l.valor || 0), 0), c = v.reduce((a, l) => a + (l.custo || 0) + (l.impRepasse || 0), 0) + PAG.filter(x => x.auto && ['comissao', 'indicacao', 'imposto'].includes(x.tipo) && ids.has(x.lead_id)).reduce((a, x) => a + +x.valor, 0);
     return { f, mc: f - c };
   });
   const f3 = ult3.reduce((a, x) => a + x.f, 0), mc3 = ult3.reduce((a, x) => a + x.mc, 0), pctMC = f3 > 0 ? mc3 / f3 : 0;
@@ -542,13 +545,13 @@ function renderSaude() {
 // Venda − kit (custo fechado) − comissão − imposto − equipe (diárias lançadas na obra) − material do estoque − avulsos da obra.
 // Salários e custos fixos não são de uma obra só: entram no "após rateio", divididos entre as vendas do mês
 // na proporção do valor de cada venda.
-const TIPOS_DIRETOS = ['kit', 'comissao', 'imposto'];
+const TIPOS_DIRETOS = ['kit', 'comissao', 'indicacao', 'imposto'];
 function resultadoObra(l) {
   const pg = PAG.filter(x => x.lead_id === l.id);
   const soma = f => Math.round(pg.filter(f).reduce((a, x) => a + (+x.valor || 0), 0) * 100) / 100;
   const kitPag = soma(x => x.tipo === 'kit');
   const kit = l.custo != null ? l.custo : kitPag;
-  const com = soma(x => x.auto && x.tipo === 'comissao');
+  const com = soma(x => x.auto && ehCom(x.tipo));
   const imp = soma(x => x.tipo === 'imposto') + (l.impRepasse || 0);
   const lanc = LANC.filter(x => x.lead_id === l.id);
   const equipe = lanc.reduce((a, x) => a + (+x.valor || 0), 0);
@@ -588,7 +591,7 @@ function renderObras() {
       <table class="dre"><tbody>
         ${ln('Valor da venda', fmtR(l.valor))}
         ${ln('(−) Kit ao fornecedor' + (l.financ ? ' <span class="muted">(pago pelo banco)</span>' : ''), fmtR(r.kit))}
-        ${ln('(−) Comissão', fmtR(r.com))}
+        ${ln('(−) Comissões (vendedor + indicação)', fmtR(r.com))}
         ${ln('(−) Imposto', fmtR(r.imp))}
         ${ln('(−) Equipe na obra (diárias)', fmtR(r.equipe))}
         ${ln('(−) Materiais e outros custos da obra', fmtR(r.outros))}
