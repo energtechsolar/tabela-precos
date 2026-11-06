@@ -72,6 +72,8 @@
   .semana { display:grid; grid-template-columns:repeat(6, minmax(0, 1fr)); gap:8px; }
   .dia { background:var(--card); border:1px solid var(--borda); border-radius:12px; padding:8px; min-height:160px; display:flex; flex-direction:column; gap:6px; }
   .dia.hoje { border-color:var(--amarelo); }
+  .dia.alvo { border-color:var(--azul); background:#13202f; }
+  .prog[draggable="true"] { cursor:grab; } .prog.arrastando { opacity:.4; }
   .dia.fds { opacity:.8; }
   .dia-topo { display:flex; justify-content:space-between; align-items:center; gap:4px; font-size:13px; font-weight:700; }
   .dia-topo .muted { font-weight:400; font-size:12px; }
@@ -261,7 +263,7 @@ function render() {
   $('semana').innerHTML = dias.map(iso => {
     const d = deIso(iso), lista = PROG.filter(x => x.data === iso);
     const ativos = lista.filter(x => x.status !== 'cancelada' && x.status !== 'prevista');
-    return `<div class="dia ${iso === hoje ? 'hoje' : ''} ${d.getDay() === 6 || d.getDay() === 0 ? 'fds' : ''}">
+    return `<div class="dia ${iso === hoje ? 'hoje' : ''} ${d.getDay() === 6 || d.getDay() === 0 ? 'fds' : ''}" ondragover="sobreDia(event, this)" ondragleave="this.classList.remove('alvo')" ondrop="soltarProg(event, this, '${iso}')">
       <div class="dia-topo"><span>${DIAS[d.getDay()]} <span class="muted">${dBR(iso).slice(0, 5)}</span></span>
         <span>${lista.some(x => ABERTA(x.status)) ? `<button class="btn btn-sec btn-p" title="Choveu / dia perdido: reagendar as atividades deste dia" onclick="abrirReag(null, '${iso}')">🌧</button> ` : ''}${ativos.length ? `<button class="btn btn-sec btn-p" title="Mandar a escala do dia no WhatsApp" onclick="escalaWhats('${iso}')">📤</button> ` : ''}<button class="btn btn-sec btn-p" title="Programar neste dia" onclick="abrirProg(null, { data: '${iso}' })">+</button></span></div>
       ${lista.map(cardProg).join('') || '<div class="muted" style="font-size:12px">—</div>'}
@@ -304,7 +306,7 @@ function renderParaConfirmar() {
 function cardProg(x) {
   const o = obraDe(x), t = TIPOS[x.tipo] || TIPOS.outro, cf = conflitos(x);
   const atrasada = ABERTA(x.status) && x.data < hojeISO();
-  return `<div class="prog ${x.status}${atrasada ? ' atrasada' : ''}" onclick="abrirProg(${x.id})">
+  return `<div class="prog ${x.status}${atrasada ? ' atrasada' : ''}" onclick="abrirProg(${x.id})"${ABERTA(x.status) ? ` draggable="true" ondragstart="arrastarProg(event, ${x.id})" ondragend="this.classList.remove('arrastando')" title="Arraste para outro dia"` : ''}>
     <div>${t[0]} <b>${esc(o.nome)}</b></div>
     <div class="muted" style="font-size:11px">${esc(t[1])}${x.periodo !== 'dia' ? ' · ' + PERIODOS[x.periodo] : ''}${o.cidade ? ' · ' + esc(o.cidade) : ''}${x.status === 'realizada' ? ' · ✅ realizada' : x.status === 'cancelada' ? ' · cancelada' : x.status === 'prevista' ? ' · <span style="color:var(--azul)">🕓 prevista</span>' + (atrasada ? ' <span style="color:var(--laranja)">⏳</span>' : '') : atrasada ? ' · <span style="color:var(--laranja)">⏳ confirmar</span>' : ''}</div>
     <div>${(x.equipe_ids || []).map(pid => `<span class="chip ${cf.includes(pid) ? 'conflito' : ''}" title="${cf.includes(pid) ? 'Escalado em outra obra no mesmo horário' : ''}">${esc(primeiro(nomeP(pid)))}</span>`).join('') || (x.status === 'prevista' ? '<span class="chip">definir equipe</span>' : '<span class="chip conflito">sem equipe</span>')}</div>
@@ -483,12 +485,13 @@ async function desfazerProg(id) {
 // Dia útil = segunda a sábado, sem feriado nacional. Cada atividade movida guarda o histórico nas observações.
 const util = iso => deIso(iso).getDay() !== 0 && !(FERIADOS || []).some(f => f.data === iso);
 const proxUtil = iso => { let d = somaDias(iso, 1); while (!util(d)) d = somaDias(d, 1); return d; };
-function abrirReag(id, dia) {
+function abrirReag(id, dia, paraEscolhido, modo, motivo) {
   const base = id ? [acharProg(id)].filter(Boolean) : PROG.filter(x => x.data === dia && ABERTA(x.status));
   if (!base.length) return;
   const de = base[0].data, hoje = hojeISO();
   let para = proxUtil(de); if (para < hoje) { para = util(hoje) ? hoje : proxUtil(hoje); }
-  REAG = { ids: base.map(x => x.id), de, para, modo: 'empurrar', motivo: 'chuva', plano: null };
+  if (paraEscolhido) para = paraEscolhido;
+  REAG = { ids: base.map(x => x.id), de, para, modo: modo || 'empurrar', motivo: motivo ?? 'chuva', plano: null };
   if (id) fecharProg();
   $('ov-reag').classList.add('visivel');
   planejarReag();
@@ -555,6 +558,34 @@ async function aplicarReag() {
   if (R.para > somaDias(inicioSemana, 6)) inicioSemana = segundaDe(R.para);
   await carregar();
   msg('✅ ' + feitos + ' atividade(s) reagendada(s)' + (R.modo === 'empurrar' && feitos > R.ids.length ? ' (' + (feitos - R.ids.length) + ' empurrada(s) para frente)' : '') + '. Avise a equipe: 📤 manda a escala do dia no WhatsApp.');
+}
+
+// ── arrastar o card para outro dia (computador) ──
+// Dia sem nada em aberto: muda na hora (com "desfazer"). Dia com atividades: pergunta se encaixa junto ou empurra as seguintes.
+let _arrastando = null, _ultimaMudanca = null;
+function arrastarProg(ev, id) { _arrastando = id; ev.dataTransfer.effectAllowed = 'move'; try { ev.dataTransfer.setData('text/plain', String(id)); } catch (e) {} ev.target.classList.add('arrastando'); }
+function sobreDia(ev, el) { if (_arrastando == null) return; ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; el.classList.add('alvo'); }
+async function soltarProg(ev, el, iso) {
+  ev.preventDefault(); el.classList.remove('alvo');
+  const id = _arrastando; _arrastando = null;
+  const x = id != null && acharProg(id); if (!x || x.data === iso || !ABERTA(x.status)) return;
+  if (!util(iso) && !confirm(DIAS[deIso(iso).getDay()] + ' ' + dBR(iso) + ' é domingo ou feriado. Mover mesmo assim?')) return;
+  const ocupado = PROG.some(y => y.id !== id && y.data === iso && ABERTA(y.status));
+  if (ocupado) { abrirReag(id, null, iso, 'encaixar', ''); return; }   // já tem atividade no dia: escolhe encaixar ou empurrar
+  const nota = '↷ ' + dBR(x.data).slice(0, 5) + ' → ' + dBR(iso).slice(0, 5) + ' (arrastado)';
+  _ultimaMudanca = { id, data: x.data, obs: x.obs || null };
+  const { error } = await sb.from('programacao').update({ data: iso, obs: [x.obs, nota].filter(Boolean).join('\n') }).eq('id', id);
+  if (error) { msg('⚠ ' + error.message, true); _ultimaMudanca = null; return; }
+  await carregar();
+  const o = obraDe(x);
+  $('msg').innerHTML = '✅ ' + esc(o.nome) + ' passou para ' + DIAS[deIso(iso).getDay()] + ' ' + dBR(iso) + '. <a href="#" onclick="desfazerMudanca();return false">↺ desfazer</a>';
+  $('msg').classList.remove('erro');
+}
+async function desfazerMudanca() {
+  const u = _ultimaMudanca; if (!u) return; _ultimaMudanca = null;
+  const { error } = await sb.from('programacao').update({ data: u.data, obs: u.obs }).eq('id', u.id);
+  if (error) { msg('⚠ ' + error.message, true); return; }
+  await carregar(); msg('↺ Mudança desfeita.');
 }
 
 // escala do dia para o grupo da equipe no WhatsApp
