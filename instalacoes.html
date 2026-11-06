@@ -73,7 +73,9 @@
   .dia { background:var(--card); border:1px solid var(--borda); border-radius:12px; padding:8px; min-height:160px; display:flex; flex-direction:column; gap:6px; }
   .dia.hoje { border-color:var(--amarelo); }
   .dia.alvo { border-color:var(--azul); background:#13202f; }
-  .prog[draggable="true"] { cursor:grab; } .prog.arrastando { opacity:.4; }
+  .prog[data-pid] { cursor:grab; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; } .prog.arrastando { opacity:.35; }
+  .prog-fantasma { position:fixed; z-index:80; pointer-events:none; opacity:.9; transform:rotate(2deg); box-shadow:0 8px 24px rgba(0,0,0,.6); }
+  body.arrastando-card { cursor:grabbing; }
   .dia.fds { opacity:.8; }
   .dia-topo { display:flex; justify-content:space-between; align-items:center; gap:4px; font-size:13px; font-weight:700; }
   .dia-topo .muted { font-weight:400; font-size:12px; }
@@ -263,7 +265,7 @@ function render() {
   $('semana').innerHTML = dias.map(iso => {
     const d = deIso(iso), lista = PROG.filter(x => x.data === iso);
     const ativos = lista.filter(x => x.status !== 'cancelada' && x.status !== 'prevista');
-    return `<div class="dia ${iso === hoje ? 'hoje' : ''} ${d.getDay() === 6 || d.getDay() === 0 ? 'fds' : ''}" ondragover="sobreDia(event, this)" ondragleave="this.classList.remove('alvo')" ondrop="soltarProg(event, this, '${iso}')">
+    return `<div class="dia ${iso === hoje ? 'hoje' : ''} ${d.getDay() === 6 || d.getDay() === 0 ? 'fds' : ''}" data-dia="${iso}">
       <div class="dia-topo"><span>${DIAS[d.getDay()]} <span class="muted">${dBR(iso).slice(0, 5)}</span></span>
         <span>${lista.some(x => ABERTA(x.status)) ? `<button class="btn btn-sec btn-p" title="Choveu / dia perdido: reagendar as atividades deste dia" onclick="abrirReag(null, '${iso}')">🌧</button> ` : ''}${ativos.length ? `<button class="btn btn-sec btn-p" title="Mandar a escala do dia no WhatsApp" onclick="escalaWhats('${iso}')">📤</button> ` : ''}<button class="btn btn-sec btn-p" title="Programar neste dia" onclick="abrirProg(null, { data: '${iso}' })">+</button></span></div>
       ${lista.map(cardProg).join('') || '<div class="muted" style="font-size:12px">—</div>'}
@@ -306,7 +308,7 @@ function renderParaConfirmar() {
 function cardProg(x) {
   const o = obraDe(x), t = TIPOS[x.tipo] || TIPOS.outro, cf = conflitos(x);
   const atrasada = ABERTA(x.status) && x.data < hojeISO();
-  return `<div class="prog ${x.status}${atrasada ? ' atrasada' : ''}" onclick="abrirProg(${x.id})"${ABERTA(x.status) ? ` draggable="true" ondragstart="arrastarProg(event, ${x.id})" ondragend="this.classList.remove('arrastando')" title="Arraste para outro dia"` : ''}>
+  return `<div class="prog ${x.status}${atrasada ? ' atrasada' : ''}" onclick="abrirProg(${x.id})"${ABERTA(x.status) ? ` data-pid="${x.id}" title="Arraste para outro dia (no celular: segure e arraste)"` : ''}>
     <div>${t[0]} <b>${esc(o.nome)}</b></div>
     <div class="muted" style="font-size:11px">${esc(t[1])}${x.periodo !== 'dia' ? ' · ' + PERIODOS[x.periodo] : ''}${o.cidade ? ' · ' + esc(o.cidade) : ''}${x.status === 'realizada' ? ' · ✅ realizada' : x.status === 'cancelada' ? ' · cancelada' : x.status === 'prevista' ? ' · <span style="color:var(--azul)">🕓 prevista</span>' + (atrasada ? ' <span style="color:var(--laranja)">⏳</span>' : '') : atrasada ? ' · <span style="color:var(--laranja)">⏳ confirmar</span>' : ''}</div>
     <div>${(x.equipe_ids || []).map(pid => `<span class="chip ${cf.includes(pid) ? 'conflito' : ''}" title="${cf.includes(pid) ? 'Escalado em outra obra no mesmo horário' : ''}">${esc(primeiro(nomeP(pid)))}</span>`).join('') || (x.status === 'prevista' ? '<span class="chip">definir equipe</span>' : '<span class="chip conflito">sem equipe</span>')}</div>
@@ -560,15 +562,63 @@ async function aplicarReag() {
   msg('✅ ' + feitos + ' atividade(s) reagendada(s)' + (R.modo === 'empurrar' && feitos > R.ids.length ? ' (' + (feitos - R.ids.length) + ' empurrada(s) para frente)' : '') + '. Avise a equipe: 📤 manda a escala do dia no WhatsApp.');
 }
 
-// ── arrastar o card para outro dia (computador) ──
-// Dia sem nada em aberto: muda na hora (com "desfazer"). Dia com atividades: pergunta se encaixa junto ou empurra as seguintes.
-let _arrastando = null, _ultimaMudanca = null;
-function arrastarProg(ev, id) { _arrastando = id; ev.dataTransfer.effectAllowed = 'move'; try { ev.dataTransfer.setData('text/plain', String(id)); } catch (e) {} ev.target.classList.add('arrastando'); }
-function sobreDia(ev, el) { if (_arrastando == null) return; ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; el.classList.add('alvo'); }
-async function soltarProg(ev, el, iso) {
-  ev.preventDefault(); el.classList.remove('alvo');
-  const id = _arrastando; _arrastando = null;
-  const x = id != null && acharProg(id); if (!x || x.data === iso || !ABERTA(x.status)) return;
+// ── arrastar o card para outro dia (mouse e toque) ──
+// Mouse: clica e arrasta. Celular/tablet: segura o card ~0,4 s e arrasta. Feito com "pointer events" (funciona em qualquer
+// navegador). Dia sem nada em aberto: muda na hora (com "desfazer"). Dia com atividades: pergunta se encaixa ou empurra.
+let _pd = null, _semClique = false, _ultimaMudanca = null;
+function diaSob(x, y) { const el = document.elementFromPoint(x, y); return el && el.closest('.dia[data-dia]'); }
+function iniciarArraste() {
+  const P = _pd; if (!P) return;
+  P.ativo = true;
+  const r = P.card.getBoundingClientRect();
+  P.fant = P.card.cloneNode(true); P.fant.classList.add('prog-fantasma'); P.fant.style.width = r.width + 'px';
+  P.dx = P.x - r.left; P.dy = P.y - r.top;
+  P.fant.style.left = r.left + 'px'; P.fant.style.top = r.top + 'px';
+  document.body.appendChild(P.fant); P.card.classList.add('arrastando'); document.body.classList.add('arrastando-card');
+  if (navigator.vibrate && P.toque) try { navigator.vibrate(15); } catch (e) {}
+}
+function fimArraste() {
+  const P = _pd; _pd = null; if (!P) return;
+  clearTimeout(P.timer);
+  if (P.fant) P.fant.remove();
+  P.card.classList.remove('arrastando'); document.body.classList.remove('arrastando-card');
+  document.querySelectorAll('.dia.alvo').forEach(d => d.classList.remove('alvo'));
+}
+document.addEventListener('pointerdown', ev => {
+  const card = ev.target.closest && ev.target.closest('.prog[data-pid]');
+  if (!card || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
+  _pd = { id: +card.dataset.pid, card, x: ev.clientX, y: ev.clientY, ativo: false, toque: ev.pointerType !== 'mouse', timer: null };
+  if (_pd.toque) _pd.timer = setTimeout(iniciarArraste, 400);
+});
+document.addEventListener('pointermove', ev => {
+  const P = _pd; if (!P) return;
+  const dist = Math.hypot(ev.clientX - P.x, ev.clientY - P.y);
+  if (!P.ativo) {
+    if (P.toque) { if (dist > 10) fimArraste(); return; }   // no toque, mexeu antes de segurar = rolar a tela
+    if (dist < 6) return;
+    iniciarArraste();
+  }
+  ev.preventDefault();
+  P.fant.style.left = (ev.clientX - P.dx) + 'px'; P.fant.style.top = (ev.clientY - P.dy) + 'px';
+  const d = diaSob(ev.clientX, ev.clientY);
+  document.querySelectorAll('.dia.alvo').forEach(x => { if (x !== d) x.classList.remove('alvo'); });
+  if (d) d.classList.add('alvo');
+}, { passive: false });
+document.addEventListener('touchmove', ev => { if (_pd && _pd.ativo) ev.preventDefault(); }, { passive: false });
+document.addEventListener('pointerup', ev => {
+  const P = _pd; if (!P) return;
+  if (!P.ativo) { fimArraste(); return; }   // foi só um clique: abre o card normalmente
+  const d = diaSob(ev.clientX, ev.clientY);
+  fimArraste();
+  _semClique = true; setTimeout(() => { _semClique = false; }, 350);
+  if (d) moverPara(P.id, d.dataset.dia);
+});
+document.addEventListener('pointercancel', fimArraste);
+document.addEventListener('click', ev => { if (_semClique) { ev.stopPropagation(); ev.preventDefault(); _semClique = false; } }, true);
+document.addEventListener('contextmenu', ev => { if (_pd && _pd.toque) ev.preventDefault(); });
+
+async function moverPara(id, iso) {
+  const x = acharProg(id); if (!x || x.data === iso || !ABERTA(x.status)) return;
   if (!util(iso) && !confirm(DIAS[deIso(iso).getDay()] + ' ' + dBR(iso) + ' é domingo ou feriado. Mover mesmo assim?')) return;
   const ocupado = PROG.some(y => y.id !== id && y.data === iso && ABERTA(y.status));
   if (ocupado) { abrirReag(id, null, iso, 'encaixar', ''); return; }   // já tem atividade no dia: escolhe encaixar ou empurrar

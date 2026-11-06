@@ -2,7 +2,7 @@
 // Páginas: tenta a internet primeiro e guarda uma cópia; sem internet usa a cópia.
 // Bibliotecas, fontes e fotos: usa a cópia guardada e atualiza em segundo plano.
 // Dados do banco (Supabase) nunca passam por aqui, exceto as fotos públicas da proposta.
-const VERSAO = 'energtech-20261106d';
+const VERSAO = 'energtech-20261106e';
 const CASCA = ['./', 'index.html', 'crm.html', 'manifest.webmanifest',
   'css/precificador.css?v=20261019a', 'js/comum.js?v=20261019a', 'js/precificador.js?v=20261103a', 'js/logo.js?v=20261019a', 'js/pdf.js?v=20261103a', 'js/proposta.js?v=20261103a', 'js/admin.js?v=20261030a', 'js/app.js?v=20261103a', 'js/kit.js?v=20261028e', 'js/fatura.js?v=20261028e', 'js/crm.js?v=20261103a', 'js/fatura-lead.js?v=20261106a', 'js/docs-lead.js?v=20261106a', 'js/comissao-lead.js?v=20261106a', 'js/projetos.js?v=20261028a', 'js/contrato.js?v=20261019a', 'icone-192.png', 'icone-512.png', 'apple-touch-icon.png', 'proposta-capa.jpg',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
@@ -35,7 +35,8 @@ self.addEventListener('fetch', ev => {
   }
   if (url.hostname.includes('nominatim') || url.hostname.includes('wa.me')) return;
   if (req.mode === 'navigate') {
-    ev.respondWith(fetch(req).then(r => guardar(req, r)).catch(() =>
+    // página: sempre confere com o servidor se há versão nova (sem isso o navegador usava a cópia de até 10 min)
+    ev.respondWith(fetch(req, { cache: 'no-cache' }).then(r => guardar(req, r)).catch(() =>
       caches.match(req, { ignoreSearch: true }).then(c => c || caches.match('index.html')).then(c => c || caches.match('./'))));
     return;
   }
