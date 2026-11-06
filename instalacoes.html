@@ -76,6 +76,10 @@
   .prog[data-pid] { cursor:grab; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; } .prog.arrastando { opacity:.35; }
   .prog-fantasma { position:fixed; z-index:80; pointer-events:none; opacity:.9; transform:rotate(2deg); box-shadow:0 8px 24px rgba(0,0,0,.6); }
   body.arrastando-card { cursor:grabbing; }
+  .borda-sem { position:fixed; top:0; bottom:0; width:64px; z-index:70; display:none; flex-direction:column; align-items:center; justify-content:center; gap:6px; background:rgba(96,165,250,.10); color:var(--azul); font-size:26px; pointer-events:none; text-align:center; }
+  .borda-sem small { font-size:11px; line-height:1.2; }
+  .borda-sem.esq { left:0; } .borda-sem.dir { right:0; }
+  body.arrastando-card .borda-sem { display:flex; } .borda-sem.ativa { background:rgba(96,165,250,.35); color:#fff; }
   .dia.fds { opacity:.8; }
   .dia-topo { display:flex; justify-content:space-between; align-items:center; gap:4px; font-size:13px; font-weight:700; }
   .dia-topo .muted { font-weight:400; font-size:12px; }
@@ -138,6 +142,7 @@
   </div>
 </div>
 
+<div class="borda-sem esq" id="bs-esq">◀<small>semana<br>anterior</small></div><div class="borda-sem dir" id="bs-dir">▶<small>próxima<br>semana</small></div>
 <div class="overlay" id="ov-prog" onclick="if(event.target===this)fecharProg()"><div class="ficha" id="ficha-prog"></div></div>
 <div class="overlay" id="ov-reag" onclick="if(event.target===this)fecharReag()"><div class="modal" id="reag-corpo"></div></div>
 
@@ -244,7 +249,7 @@ function obraDe(x) {
   const o = l || c || {};
   return { nome: o.nome || x.obra_nome || 'Obra sem nome', cidade: o.cidade || '', endereco: o.endereco || '', telefone: o.telefone || '', lead: l ? l.id : null };
 }
-const acharProg = id => PROG.find(y => y.id === id) || ATRASADAS.find(y => y.id === id);
+const acharProg = id => PROG.find(y => y.id === id) || ATRASADAS.find(y => y.id === id) || (_arr && _arr.id === id ? _arr : undefined);
 const nomeP = id => (EQ.find(p => p.id === id) || {}).nome || ('#' + id);
 const primeiro = n => String(n || '').split(' ')[0];
 // pessoas escaladas em outra obra no mesmo dia (e período que se sobrepõe)
@@ -565,11 +570,22 @@ async function aplicarReag() {
 // ── arrastar o card para outro dia (mouse e toque) ──
 // Mouse: clica e arrasta. Celular/tablet: segura o card ~0,4 s e arrasta. Feito com "pointer events" (funciona em qualquer
 // navegador). Dia sem nada em aberto: muda na hora (com "desfazer"). Dia com atividades: pergunta se encaixa ou empurra.
-let _pd = null, _semClique = false, _ultimaMudanca = null;
+// Levar o card até a borda da tela (esquerda/direita) troca a semana enquanto ele fica ali; perto do topo/rodapé, a tela rola.
+let _pd = null, _semClique = false, _ultimaMudanca = null, _arr = null;   // _arr: cópia do card arrastado (vale em outra semana)
+function bordaSemana(lado) {
+  const P = _pd; if (!P || P.lado === lado) return;
+  P.lado = lado; clearTimeout(P.tSem);
+  $('bs-esq').classList.toggle('ativa', lado === -1); $('bs-dir').classList.toggle('ativa', lado === 1);
+  if (!lado) return;
+  const passo = () => { if (_pd !== P || P.lado !== lado) return; mudarSemana(lado); P.tSem = setTimeout(passo, 1000); };
+  P.tSem = setTimeout(passo, 550);
+}
 function diaSob(x, y) { const el = document.elementFromPoint(x, y); return el && el.closest('.dia[data-dia]'); }
 function iniciarArraste() {
   const P = _pd; if (!P) return;
-  P.ativo = true;
+  P.ativo = true; P.lado = 0; P.vy = 0;
+  const x = acharProg(P.id); _arr = x ? { ...x } : null;
+  P.rol = setInterval(() => { if (P.vy) window.scrollBy(0, P.vy); }, 16);
   const r = P.card.getBoundingClientRect();
   P.fant = P.card.cloneNode(true); P.fant.classList.add('prog-fantasma'); P.fant.style.width = r.width + 'px';
   P.dx = P.x - r.left; P.dy = P.y - r.top;
@@ -579,7 +595,8 @@ function iniciarArraste() {
 }
 function fimArraste() {
   const P = _pd; _pd = null; if (!P) return;
-  clearTimeout(P.timer);
+  clearTimeout(P.timer); clearTimeout(P.tSem); clearInterval(P.rol);
+  $('bs-esq').classList.remove('ativa'); $('bs-dir').classList.remove('ativa');
   if (P.fant) P.fant.remove();
   P.card.classList.remove('arrastando'); document.body.classList.remove('arrastando-card');
   document.querySelectorAll('.dia.alvo').forEach(d => d.classList.remove('alvo'));
@@ -600,6 +617,9 @@ document.addEventListener('pointermove', ev => {
   }
   ev.preventDefault();
   P.fant.style.left = (ev.clientX - P.dx) + 'px'; P.fant.style.top = (ev.clientY - P.dy) + 'px';
+  const borda = Math.min(64, innerWidth * 0.12);
+  bordaSemana(ev.clientX < borda ? -1 : ev.clientX > innerWidth - borda ? 1 : 0);
+  P.vy = ev.clientY < 60 ? -14 : ev.clientY > innerHeight - 60 ? 14 : 0;
   const d = diaSob(ev.clientX, ev.clientY);
   document.querySelectorAll('.dia.alvo').forEach(x => { if (x !== d) x.classList.remove('alvo'); });
   if (d) d.classList.add('alvo');
