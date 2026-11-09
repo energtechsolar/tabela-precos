@@ -373,7 +373,8 @@ function preencherItensProposta() {
   // a tabela é orientativa: o vendedor pode ajustar o total, ou o kit e a mão de obra
   if (propostaCalc.valorTabela === undefined) propostaCalc.valorTabela = propostaCalc.valorFinal;
   const total = propostaCalc.valorFinal;
-  const kit = Math.min(total, Math.round(Math.max(total, valorCheioProposta()) / fatorKit() * 100) / 100);   // limite do financiamento sobre o valor cheio
+  // admin: kit pelo preço da tabela do fornecedor (mão de obra = o resto); vendedor: regra dos 30% sobre o valor cheio
+  const kit = kitDaTabela() ?? Math.min(total, Math.round(Math.max(total, valorCheioProposta()) / fatorKit() * 100) / 100);
   document.getElementById('prop-total-txt').value = fmtReais(total);
   document.getElementById('prop-kit-txt').value = fmtReais(kit);
   document.getElementById('prop-serv-txt').value = fmtReais(total - kit);
@@ -445,9 +446,10 @@ function atualizarModoValor() {
   if (!propostaCalc) return;
   propostaCalc.precoFechado = !!(pf && pf.checked);
   if (sep) {   // kit + mão de obra sempre fecham o total
+    injetarControlesKit();
     const total = propostaCalc.valorFinal, kitEl = document.getElementById('prop-kit-txt');
     let k = lerReais(kitEl.value);
-    if (!k || k > total) k = Math.round(valorCheioProposta() / fatorKit() * 100) / 100;
+    if (!k || k > total) k = kitDaTabela() ?? Math.round(valorCheioProposta() / fatorKit() * 100) / 100;   // admin: preço do kit na tabela; vendedor: regra dos 30%
     if (k > total) k = Math.round(total / fatorKit() * 100) / 100;
     kitEl.value = fmtReais(k);
     document.getElementById('prop-serv-txt').value = fmtReais(total - k);
@@ -485,8 +487,54 @@ function avisoLimiteServico() {
   const serv = Math.max(lerReais(document.getElementById('prop-serv-txt').value), valorCheioProposta() - kit);
   const limite = kit * (fatorKit() - 1), excesso = serv - limite;
   el.innerHTML = excesso > 0.5
-    ? '⚠ A mão de obra financiada passa ' + fmt(excesso) + ' do limite do financiamento. <button class="link-mini" onclick="ajustarLimiteServico()">Ajustar ao limite (mantém o total)</button>'
+    ? '⚠ A mão de obra financiada passa ' + fmt(excesso) + ' do limite de alguns bancos (' + String(pctRegra()).replace('.', ',') + '% do kit). Se for financiar, clique em "⚖ Aplicar regra dos ' + String(pctRegra()).replace('.', ',') + '%" (o total não muda).'
     : '';
+  atualizarControlesKit();
+}
+// admin: preço do kit na tabela do fornecedor (custo de hoje). Vendedor não vê custo: volta null e vale a regra dos 30%.
+function kitDaTabela() {
+  if (typeof adminLogado === 'undefined' || !adminLogado || !propostaItem || typeof custoDoKit !== 'function') return null;
+  const c = custoDoKit(propostaItem);
+  return c != null && +c > 0 && +c <= propostaCalc.valorFinal ? Math.round(+c * 100) / 100 : null;
+}
+const pctRegra = () => Math.round((fatorKit() - 1) * 1000) / 10;
+// botões "Aplicar regra dos 30%" / "Kit pelo preço da tabela" e o campo Nota de repasse (admin), criados uma vez abaixo dos valores
+function injetarControlesKit() {
+  if (document.getElementById('prop-kit-acoes')) { atualizarControlesKit(); return; }
+  const ref = document.getElementById('prop-total-ref'); if (!ref) return;
+  const div = document.createElement('div');
+  div.id = 'prop-kit-acoes'; div.className = 'campo-separado'; div.style.cssText = 'grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end';
+  div.innerHTML = `<button type="button" class="btn-sec" id="btn-regra30" style="padding:7px 12px;border-radius:8px;cursor:pointer" onclick="ajustarLimiteServico()"></button>
+    <button type="button" class="btn-sec" id="btn-kit-tabela" style="padding:7px 12px;border-radius:8px;cursor:pointer;display:none" onclick="usarKitDaTabela()">↺ Kit pelo preço da tabela</button>
+    <div class="proposta-field" id="box-repasse" style="display:none;flex:1;min-width:220px;margin:0">
+      <label>🔒 Nota de repasse (R$) — o fornecedor devolve à Energtech</label>
+      <input type="text" class="proposta-input" id="prop-repasse-txt" readonly style="color:var(--verde)">
+      <div class="regiao-aviso" id="prop-repasse-info"></div></div>`;
+  ref.parentNode.insertBefore(div, ref);
+  atualizarControlesKit();
+}
+function atualizarControlesKit() {
+  const b = document.getElementById('btn-regra30'); if (!b) return;
+  b.textContent = '⚖ Aplicar regra dos ' + String(pctRegra()).replace('.', ',') + '%';
+  b.title = 'Mão de obra até ' + String(pctRegra()).replace('.', ',') + '% do valor do kit (exigência de alguns bancos). O total não muda: o kit sobe e a diferença volta por nota de repasse.';
+  const adm = typeof adminLogado !== 'undefined' && adminLogado, custo = adm && propostaItem && typeof custoDoKit === 'function' ? custoDoKit(propostaItem) : null;
+  document.getElementById('btn-kit-tabela').style.display = custo != null ? '' : 'none';
+  const box = document.getElementById('box-repasse'); box.style.display = custo != null ? '' : 'none';
+  if (custo == null || !propostaCalc) return;
+  const kit = lerReais(document.getElementById('prop-kit-txt').value), r = calcularRepasse(kit, +custo, +PROPOSTA_CFG.repasse_pct || 0);
+  document.getElementById('prop-repasse-txt').value = fmtReais(r.repasse);
+  document.getElementById('prop-repasse-info').textContent = r.repasse > 0
+    ? 'Kit na proposta ' + fmt(kit) + ' − preço da tabela ' + fmt(custo) + ' · imposto ' + String(+PROPOSTA_CFG.repasse_pct || 0).replace('.', ',') + '% = ' + fmt(r.imposto) + ' · volta ' + fmt(r.volta)
+    : 'Sem nota de repasse: o kit está pelo preço da tabela (' + fmt(custo) + ').';
+}
+function usarKitDaTabela() {
+  if (!propostaCalc) return;
+  const k = kitDaTabela(); if (k == null) return;
+  const total = propostaCalc.valorFinal;
+  document.getElementById('prop-kit-txt').value = fmtReais(k);
+  document.getElementById('prop-serv-txt').value = fmtReais(total - k);
+  document.getElementById('prop-valor-kit').value = k;
+  mostrarRefTabela();
 }
 function ajustarLimiteServico() {
   if (!propostaCalc) return;
@@ -682,4 +730,3 @@ function usarCapaPadrao() {
   document.getElementById('prop-capa-info').textContent = 'Usando a capa padrão da empresa.';
   document.getElementById('btn-capa-padrao').style.display = 'none';
 }
-
