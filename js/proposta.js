@@ -228,7 +228,10 @@ function calcularDadosProposta(e) {
   // condição de pagamento (importados): opcoes · negociada · avista · combinar (propostas antigas = opcoes)
   const modoPag = tipo === 'importado' && e.boleto && ['negociada', 'avista', 'combinar'].includes(e.boleto.modo) ? e.boleto.modo : 'opcoes';
   // negociada: o total combinado é o valor do negócio (sem "de / por" e sem desconto só no à vista)
-  const valorCheio = modoPag === 'negociada' ? valor : novaRegra ? valorCheioDe(item, calc) : valor;
+  // FINAME (kits nacionais): o financiamento usa o próprio total da proposta (sem o valor cheio do parcelado)
+  const finame = tipo !== 'importado';
+  const cheioTabela = novaRegra ? valorCheioDe(item, calc) : valor;
+  const valorCheio = modoPag === 'negociada' || finame ? valor : cheioTabela;
   const paybackMeses = economia > 0 ? Math.ceil(valor / economia) : null;
   let eco25 = 0; for (let t = 0; t < 25; t++) eco25 += economia * 12 * Math.pow(0.995, t);
   // importado: entrada + N parcelas (propostas antigas, sem a marca "boleto", seguem 10x sem juros)
@@ -251,7 +254,7 @@ function calcularDadosProposta(e) {
     valorCheio, descontoAVista: Math.max(0, Math.round((valorCheio - valor) * 100) / 100),
     valorServicoCheio: valorKit !== null ? valorCheio - valorKit : null,   // serviço no parcelado/financiado (o kit não muda)
     // preço riscado ("de ... por ...") quando houve desconto
-    valorDe: novaRegra ? (valorCheio > valor + 0.5 ? valorCheio : null) : (+item.inv_r > valor + 0.5 ? +item.inv_r : null),
+    valorDe: novaRegra ? (cheioTabela > valor + 0.5 && modoPag !== 'negociada' ? cheioTabela : null) : (+item.inv_r > valor + 0.5 ? +item.inv_r : null),
     contaHoje, consumoHoje, usaMeta,
     tipo, item, valor, orientacao, estrutura, tarifa, taxa, conta, consumo, geracao, economia, novaConta, paybackMeses, eco25, pag,
     nome: e.nome, cpf: e.cpf, telefone: e.telefone, email: e.email, cidade: e.cidade,
@@ -483,7 +486,8 @@ function mostrarRefTabela() {
 }
 
 // valor do parcelado / financiamento da proposta aberta (sem o desconto do à vista)
-function valorCheioProposta() { return propostaCalc && propostaItem ? valorCheioDe(propostaItem, propostaCalc) : 0; }
+// FINAME (kits nacionais): o financiamento é sobre o próprio total da proposta
+function valorCheioProposta() { return propostaCalc && propostaItem ? (propostaTipo === 'nacional' ? propostaCalc.valorFinal : valorCheioDe(propostaItem, propostaCalc)) : 0; }
 // limite de serviços do financiamento: serviço até (fator_kit − 1) × kit. Ex.: 1,30 → até 30% do valor do kit
 // (vale para o valor financiado = valor cheio; o kit é o mesmo no à vista e no financiado)
 function fatorKit() { return +PROPOSTA_CFG.fator_kit > 1 ? +PROPOSTA_CFG.fator_kit : 1.30; }
