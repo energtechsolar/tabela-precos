@@ -373,8 +373,10 @@ function preencherItensProposta() {
   // a tabela é orientativa: o vendedor pode ajustar o total, ou o kit e a mão de obra
   if (propostaCalc.valorTabela === undefined) propostaCalc.valorTabela = propostaCalc.valorFinal;
   const total = propostaCalc.valorFinal;
-  // admin: kit pelo preço da tabela do fornecedor (mão de obra = o resto); vendedor: regra dos 30% sobre o valor cheio
-  const kit = kitDaTabela() ?? Math.min(total, Math.round(Math.max(total, valorCheioProposta()) / fatorKit() * 100) / 100);
+  // admin: kit pelo preço da tabela do fornecedor (mão de obra = o resto); vendedor: regra dos 30% sobre o total da proposta
+  const kitTab = kitDaTabela();
+  _regra30 = kitTab == null;
+  const kit = kitTab ?? kitPelaRegra(total);
   document.getElementById('prop-total-txt').value = fmtReais(total);
   document.getElementById('prop-kit-txt').value = fmtReais(kit);
   document.getElementById('prop-serv-txt').value = fmtReais(total - kit);
@@ -425,9 +427,10 @@ function valorEditado(qual) {
   if (qual === 'total') {   // muda o total: o kit fica e a mão de obra absorve a diferença
     const t = lerReais(totEl.value);
     definirTotalProposta(t);
-    if (lerReais(kitEl.value) > t) kitEl.value = fmtReais(Math.round(t / fatorKit() * 100) / 100);
+    if (_regra30 || lerReais(kitEl.value) > t) kitEl.value = fmtReais(kitPelaRegra(t));   // regra dos 30% ligada: o kit acompanha o total
     servEl.value = fmtReais(Math.max(0, t - lerReais(kitEl.value)));
   } else {
+    _regra30 = false;   // kit ou mão de obra digitados à mão: a regra deixa de acompanhar
     const k = lerReais(kitEl.value), sv = lerReais(servEl.value);
     definirTotalProposta(k + sv);
     totEl.value = fmtReais(k + sv);
@@ -449,8 +452,13 @@ function atualizarModoValor() {
     injetarControlesKit();
     const total = propostaCalc.valorFinal, kitEl = document.getElementById('prop-kit-txt');
     let k = lerReais(kitEl.value);
-    if (!k || k > total) k = kitDaTabela() ?? Math.round(valorCheioProposta() / fatorKit() * 100) / 100;   // admin: preço do kit na tabela; vendedor: regra dos 30%
-    if (k > total) k = Math.round(total / fatorKit() * 100) / 100;
+    if (k && _regra30 && Math.abs(k - kitPelaRegra(total)) > 0.5 && k <= total) _regra30 = false;   // kit de outra divisão (ex.: revisão de proposta salva)
+    if (!k || k > total) {   // régua mexeu: refaz pela regra ou pelo preço da tabela (admin)
+      const kt = _regra30 ? null : kitDaTabela();
+      if (kt == null) _regra30 = true;
+      k = kt ?? kitPelaRegra(total);
+    }
+    if (k > total) k = kitPelaRegra(total);
     kitEl.value = fmtReais(k);
     document.getElementById('prop-serv-txt').value = fmtReais(total - k);
   }
@@ -484,10 +492,10 @@ function avisoLimiteServico() {
   if (!el) return;
   if (!propostaCalc || !modoSeparado()) { el.innerHTML = ''; return; }
   const kit = lerReais(document.getElementById('prop-kit-txt').value);
-  const serv = Math.max(lerReais(document.getElementById('prop-serv-txt').value), valorCheioProposta() - kit);
+  const serv = lerReais(document.getElementById('prop-serv-txt').value);   // regra sobre o total da proposta
   const limite = kit * (fatorKit() - 1), excesso = serv - limite;
   el.innerHTML = excesso > 0.5
-    ? '⚠ A mão de obra financiada passa ' + fmt(excesso) + ' do limite de alguns bancos (' + String(pctRegra()).replace('.', ',') + '% do kit). Se for financiar, clique em "⚖ Aplicar regra dos ' + String(pctRegra()).replace('.', ',') + '%" (o total não muda).'
+    ? '⚠ A mão de obra passa ' + fmt(excesso) + ' do limite de alguns bancos (' + String(pctRegra()).replace('.', ',') + '% do kit). Se for financiar, clique em "⚖ Aplicar regra dos ' + String(pctRegra()).replace('.', ',') + '%" (o total não muda).'
     : '';
   atualizarControlesKit();
 }
@@ -498,6 +506,10 @@ function kitDaTabela() {
   return c != null && +c > 0 && +c <= propostaCalc.valorFinal ? Math.round(+c * 100) / 100 : null;
 }
 const pctRegra = () => Math.round((fatorKit() - 1) * 1000) / 10;
+// regra dos 30% sobre o VALOR TOTAL DA PROPOSTA: kit = total ÷ 1,30 e mão de obra = 30% do kit.
+// Ligada, ela acompanha o total (digitado ou pela régua de negociação) até o kit ou a mão de obra serem digitados à mão.
+let _regra30 = false;
+const kitPelaRegra = total => Math.round((+total || 0) / fatorKit() * 100) / 100;
 // botões "Aplicar regra dos 30%" / "Kit pelo preço da tabela" e o campo Nota de repasse (admin), criados uma vez abaixo dos valores
 function injetarControlesKit() {
   if (document.getElementById('prop-kit-acoes')) { atualizarControlesKit(); return; }
@@ -515,7 +527,8 @@ function injetarControlesKit() {
 }
 function atualizarControlesKit() {
   const b = document.getElementById('btn-regra30'); if (!b) return;
-  b.textContent = '⚖ Aplicar regra dos ' + String(pctRegra()).replace('.', ',') + '%';
+  b.textContent = _regra30 ? '✅ Regra dos ' + String(pctRegra()).replace('.', ',') + '% aplicada (acompanha o total)' : '⚖ Aplicar regra dos ' + String(pctRegra()).replace('.', ',') + '%';
+  b.style.borderColor = _regra30 ? 'var(--verde)' : '';
   b.title = 'Mão de obra até ' + String(pctRegra()).replace('.', ',') + '% do valor do kit (exigência de alguns bancos). O total não muda: o kit sobe e a diferença volta por nota de repasse.';
   const adm = typeof adminLogado !== 'undefined' && adminLogado, custo = adm && propostaItem && typeof custoDoKit === 'function' ? custoDoKit(propostaItem) : null;
   document.getElementById('btn-kit-tabela').style.display = custo != null ? '' : 'none';
@@ -530,6 +543,7 @@ function atualizarControlesKit() {
 function usarKitDaTabela() {
   if (!propostaCalc) return;
   const k = kitDaTabela(); if (k == null) return;
+  _regra30 = false;
   const total = propostaCalc.valorFinal;
   document.getElementById('prop-kit-txt').value = fmtReais(k);
   document.getElementById('prop-serv-txt').value = fmtReais(total - k);
@@ -538,7 +552,8 @@ function usarKitDaTabela() {
 }
 function ajustarLimiteServico() {
   if (!propostaCalc) return;
-  const total = propostaCalc.valorFinal, k = Math.min(total, Math.round(Math.max(total, valorCheioProposta()) / fatorKit() * 100) / 100);
+  _regra30 = true;
+  const total = propostaCalc.valorFinal, k = kitPelaRegra(total);
   document.getElementById('prop-kit-txt').value = fmtReais(k);
   document.getElementById('prop-serv-txt').value = fmtReais(total - k);
   document.getElementById('prop-valor-kit').value = k;
