@@ -44,6 +44,32 @@
     catch (e) { msgDoc('⚠ ' + esc(e.message || e), true); return false; }
   };
 
+  // fotos do iPhone (HEIC) viram JPEG antes de subir: assim abrem em qualquer navegador e a leitura funciona
+  if (typeof reduzirFoto === 'function' && typeof paraJpeg === 'function') {
+    const _reduzir = reduzirFoto;
+    reduzirFoto = async function (arq) {
+      if (typeof ehHeic === 'function' && ehHeic(arq)) msgDoc('⏳ Convertendo a foto do iPhone…');
+      return _reduzir(await paraJpeg(arq));
+    };
+  }
+  // documento já guardado em HEIC (enviado antes desta correção): converte, troca o arquivo na pasta e segue
+  async function converterHeicGuardado(id, d) {
+    if (!d || !d.path || !/\.(heic|heif)$/i.test(d.path) || typeof paraJpeg !== 'function') return d;
+    msgDoc('⏳ Convertendo a foto do iPhone (HEIC) para JPG…');
+    const dl = await sb.storage.from('documentos').download(d.path);
+    if (dl.error || !dl.data) throw new Error('não consegui abrir o arquivo' + (dl.error ? ' (' + dl.error.message + ')' : ''));
+    const jpg = await reduzirFoto(new File([dl.data], d.nome || 'foto.heic', { type: 'image/heic' }));
+    const path = d.path.replace(/\.(heic|heif)$/i, '') + '.jpg';
+    const up = await sb.storage.from('documentos').upload(path, jpg, { contentType: 'image/jpeg', upsert: false });
+    if (up.error) throw up.error;
+    const l = leads.find(x => x.id === id);
+    const novo = { ...d, path, nome: String(d.nome || 'foto').replace(/\.(heic|heif)$/i, '') + '.jpg' };
+    await gravarDocs(id, (l.documentos || []).map(x => x.id === d.id ? novo : x));
+    const r = await sb.storage.from('documentos').remove([d.path]);   // se não puder apagar o antigo, só fica sobrando na pasta
+    if (r.error) console.warn('HEIC antigo não apagado:', r.error.message);
+    return novo;
+  }
+
   // enviar: guarda e já lê (fatura e CNH/RG)
   const _enviar = enviarDoc;
   enviarDoc = async function (id, tipo, input) {
@@ -68,8 +94,10 @@
     if (LEITURA.includes(novo.tipo)) setTimeout(() => lerDocLead(id, novo.id), 50);
   };
 
-  window.lerDocLead = function (id, docId) {
-    const d = docDe(id, docId); if (!d) return;
+  window.lerDocLead = async function (id, docId) {
+    let d = docDe(id, docId); if (!d) return;
+    try { d = await converterHeicGuardado(id, d); }
+    catch (e) { msgDoc('⚠ Não foi possível converter a foto HEIC: ' + esc(e.message || e) + '. Use "🔄 trocar" e envie a foto em JPG.', true); return; }
     if (d.tipo === 'cnh') return lerDocumento(id, d.path);
     return lerFaturaDoc(id, d);
   };
