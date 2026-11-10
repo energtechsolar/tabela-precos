@@ -179,7 +179,19 @@ function anosMeses(m) {
   return [a ? a + (a === 1 ? ' ano' : ' anos') : '', r ? r + (r === 1 ? ' mês' : ' meses') : ''].filter(Boolean).join(' e ');
 }
 
+// kit personalizado importado: a "Condição de pagamento" da proposta é quem decide. Se o kit foi criado "a combinar"
+// e o vendedor escolhe outra condição (opções padrão, negociada, à vista), a proposta mostra essa condição.
+function sincronizarPagKit() {
+  if (typeof propostaItem === 'undefined' || !propostaItem || !propostaItem.personalizado || propostaTipo !== 'importado' || typeof modoPag !== 'function') return;
+  const m = modoPag();
+  if (m === 'combinar') propostaItem.pagamento = 'combinar';
+  else if (propostaItem.pagamento === 'combinar') propostaItem.pagamento = 'parcelado';
+}
+if (typeof mudouModoPag === 'function') { const _mudou = mudouModoPag; mudouModoPag = function () { sincronizarPagKit(); return _mudou.apply(this, arguments); }; }
+if (typeof definirPagamento === 'function') { const _def = definirPagamento; definirPagamento = function () { const r = _def.apply(this, arguments); sincronizarPagKit(); return r; }; }
+
 function coletarDadosProposta() {
+  sincronizarPagKit();
   const tipo = propostaTipo || (linhaFoco && linhaFoco.startsWith('importado') ? 'importado' : 'nacional');
   const hoje = new Date();
   return calcularDadosProposta({
@@ -371,7 +383,7 @@ function preencherItensProposta() {
   document.getElementById('prop-itens').value = itensDoKit(propostaItem, tipo);
   document.getElementById('prop-servico').value = PROPOSTA_CFG.servico_desc || '';
   const modo = tipo === 'nacional' ? 'separado' : 'global';
-  { const pm = document.getElementById('pag-modo'); if (pm) pm.value = 'opcoes'; const pv = document.getElementById('bol-parcela-valor'); if (pv) pv.value = ''; }
+  { const pm = document.getElementById('pag-modo'); if (pm) pm.value = tipo === 'importado' && propostaItem.pagamento === 'combinar' ? 'combinar' : 'opcoes'; const pv = document.getElementById('bol-parcela-valor'); if (pv) pv.value = ''; }
   document.querySelectorAll('input[name="modo-valor"]').forEach(r => r.checked = r.value === modo);
   // a tabela é orientativa: o vendedor pode ajustar o total, ou o kit e a mão de obra
   if (propostaCalc.valorTabela === undefined) propostaCalc.valorTabela = propostaCalc.valorFinal;
