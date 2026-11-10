@@ -32,8 +32,12 @@ const _fatB64 = blob => new Promise((ok, erro) => { const fr = new FileReader();
 function _fatStatus(t, tipo) { const el = document.getElementById('nl-fat-status'); if (!el) return; el.innerHTML = t || ''; el.style.color = tipo === 'erro' ? 'var(--vermelho)' : tipo === 'ok' ? 'var(--verde)' : 'var(--muted)'; }
 
 async function lerFaturaNovoLead(input) {
-  const arq = input.files && input.files[0]; input.value = '';
+  let arq = input.files && input.files[0]; input.value = '';
   if (!arq) return;
+  if (typeof paraJpeg === 'function' && typeof ehHeic === 'function' && ehHeic(arq)) {   // foto do iPhone (HEIC) → JPEG
+    try { _fatStatus('⏳ Convertendo a foto do iPhone…'); arq = await paraJpeg(arq); }
+    catch (e) { _fatStatus('⚠ ' + esc(e.message || e) + '. Preencha à mão.', 'erro'); return; }
+  }
   const ehPdf = arq.type === 'application/pdf' || /\.pdf$/i.test(arq.name);
   if (!ehPdf && !/^image\//.test(arq.type)) { _fatStatus('⚠ Formato não aceito. Envie uma foto ou um PDF.', 'erro'); return; }
   if (ehPdf && arq.size > 9 * 1024 * 1024) { _fatStatus('⚠ PDF maior que 9 MB. Envie uma foto da fatura.', 'erro'); return; }
