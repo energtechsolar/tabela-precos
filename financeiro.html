@@ -187,7 +187,7 @@ async function carregar() {
     sb.from('pagamentos').select('*, leads(nome), equipe(nome)').limit(10000),
     sb.from('custos_fixos').select('*').order('nome'),
     sb.from('fin_parametros').select('*').eq('id', 1).maybeSingle(),
-    sb.from('leads').select('id, nome, etapa_em, forma_pagamento, orcamento_ganho_id, vendedor_id').eq('etapa', 'ganho').limit(5000),
+    sb.from('leads').select('id, nome, etapa_em, forma_pagamento, orcamento_ganho_id, vendedor_id, historico:dados_brutos->>historico').eq('etapa', 'ganho').limit(5000),
     // custos de cada obra que não passam por "pagamentos" com o cliente: diárias da equipe e material tirado do estoque
     sb.from('equipe_lancamentos').select('lead_id, data, tipo, quantidade, valor, equipe(nome)').not('lead_id', 'is', null).limit(10000),
     sb.from('estoque_movimentos').select('lead_id, data, quantidade, custo_unit, produtos(nome)').eq('tipo', 'saida').not('lead_id', 'is', null).limit(10000),
@@ -265,7 +265,8 @@ function renderFluxo() {
   const tab = (cab, linhas, vazio) => `<div class="tabela-wrap"><table><thead><tr>${cab}</tr></thead><tbody>${linhas || `<tr><td colspan="9" class="vazio">${vazio}</td></tr>`}</tbody></table></div>`;
   const comAbertas = coms.filter(c => c.resta > 0.004);
   // vendas ganhas que ainda não têm nenhuma parcela a receber lançada
-  const semParcelas = GANHOS.filter(l => !REC.some(r => r.lead_id === l.id));
+  // vendas antigas importadas (histórico de 2026): já recebidas, só o que estava "a receber" na planilha virou parcela
+  const semParcelas = GANHOS.filter(l => l.historico !== 'true' && !REC.some(r => r.lead_id === l.id));
   const confFin = conferenciaFinanciadas();
   const totAbertoRec = REC.filter(x => !x.recebido_em).reduce((a, x) => a + +x.valor, 0);
   const totAbertoPag = PAG.filter(x => !x.pago_em && !(x.auto && ehCom(x.tipo))).reduce((a, x) => a + +x.valor, 0) + coms.reduce((a, c) => a + c.resta, 0);
@@ -463,7 +464,6 @@ async function novoPagamento() {
   if (error) { msg('⚠ ' + error.message, true); return; }
   PAG.push(data); render();
 }
-
 // ── saúde financeira ──
 function renderSaude() {
   const ym = $('f-mes').value, meses = Array.from({ length: 12 }, (_, i) => somaMes(ym, i - 11));
