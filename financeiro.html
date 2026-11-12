@@ -131,7 +131,7 @@ const ultimoDia = ym => { const [a, m] = ym.split('-').map(Number); return ym + 
 const somaMes = (ym, n) => { const [a, m] = ym.split('-').map(Number); const d = new Date(a, m - 1 + n, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
 const nomeMes = ym => { const [a, m] = ym.split('-').map(Number); return new Date(a, m - 1, 1).toLocaleDateString('pt-BR', { month:'short' }).replace('.', '') + '/' + String(a).slice(2); };
 function numBR(t) { let s = String(t ?? '').replace(/[R$\s]/g, ''); if (!s) return null; if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return isFinite(n) ? Math.round(n * 100) / 100 : null; }
-const TIPOS_PAG = { kit:'Kit ao fornecedor', comissao:'Comissão', indicacao:'Comissão de indicação', imposto:'Imposto (Simples)', salario:'Salário', diarias:'Diárias / instalações', instalacao:'Instalação', fixo:'Custo fixo', material:'Compra de material (NF)', outro:'Outro' };
+const TIPOS_PAG = { kit:'Kit ao fornecedor', comissao:'Comissão', indicacao:'Comissão de indicação', imposto:'Imposto (Simples)', salario:'Salário', diarias:'Diárias / instalações', instalacao:'Instalação', fixo:'Custo fixo', art:'ART (CREA)', material:'Compra de material (NF)', outro:'Outro' };
 const TIPOS_REC = { entrada:'Entrada', boleto:'Boleto', banco:'Banco / financiamento', repasse:'Repasse do fornecedor', outro:'Outro' };
 const CATEGORIAS = { aluguel:'Aluguel', energia_agua:'Energia / água', internet_telefone:'Internet / telefone', marketing:'Marketing / anúncios', contador:'Contador', software:'Sistemas / software', veiculo:'Veículo / combustível', prolabore:'Pró-labore', emprestimo:'Empréstimo / financiamento', outros:'Outros' };
 let perfil = null, aba = 'fluxo', REC = [], PAG = [], FIXOS = [], PRM = {}, GANHOS = [], verTodas = false, formNovo = false;
@@ -238,6 +238,9 @@ function comissoes() {
     return { ...p, pago, fr, liberada, agora: Math.max(0, Math.round((liberada - pago) * 100) / 100), resta: Math.max(0, Math.round((+p.valor - pago) * 100) / 100) };
   });
 }
+// ART (CREA) da venda: o a pagar automático; nas vendas históricas importadas (já pagas fora do sistema), o valor do parâmetro
+const artVal = () => PRM.art_valor != null ? +PRM.art_valor : 108.39;
+function artDe(l) { const v = PAG.filter(x => x.auto && x.tipo === 'art' && x.lead_id === l.id).reduce((a, x) => a + (+x.valor || 0), 0); return v || (l.historico === 'true' ? artVal() : 0); }
 const nomeCli = x => (x.leads && x.leads.nome) || '';
 const linkCli = x => x.lead_id ? `<a href="crm.html?lead=${x.lead_id}">${esc(nomeCli(x) || 'cliente')}</a>` : '';
 
@@ -367,7 +370,7 @@ async function gerarParcelas(leadId) {
   if (error) { msg('⚠ ' + error.message, true); return; }
   await carregar(); msg('✅ Parcelas de ' + l.nome + ' lançadas.' + (r.aviso ? ' ⚠ ' + r.aviso : ''), !!r.aviso);
 }
-const editavel = x => !x.auto || ['fixo', 'salario', 'diarias', 'instalacao', 'outro'].includes(x.tipo);
+const editavel = x => !x.auto || ['fixo', 'salario', 'diarias', 'instalacao', 'outro', 'art'].includes(x.tipo);
 
 async function receber(id) {
   const x = REC.find(r => r.id === id); if (!x) return;
@@ -467,7 +470,7 @@ async function novoPagamento() {
 // ── saúde financeira ──
 function renderSaude() {
   const ym = $('f-mes').value, meses = Array.from({ length: 12 }, (_, i) => somaMes(ym, i - 11));
-  const grupo = t => ({ kit:'kit', comissao:'comissao', indicacao:'comissao', imposto:'imposto', salario:'equipe', diarias:'equipe', instalacao:'equipe', fixo:'fixo', outro:'outro' }[t] || 'outro');
+  const grupo = t => ({ kit:'kit', comissao:'comissao', indicacao:'comissao', imposto:'imposto', salario:'equipe', diarias:'equipe', instalacao:'equipe', fixo:'fixo', art:'imposto', outro:'outro' }[t] || 'outro');
   const caixa = meses.map(m => {
     const ini = m + '-01', fim = ultimoDia(m), em = d => d && d >= ini && d <= fim;
     const ent = REC.filter(x => em(x.recebido_em)).reduce((a, x) => a + +(x.valor_recebido ?? x.valor), 0);
@@ -486,17 +489,18 @@ function renderSaude() {
   // custo do kit de todas as vendas (nas financiadas o banco paga o fornecedor, mas é custo da venda do mesmo jeito)
   const custoKit = vendas.reduce((a, l) => a + (l.custo || 0), 0), com = daVenda('comissao') + daVenda('indicacao'), imp = daVenda('imposto');
   const impRep = vendas.reduce((a, l) => a + (l.impRepasse || 0), 0);
+  const artV = vendas.reduce((a, l) => a + artDe(l), 0);
   const financ = vendas.filter(l => l.financ), semCusto = vendas.filter(l => l.custo == null);
   const kitBanco = (financ.length ? `<tr><td colspan="2" class="muted" style="font-size:12px">↳ ${financ.length} financiada(s): kit pago pelo banco direto ao fornecedor (é custo da venda, mas não sai do caixa da Energtech).</td></tr>` : '')
     + (semCusto.length ? `<tr><td colspan="2" style="font-size:12px;color:var(--amarelo)">⚠ Sem custo do kit registrado: ${semCusto.map(l => esc(l.nome)).join(', ')}</td></tr>` : '');
-  const margemC = fat - custoKit - com - imp - impRep;
+  const margemC = fat - custoKit - com - imp - impRep - artV;
   const compM = t => PAG.filter(x => x.competencia === ini && t.includes(x.tipo) && !x.lead_id).reduce((a, x) => a + +x.valor, 0);
   const fixosMes = compM(['fixo']), equipeMes = compM(['salario', 'diarias', 'instalacao']), outrosMes = PAG.filter(x => x.tipo === 'outro' && x.competencia === ini).reduce((a, x) => a + +x.valor, 0);
   const resultado = margemC - fixosMes - equipeMes - outrosMes;
   // ponto de equilíbrio: custos do mês ÷ margem de contribuição média (últimos 3 meses com venda)
   const ult3 = [0, 1, 2].map(i => somaMes(ym, -i)).map(m => {
     const v = GANHOS.filter(l => l.etapa_em && l.etapa_em.slice(0, 7) === m), ids = new Set(v.map(l => l.id));
-    const f = v.reduce((a, l) => a + (+l.valor || 0), 0), c = v.reduce((a, l) => a + (l.custo || 0) + (l.impRepasse || 0), 0) + PAG.filter(x => x.auto && ['comissao', 'indicacao', 'imposto'].includes(x.tipo) && ids.has(x.lead_id)).reduce((a, x) => a + +x.valor, 0);
+    const f = v.reduce((a, l) => a + (+l.valor || 0), 0), c = v.reduce((a, l) => a + (l.custo || 0) + (l.impRepasse || 0) + artDe(l), 0) + PAG.filter(x => x.auto && ['comissao', 'indicacao', 'imposto'].includes(x.tipo) && ids.has(x.lead_id)).reduce((a, x) => a + +x.valor, 0);
     return { f, mc: f - c };
   });
   const f3 = ult3.reduce((a, x) => a + x.f, 0), mc3 = ult3.reduce((a, x) => a + x.mc, 0), pctMC = f3 > 0 ? mc3 / f3 : 0;
@@ -521,6 +525,7 @@ function renderSaude() {
           ${linha('(−) Comissões', fmtR(com))}
           ${linha('(−) Simples ' + String(PRM.simples_pct ?? 6).replace('.', ',') + '% sobre serviços', fmtR(imp))}
           ${impRep ? linha('(−) Imposto das notas de repasse', fmtR(impRep)) : ''}
+          ${artV ? linha('(−) ART (CREA)', fmtR(artV)) : ''}
           ${linha('= Margem de contribuição', sinal(margemC), 'total')}
           ${linha('(−) Custos fixos', fmtR(fixosMes))}
           ${linha('(−) Equipe (salários, diárias, instalações)', fmtR(equipeMes))}
@@ -535,7 +540,7 @@ function renderSaude() {
       </div>
     </div>
     <div class="card"><h2>📒 Caixa mês a mês</h2><div class="tabela-wrap"><table>
-      <thead><tr><th>Mês</th><th class="num">Entrou</th><th class="num">Kits</th><th class="num">Comissões</th><th class="num">Impostos</th><th class="num">Equipe</th><th class="num">Fixos</th><th class="num">Outros</th><th class="num">Resultado</th><th class="num">Acumulado</th></tr></thead>
+      <thead><tr><th>Mês</th><th class="num">Entrou</th><th class="num">Kits</th><th class="num">Comissões</th><th class="num">Impostos/ART</th><th class="num">Equipe</th><th class="num">Fixos</th><th class="num">Outros</th><th class="num">Resultado</th><th class="num">Acumulado</th></tr></thead>
       <tbody>${caixa.slice().reverse().map(c => `<tr><td>${nomeMes(c.m)}</td><td class="num pos">${fmtR0(c.ent)}</td><td class="num">${fmtR0(c.sai.kit)}</td><td class="num">${fmtR0(c.sai.comissao)}</td><td class="num">${fmtR0(c.sai.imposto)}</td><td class="num">${fmtR0(c.sai.equipe)}</td><td class="num">${fmtR0(c.sai.fixo)}</td><td class="num">${fmtR0(c.sai.outro)}</td><td class="num"><b class="${c.res < 0 ? 'neg' : 'pos'}">${fmtR0(c.res)}</b></td><td class="num ${c.acum < 0 ? 'neg' : ''}">${fmtR0(c.acum)}</td></tr>`).join('')}</tbody>
     </table></div>
     <p class="muted" style="margin-top:8px">O histórico começa quando os recebimentos e pagamentos passam a ser marcados no sistema. Meses anteriores ficam zerados.</p></div>`;
@@ -545,7 +550,7 @@ function renderSaude() {
 // Venda − kit (custo fechado) − comissão − imposto − equipe (diárias lançadas na obra) − material do estoque − avulsos da obra.
 // Salários e custos fixos não são de uma obra só: entram no "após rateio", divididos entre as vendas do mês
 // na proporção do valor de cada venda.
-const TIPOS_DIRETOS = ['kit', 'comissao', 'indicacao', 'imposto'];
+const TIPOS_DIRETOS = ['kit', 'comissao', 'indicacao', 'imposto', 'art'];
 function resultadoObra(l) {
   const pg = PAG.filter(x => x.lead_id === l.id);
   const soma = f => Math.round(pg.filter(f).reduce((a, x) => a + (+x.valor || 0), 0) * 100) / 100;
@@ -553,6 +558,7 @@ function resultadoObra(l) {
   const kit = l.custo != null ? l.custo : kitPag;
   const com = soma(x => x.auto && ehCom(x.tipo));
   const imp = soma(x => x.tipo === 'imposto') + (l.impRepasse || 0);
+  const art = artDe(l);
   const lanc = LANC.filter(x => x.lead_id === l.id);
   const equipe = lanc.reduce((a, x) => a + (+x.valor || 0), 0);
   const est = SAIDAS.filter(x => x.lead_id === l.id).map(x => ({ data: x.data, desc: ((x.produtos && x.produtos.nome) || 'Material') + ' × ' + String(+x.quantidade).replace('.', ','), valor: Math.round((+x.quantidade || 0) * (+x.custo_unit || 0) * 100) / 100 }));
@@ -561,7 +567,7 @@ function resultadoObra(l) {
     .concat(REC.filter(x => x.lead_id === l.id && x.recebido_em && x.valor_recebido != null && +x.valor - +x.valor_recebido > 0.004)
       .map(x => ({ data: x.recebido_em, desc: 'Entrou a menos: ' + (TIPOS_REC[x.tipo] || x.tipo) + ' (previsto ' + fmtR(x.valor) + ', entrou ' + fmtR(x.valor_recebido) + ')', valor: Math.round((+x.valor - +x.valor_recebido) * 100) / 100 })));
   const outros = est.concat(avulsos).reduce((a, x) => a + x.valor, 0);
-  const custos = kit + com + imp + equipe + outros;
+  const custos = kit + com + imp + art + equipe + outros;
   const lucro = Math.round(((+l.valor || 0) - custos) * 100) / 100;
   // rateio: fixos + salários da competência da venda × (esta venda ÷ vendas do mês)
   const m = (l.etapa_em || '').slice(0, 7);
@@ -574,7 +580,7 @@ function resultadoObra(l) {
   if (!lanc.length) avisos.push('nenhuma diária lançada nesta obra ainda');
   const pjk = PROJS[l.id];
   if (l.financ && pjk && pjk.kit_pago_valor != null) { const dk = Math.round(((+l.valor || 0) - +pjk.kit_pago_valor - REC.filter(x => x.lead_id === l.id && x.tipo === 'banco').reduce((a, x) => a + +(x.recebido_em && x.valor_recebido != null ? x.valor_recebido : x.valor), 0)) * 100) / 100; if (Math.abs(dk) > 0.5) avisos.push('financiamento não fecha com a proposta: diferença ' + fmtR(Math.abs(dk))); }
-  return { kit, com, imp, equipe, outros, custos, lucro, rateio, liquido: Math.round((lucro - rateio) * 100) / 100, lanc, est, avulsos, avisos, m };
+  return { kit, com, imp, art, equipe, outros, custos, lucro, rateio, liquido: Math.round((lucro - rateio) * 100) / 100, lanc, est, avulsos, avisos, m };
 }
 function renderObras() {
   const ym = $('f-mes').value;
@@ -593,6 +599,7 @@ function renderObras() {
         ${ln('(−) Kit ao fornecedor' + (l.financ ? ' <span class="muted">(pago pelo banco)</span>' : ''), fmtR(r.kit))}
         ${ln('(−) Comissões (vendedor + indicação)', fmtR(r.com))}
         ${ln('(−) Imposto', fmtR(r.imp))}
+        ${ln('(−) ART (CREA)', fmtR(r.art))}
         ${ln('(−) Equipe na obra (diárias)', fmtR(r.equipe))}
         ${ln('(−) Materiais e outros custos da obra', fmtR(r.outros))}
         ${ln('= Lucro da obra', sinal(r.lucro), 'total')}
@@ -618,13 +625,13 @@ function renderObras() {
     <div class="card"><div class="linha-topo"><h2>🏗 Lucro por obra</h2>
       <label class="muted"><input type="checkbox" ${obrasSoMes ? 'checked' : ''} onchange="obrasSoMes=this.checked;renderObras()"> Só vendas fechadas em ${nomeMes(ym)}</label></div>
       ${lista.length ? `<div class="tabela-wrap"><table>
-        <thead><tr><th>Cliente</th><th>Fechada</th><th class="num">Venda</th><th class="num">Kit</th><th class="num">Comissão</th><th class="num">Imposto</th><th class="num">Equipe</th><th class="num">Materiais/outros</th><th class="num">Lucro da obra</th><th class="num">Lucro líquido</th></tr></thead>
+        <thead><tr><th>Cliente</th><th>Fechada</th><th class="num">Venda</th><th class="num">Kit</th><th class="num">Comissão</th><th class="num">Imposto + ART</th><th class="num">Equipe</th><th class="num">Materiais/outros</th><th class="num">Lucro da obra</th><th class="num">Lucro líquido</th></tr></thead>
         <tbody>${lista.map(x => `<tr style="cursor:pointer" onclick="obraAberta=obraAberta===${x.l.id}?null:${x.l.id};renderObras()">
           <td>${obraAberta === x.l.id ? '▾' : '▸'} <a href="crm.html?lead=${x.l.id}" onclick="event.stopPropagation()">${esc(x.l.nome)}</a>${x.r.avisos.length ? ' <span title="' + esc(x.r.avisos.join(' · ')) + '" style="color:var(--amarelo)">⚠</span>' : ''}</td>
-          <td>${dBR(x.l.etapa_em)}</td><td class="num">${fmtR(x.l.valor)}</td><td class="num">${fmtR(x.r.kit)}</td><td class="num">${fmtR(x.r.com)}</td><td class="num">${fmtR(x.r.imp)}</td>
+          <td>${dBR(x.l.etapa_em)}</td><td class="num">${fmtR(x.l.valor)}</td><td class="num">${fmtR(x.r.kit)}</td><td class="num">${fmtR(x.r.com)}</td><td class="num">${fmtR(x.r.imp + x.r.art)}</td>
           <td class="num">${fmtR(x.r.equipe)}</td><td class="num">${fmtR(x.r.outros)}</td><td class="num">${sinal(x.r.lucro)}${pct(x.r.lucro, +x.l.valor)}</td><td class="num">${sinal(x.r.liquido)}</td></tr>${obraAberta === x.l.id ? det(x) : ''}`).join('')}</tbody>
       </table></div>` : '<div class="muted">Nenhuma venda fechada no período.</div>'}
-      <p class="muted" style="margin-top:8px">Clique numa obra para ver o detalhe. <b>Lucro da obra</b> = venda − kit − comissão − imposto − diárias lançadas na obra − material do estoque e custos avulsos ligados ao cliente. <b>Lucro líquido</b> desconta também a parte da obra nos custos fixos e salários do mês em que a venda fechou (dividido pelo valor das vendas do mês). Diárias entram quando são lançadas na Equipe com o cliente; obra ainda em andamento pode ter custos por vir.</p>
+      <p class="muted" style="margin-top:8px">Clique numa obra para ver o detalhe. <b>Lucro da obra</b> = venda − kit − comissão − imposto − ART − diárias lançadas na obra − material do estoque e custos avulsos ligados ao cliente. <b>Lucro líquido</b> desconta também a parte da obra nos custos fixos e salários do mês em que a venda fechou (dividido pelo valor das vendas do mês). Diárias entram quando são lançadas na Equipe com o cliente; obra ainda em andamento pode ter custos por vir.</p>
     </div>`;
 }
 
@@ -675,13 +682,14 @@ function renderParam() {
       <label class="muted">Simples Nacional sobre serviços (%)<input class="input" id="p-simples" inputmode="decimal" value="${String(PRM.simples_pct ?? 6).replace('.', ',')}"></label>
       <label class="muted">Dia de vencimento do DAS (mês seguinte)<input class="input" id="p-das" type="number" min="1" max="28" value="${PRM.das_dia ?? 20}"></label>
       <label class="muted">Dia de pagamento de salários e diárias (mês seguinte)<input class="input" id="p-sal" type="number" min="1" max="28" value="${PRM.salario_dia ?? 5}"></label>
+      <label class="muted">ART (CREA) por venda (R$)<input class="input" id="p-art" inputmode="decimal" value="${artVal().toLocaleString('pt-BR', { minimumFractionDigits: 2 })}"></label>
       <label class="muted">Ganhos a partir de (entram automático no a pagar)<input class="input" id="p-ini" type="date" value="${PRM.inicio || ''}"></label>
     </div>
     <button class="btn" onclick="salvarParam()">💾 Salvar parâmetros</button>
     <p class="muted" style="margin-top:10px">Serviços = valor total − valor do kit na proposta (kit separado) ou total − custo do kit (estimado). O Simples, a comissão e o kit ainda não pagos são recalculados sozinhos se a venda ou o custo mudar; o que já foi pago não muda.</p></div>`;
 }
 async function salvarParam() {
-  const mud = { simples_pct: numBR($('p-simples').value) ?? 6, das_dia: Math.min(28, Math.max(1, +$('p-das').value || 20)), salario_dia: Math.min(28, Math.max(1, +$('p-sal').value || 5)), inicio: $('p-ini').value || PRM.inicio, atualizado_em: new Date().toISOString() };
+  const mud = { simples_pct: numBR($('p-simples').value) ?? 6, das_dia: Math.min(28, Math.max(1, +$('p-das').value || 20)), salario_dia: Math.min(28, Math.max(1, +$('p-sal').value || 5)), inicio: $('p-ini').value || PRM.inicio, art_valor: numBR($('p-art').value) ?? artVal(), atualizado_em: new Date().toISOString() };
   const { error } = await sb.from('fin_parametros').update(mud).eq('id', 1);
   if (error) { msg('⚠ ' + error.message, true); return; }
   msg('✅ Parâmetros salvos.'); await carregar();
