@@ -2,9 +2,9 @@
 // Páginas: tenta a internet primeiro e guarda uma cópia; sem internet usa a cópia.
 // Bibliotecas, fontes e fotos: usa a cópia guardada e atualiza em segundo plano.
 // Dados do banco (Supabase) nunca passam por aqui, exceto as fotos públicas da proposta.
-const VERSAO = 'energtech-20261110c';
+const VERSAO = 'energtech-20261113a';
 const CASCA = ['./', 'index.html', 'crm.html', 'manifest.webmanifest',
-  'css/precificador.css?v=20261019a', 'js/comum.js?v=20261019a', 'js/precificador.js?v=20261103a', 'js/logo.js?v=20261019a', 'js/pdf.js?v=20261103a', 'js/proposta.js?v=20261103a', 'js/admin.js?v=20261030a', 'js/app.js?v=20261103a', 'js/kit.js?v=20261028e', 'js/fatura.js?v=20261028e', 'js/crm.js?v=20261103a', 'js/fatura-lead.js?v=20261106a', 'js/docs-lead.js?v=20261106a', 'js/comissao-lead.js?v=20261106a', 'js/filtro-ganhos.js?v=20261110a', 'js/projetos.js?v=20261028a', 'js/contrato.js?v=20261019a', 'icone-192.png', 'icone-512.png', 'apple-touch-icon.png', 'proposta-capa.jpg',
+  'css/precificador.css?v=20261019a', 'js/comum.js?v=20261019a', 'js/precificador.js?v=20261103a', 'js/logo.js?v=20261019a', 'js/pdf.js?v=20261103a', 'js/proposta.js?v=20261103a', 'js/admin.js?v=20261030a', 'js/app.js?v=20261103a', 'js/kit.js?v=20261028e', 'js/fatura.js?v=20261028e', 'js/crm.js?v=20261103a', 'js/fatura-lead.js?v=20261106a', 'js/docs-lead.js?v=20261106a', 'js/comissao-lead.js?v=20261106a', 'js/filtro-ganhos.js?v=20261110a', 'js/menu-conversas.js?v=20261113a', 'conversas.html', 'js/projetos.js?v=20261028a', 'js/contrato.js?v=20261019a', 'icone-192.png', 'icone-512.png', 'apple-touch-icon.png', 'proposta-capa.jpg',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'];
 
