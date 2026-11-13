@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://cmrndntnaaooapbdmgip.supabase.co; media-src 'self' blob: https://cmrndntnaaooapbdmgip.supabase.co; connect-src 'self' https://cmrndntnaaooapbdmgip.supabase.co wss://cmrndntnaaooapbdmgip.supabase.co;">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conversas — WhatsApp</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  :root {
+    --amarelo:#FFC107; --amarelo-dim:#e6ac00; --preto:#111; --bg:#0f0f0f; --card:#1a1a1a; --card2:#222;
+    --borda:#2e2e2e; --texto:#e0e0e0; --muted:#8a8a8a; --verde:#4ade80; --vermelho:#f87171; --azul:#60a5fa; --laranja:#fb923c;
+  }
+  html, body { height:100%; }
+  body { background:var(--bg); font-family:'Barlow',sans-serif; color:var(--texto); display:flex; flex-direction:column; }
+  a { color:var(--azul); }
+  .header { background:var(--amarelo); padding:12px 20px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+  .logo-area { display:flex; align-items:center; gap:12px; }
+  .logo-icon { width:38px; height:38px; background:var(--preto); border-radius:50%; display:flex; align-items:center; justify-content:center; }
+  .brand-name { font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:900; color:var(--preto); line-height:1; }
+  .brand-sub { font-size:10px; font-weight:600; color:var(--preto); letter-spacing:.2em; text-transform:uppercase; opacity:.6; }
+  .header-title { text-align:right; }
+  .header-title h1 { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:700; color:var(--preto); text-transform:uppercase; letter-spacing:.05em; }
+  .header-links { font-size:12px; color:var(--preto); margin-top:3px; }
+  .header-links a { color:var(--preto); font-weight:700; }
+  .card { background:var(--card); border:1px solid var(--borda); border-radius:14px; padding:18px; }
+  .muted { color:var(--muted); font-size:13px; }
+  .login { max-width:360px; margin:40px auto; text-align:center; }
+  .input, textarea.input, .select { background:var(--card2); border:1px solid var(--borda); color:var(--texto); font-family:'Barlow',sans-serif; font-size:14px; padding:9px 11px; border-radius:8px; outline:none; width:100%; }
+  .input:focus, textarea.input:focus { border-color:var(--amarelo); }
+  .login .input { margin-bottom:10px; }
+  .btn { background:var(--amarelo); color:var(--preto); font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:900; letter-spacing:.05em; padding:9px 14px; border:none; border-radius:8px; cursor:pointer; white-space:nowrap; }
+  .btn:hover { background:var(--amarelo-dim); } .btn:disabled { opacity:.5; cursor:not-allowed; }
+  .btn-sec { background:var(--card2); color:var(--texto); border:1px solid var(--borda); }
+  .btn-p { padding:4px 9px; font-size:12px; }
+  .erro { color:var(--vermelho); font-size:13px; margin-top:8px; min-height:16px; }
+  #conteudo { display:none; flex:1; min-height:0; }
+  .app { display:grid; grid-template-columns:330px 1fr; height:100%; min-height:0; }
+  .lista { border-right:1px solid var(--borda); display:flex; flex-direction:column; min-height:0; background:#141414; }
+  .lista-topo { padding:10px; border-bottom:1px solid var(--borda); display:flex; flex-direction:column; gap:8px; }
+  .conversas { overflow-y:auto; flex:1; }
+  .conv { padding:10px 12px; border-bottom:1px solid #222; cursor:pointer; display:flex; gap:10px; align-items:flex-start; }
+  .conv:hover { background:#1c1c1c; } .conv.ativa { background:#1f1a0b; border-left:3px solid var(--amarelo); }
+  .avatar { width:38px; height:38px; border-radius:50%; background:#2a2a2a; display:flex; align-items:center; justify-content:center; font-weight:700; color:var(--amarelo); flex-shrink:0; }
+  .conv-meio { flex:1; min-width:0; }
+  .conv-nome { font-weight:600; color:#fff; display:flex; justify-content:space-between; gap:6px; }
+  .conv-nome span:last-child { font-weight:400; font-size:11px; color:var(--muted); white-space:nowrap; }
+  .conv-prev { font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+  .badge { background:var(--verde); color:#052e16; font-size:11px; font-weight:700; border-radius:10px; padding:0 6px; min-width:18px; text-align:center; }
+  .tag { display:inline-block; font-size:10px; padding:0 6px; border-radius:20px; border:1px solid var(--borda); color:var(--muted); margin-left:4px; }
+  .tag.leo { color:var(--azul); border-color:#1e3a5f; } .tag.lead { color:var(--verde); border-color:#1f4d33; }
+  .chat { display:flex; flex-direction:column; min-height:0; }
+  .chat-topo { padding:10px 16px; border-bottom:1px solid var(--borda); display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; background:#151515; }
+  .chat-topo b { color:#fff; font-size:15px; }
+  .msgs { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:6px; background:#0c0c0c; }
+  .bolha { max-width:72%; padding:7px 10px 4px; border-radius:10px; font-size:14px; line-height:1.35; white-space:pre-wrap; word-wrap:break-word; position:relative; }
+  .bolha.entrada { align-self:flex-start; background:#1f1f1f; border-top-left-radius:2px; }
+  .bolha.saida { align-self:flex-end; background:#14532d; border-top-right-radius:2px; }
+  .bolha .rodape { font-size:10px; color:#a3a3a3; text-align:right; margin-top:2px; }
+  .bolha .autor { font-size:10px; color:var(--amarelo); margin-bottom:2px; }
+  .bolha img { max-width:260px; max-height:260px; border-radius:6px; display:block; cursor:pointer; }
+  .bolha audio { width:240px; }
+  .ok-lida { color:#38bdf8; } .falhou { color:var(--vermelho); }
+  .dia { align-self:center; font-size:11px; color:var(--muted); background:#1a1a1a; border-radius:10px; padding:2px 10px; margin:6px 0; }
+  .envio { border-top:1px solid var(--borda); padding:10px; display:flex; gap:8px; align-items:flex-end; background:#151515; }
+  .envio textarea { resize:none; min-height:42px; max-height:140px; }
+  .aviso-janela { background:#2a1f05; border:1px solid #7c5a00; color:#facc15; font-size:12px; padding:8px 12px; margin:0 10px 8px; border-radius:8px; }
+  .vazio { text-align:center; color:var(--muted); padding:30px 10px; font-size:13px; }
+  .voltar { display:none; }
+  @media (max-width:760px) {
+    .app { grid-template-columns:1fr; }
+    .app.aberta .lista { display:none; } .app:not(.aberta) .chat { display:none; }
+    .voltar { display:inline-block; } .bolha { max-width:88%; } .header-title { text-align:left; }
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo-area">
+    <div class="logo-icon"><svg width="24" height="24" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="13" fill="#FFC107"/><path d="M16 3L8 15h7l-3 10 10-13h-7l1-9z" fill="#111"/></svg></div>
+    <div><div class="brand-name">Energtech</div><div class="brand-sub">Engenharia Solar</div></div>
+  </div>
+  <div class="header-title"><h1>💬 Conversas WhatsApp</h1><div class="header-links" id="header-links"><a href="crm.html">CRM</a></div></div>
+</div>
+
+<div class="card login" id="login" style="display:none">
+  <h2 style="font-family:'Barlow Condensed',sans-serif;color:var(--amarelo)">🔑 Entrar</h2>
+  <p class="muted" style="margin-bottom:16px">Use o mesmo login do CRM.</p>
+  <input class="input" type="email" id="login-email" placeholder="E-mail" autocomplete="username">
+  <input class="input" type="password" id="login-senha" placeholder="Senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')entrar()">
+  <button class="btn" style="width:100%" onclick="entrar()">Entrar</button>
+  <div class="erro" id="login-erro"></div>
+</div>
+<div class="card" id="aviso" style="display:none;margin:20px"><p id="aviso-txt" class="muted"></p></div>
+
+<div id="conteudo">
+  <div class="app" id="app">
+    <div class="lista">
+      <div class="lista-topo">
+        <input class="input" id="busca" placeholder="🔎 Buscar nome ou telefone" oninput="renderLista()">
+        <select class="select" id="f-canal" onchange="renderLista()"></select>
+      </div>
+      <div class="conversas" id="conversas"></div>
+    </div>
+    <div class="chat" id="chat"><div class="vazio" style="margin:auto">Escolha uma conversa à esquerda.</div></div>
+  </div>
+</div>
+
+<script src="js/comum.js?v=20261019a"></script>
+<script>
+// Eider Sistemas / CRM — Conversas do WhatsApp (admin e vendas internas)
+// Lê conversas e mensagens do banco (gravadas pela função whatsapp-webhook) e responde pela função whatsapp-enviar,
+// que fala com o provedor (Meta, Z-API...). A tela não conhece o provedor nem o token.
+// Atualiza ao vivo (Realtime). Fotos/áudios/PDFs ficam no bucket privado "whatsapp" (link temporário).
+const $ = id => document.getElementById(id);
+const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const hora = iso => iso ? new Date(iso).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) : '';
+const diaBR = iso => { const d = new Date(iso), h = new Date(); const ontem = new Date(); ontem.setDate(h.getDate() - 1);
+  if (d.toDateString() === h.toDateString()) return 'Hoje'; if (d.toDateString() === ontem.toDateString()) return 'Ontem'; return d.toLocaleDateString('pt-BR'); };
+const quando = iso => { if (!iso) return ''; const d = new Date(iso); return d.toDateString() === new Date().toDateString() ? hora(iso) : d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' }); };
+function telBonito(t) { let d = String(t || '').replace(/\D/g, ''); if (d.startsWith('55') && d.length >= 12) d = d.slice(2); if (d.length === 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`; if (d.length === 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`; return '+' + d; }
+const JANELA_MS = 24 * 3600 * 1000;
+let perfil = null, CANAIS = [], CONVS = [], MSGS = [], aberta = null, ULT = {}, urlsMidia = {}, canalRT = null;
+
+function mostrar(qual, texto) {
+  $('login').style.display = qual === 'login' ? '' : 'none';
+  $('aviso').style.display = qual === 'aviso' ? '' : 'none';
+  $('conteudo').style.display = qual === 'conteudo' ? 'block' : 'none';
+  if (texto) $('aviso-txt').innerHTML = texto;
+}
+function renderHeader() {
+  let h = '<a href="crm.html">🗂 CRM</a>';
+  if (perfil) h += ` · 👤 ${esc(perfil.nome || perfil.email)} · <a href="#" onclick="sair();return false">Sair</a>`;
+  $('header-links').innerHTML = h;
+}
+async function iniciar() {
+  if (!sb) { mostrar('aviso', '⚠ Sem conexão com o servidor.'); return; }
+  const { data } = await sb.auth.getSession();
+  if (!data || !data.session) { perfil = null; renderHeader(); mostrar('login'); return; }
+  const r = await sb.rpc('meu_perfil'); perfil = r.data || {};
+  renderHeader();
+  if (!(perfil.admin || perfil.papel === 'interno')) { mostrar('aviso', 'As conversas do WhatsApp são do administrador e de vendas internas.'); return; }
+  mostrar('conteudo');
+  await carregar();
+  ouvir();
+  const q = new URLSearchParams(location.search).get('conversa');
+  if (q && CONVS.some(c => c.id === +q)) abrir(+q);
+}
+async function entrar() {
+  const { error } = await sb.auth.signInWithPassword({ email: $('login-email').value.trim(), password: $('login-senha').value });
+  if (error) { $('login-erro').textContent = 'E-mail ou senha incorretos.'; return; }
+  await iniciar();
+}
+async function sair() { await sb.auth.signOut(); perfil = null; await iniciar(); }
+
+async function carregar() {
+  const [c, v] = await Promise.all([
+    sb.from('whatsapp_canais').select('id, nome, numero, finalidade, provedor, leo_ativo, ativo').order('id'),
+    sb.from('whatsapp_conversas').select('*, leads(nome)').order('ultima_msg_em', { ascending: false, nullsFirst: false }).limit(500),
+  ]);
+  if (c.error || v.error) { $('conversas').innerHTML = `<div class="vazio">⚠ ${esc((c.error || v.error).message)}</div>`; return; }
+  CANAIS = c.data || []; CONVS = v.data || [];
+  const sel = $('f-canal'), atual = sel.value;
+  sel.innerHTML = '<option value="">Todos os números</option>' + CANAIS.map(x => `<option value="${x.id}">${esc(x.nome)} · ${esc(telBonito(x.numero))}</option>`).join('');
+  sel.value = atual; sel.style.display = CANAIS.length > 1 ? '' : 'none';
+  await carregarUltimas();
+  renderLista();
+}
+// última mensagem de cada conversa (prévia na lista)
+async function carregarUltimas() {
+  const ids = CONVS.map(c => c.id); if (!ids.length) return;
+  const { data } = await sb.from('whatsapp_mensagens').select('conversa_id, direcao, tipo, texto, criado_em').in('conversa_id', ids).order('criado_em', { ascending: false }).limit(1000);
+  ULT = {}; (data || []).forEach(m => { if (!ULT[m.conversa_id]) ULT[m.conversa_id] = m; });
+}
+const ICONE = { imagem: '📷 Foto', audio: '🎤 Áudio', video: '🎬 Vídeo', documento: '📄 Documento', localizacao: '📍 Localização', modelo: '📋 Mensagem modelo' };
+const previa = m => m ? (m.direcao === 'saida' ? '✓ ' : '') + (m.texto || ICONE[m.tipo] || '') : '';
+const nomeConv = c => (c.leads && c.leads.nome) || c.nome_contato || telBonito(c.telefone);
+
+function renderLista() {
+  const q = $('busca').value.trim().toLowerCase(), qd = q.replace(/\D/g, ''), canal = +$('f-canal').value || 0;
+  const lista = CONVS.filter(c => (!canal || c.canal_id === canal) &&
+    (!q || nomeConv(c).toLowerCase().includes(q) || (qd.length >= 3 && c.telefone.includes(qd))));
+  $('conversas').innerHTML = lista.length ? lista.map(c => `<div class="conv ${aberta === c.id ? 'ativa' : ''}" onclick="abrir(${c.id})">
+      <div class="avatar">${esc(nomeConv(c).trim().charAt(0).toUpperCase() || '?')}</div>
+      <div class="conv-meio">
+        <div class="conv-nome"><span>${esc(nomeConv(c))}${c.lead_id ? '<span class="tag lead">lead</span>' : ''}${c.atendimento === 'leo' ? '<span class="tag leo">Léo</span>' : ''}</span><span>${quando(c.ultima_msg_em)}</span></div>
+        <div class="conv-prev" style="display:flex;justify-content:space-between;gap:6px"><span style="overflow:hidden;text-overflow:ellipsis">${esc(previa(ULT[c.id]))}</span>${c.nao_lidas ? `<span class="badge">${c.nao_lidas}</span>` : ''}</div>
+      </div></div>`).join('')
+    : `<div class="vazio">${CONVS.length ? 'Nada encontrado.' : 'Nenhuma conversa ainda. Quando um cliente mandar mensagem, ela aparece aqui.'}</div>`;
+}
+
+async function abrir(id) {
+  aberta = id; $('app').classList.add('aberta');
+  const c = CONVS.find(x => x.id === id); if (!c) return;
+  history.replaceState(null, '', '?conversa=' + id);
+  const { data, error } = await sb.from('whatsapp_mensagens').select('id, direcao, tipo, texto, midia_path, midia_mime, status, erro, autor, criado_em').eq('conversa_id', id).order('criado_em').limit(1000);
+  if (error) { $('chat').innerHTML = `<div class="vazio">⚠ ${esc(error.message)}</div>`; return; }
+  MSGS = data || [];
+  renderChat(true);
+  if (c.nao_lidas) { c.nao_lidas = 0; renderLista(); await sb.from('whatsapp_conversas').update({ nao_lidas: 0 }).eq('id', id); }
+  else renderLista();
+}
+function janelaAberta(c) { return c.ultima_entrada_em && Date.now() - new Date(c.ultima_entrada_em).getTime() < JANELA_MS; }
+function tique(m) {
+  if (m.direcao !== 'saida') return '';
+  if (m.status === 'falhou') return ` <span class="falhou" title="${esc(m.erro || '')}">⚠ não enviada</span>`;
+  return { pendente: ' 🕓', enviada: ' ✓', entregue: ' ✓✓', lida: ' <span class="ok-lida">✓✓</span>' }[m.status] || '';
+}
+function corpo(m) {
+  const u = m.midia_path ? urlsMidia[m.midia_path] : null;
+  let h = '';
+  if (m.midia_path) {
+    if (!u) h += `<div class="muted" data-midia="${esc(m.midia_path)}">⏳ carregando ${esc((ICONE[m.tipo] || 'arquivo').toLowerCase())}…</div>`;
+    else if (m.tipo === 'imagem') h += `<a href="${u}" target="_blank" rel="noopener"><img src="${u}" alt="foto"></a>`;
+    else if (m.tipo === 'audio') h += `<audio controls src="${u}"></audio>`;
+    else if (m.tipo === 'video') h += `<video controls src="${u}" style="max-width:260px"></video>`;
+    else h += `<a href="${u}" target="_blank" rel="noopener">📄 ${esc(m.texto || 'Abrir documento')}</a>`;
+    if (m.texto && m.tipo !== 'documento') h += `<div>${esc(m.texto)}</div>`;
+  } else if (['imagem', 'audio', 'video', 'documento'].includes(m.tipo)) h += `<span class="muted">${ICONE[m.tipo]} (não foi possível baixar)</span>${m.texto ? '<div>' + esc(m.texto) + '</div>' : ''}`;
+  else h += esc(m.texto || ICONE[m.tipo] || '');
+  return h;
+}
+function renderChat(rolar) {
+  const c = CONVS.find(x => x.id === aberta); if (!c) return;
+  const canal = CANAIS.find(x => x.id === c.canal_id) || {};
+  let dia = '', bolhas = '';
+  MSGS.forEach(m => {
+    const d = diaBR(m.criado_em); if (d !== dia) { dia = d; bolhas += `<div class="dia">${d}</div>`; }
+    bolhas += `<div class="bolha ${m.direcao}">${m.direcao === 'saida' && m.autor ? `<div class="autor">${esc(m.autor === 'leo' ? '🤖 Léo' : m.autor.split('@')[0])}</div>` : ''}${corpo(m)}<div class="rodape">${hora(m.criado_em)}${tique(m)}</div></div>`;
+  });
+  const podeLivre = janelaAberta(c);
+  const caixa = $('msgs'), noFim = caixa ? caixa.scrollHeight - caixa.scrollTop - caixa.clientHeight < 80 : true;
+  const rascunho = $('texto') ? $('texto').value : '';
+  $('chat').innerHTML = `
+    <div class="chat-topo">
+      <div><button class="btn btn-sec btn-p voltar" onclick="fechar()">←</button>
+        <b>${esc(nomeConv(c))}</b> <span class="muted">${esc(telBonito(c.telefone))}${CANAIS.length > 1 ? ' · via ' + esc(canal.nome || '') : ''}</span></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        ${c.lead_id ? `<a class="btn btn-sec btn-p" href="crm.html?lead=${c.lead_id}">🗂 Ficha do lead</a>` : '<span class="muted" title="Ligar ao lead: próxima etapa">sem lead ligado</span>'}
+      </div>
+    </div>
+    <div class="msgs" id="msgs">${bolhas || '<div class="vazio">Sem mensagens.</div>'}</div>
+    ${podeLivre ? '' : `<div class="aviso-janela">⏰ Passaram mais de 24 h desde a última mensagem do cliente. Pela regra do WhatsApp, agora só é possível enviar uma <b>mensagem modelo aprovada</b> (em breve aqui). Quando o cliente responder, a conversa livre abre de novo.</div>`}
+    <div class="envio">
+      <textarea class="input" id="texto" rows="1" placeholder="${podeLivre ? 'Escreva uma mensagem… (Enter envia, Shift+Enter quebra linha)' : 'Conversa livre fechada (mais de 24 h)'}" ${podeLivre ? '' : 'disabled'}
+        oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,140)+'px'" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviar()}"></textarea>
+      <button class="btn" id="btn-enviar" onclick="enviar()" ${podeLivre ? '' : 'disabled'}>Enviar</button>
+    </div>`;
+  if (rascunho && $('texto') && !$('texto').disabled) $('texto').value = rascunho;
+  const novo = $('msgs'); if (rolar || noFim) novo.scrollTop = novo.scrollHeight;
+  carregarMidias();
+}
+// link temporário (1 h) para cada mídia do bucket privado
+async function carregarMidias() {
+  const faltam = [...new Set(MSGS.filter(m => m.midia_path && !urlsMidia[m.midia_path]).map(m => m.midia_path))];
+  if (!faltam.length) return;
+  const { data } = await sb.storage.from('whatsapp').createSignedUrls(faltam, 3600);
+  (data || []).forEach(x => { if (x.signedUrl) urlsMidia[x.path] = x.signedUrl; });
+  if ((data || []).some(x => x.signedUrl)) renderChat(false);
+}
+function fechar() { aberta = null; $('app').classList.remove('aberta'); history.replaceState(null, '', location.pathname); renderLista(); }
+
+async function enviar() {
+  const c = CONVS.find(x => x.id === aberta), campo = $('texto'), btn = $('btn-enviar');
+  if (!c || !campo) return;
+  const texto = campo.value.trim(); if (!texto) return;
+  if (texto.length > 4096) { alert('Mensagem muito longa (máximo 4.096 caracteres).'); return; }
+  btn.disabled = true; campo.disabled = true;
+  // mostra na hora (fica "🕓" até a função confirmar)
+  const temp = { id: 'tmp' + Date.now(), direcao: 'saida', tipo: 'texto', texto, status: 'pendente', autor: perfil.email, criado_em: new Date().toISOString() };
+  MSGS.push(temp); campo.value = ''; renderChat(true);
+  let resp = null, erro = null;
+  try {
+    const { data, error } = await sb.functions.invoke('whatsapp-enviar', { body: { conversa_id: c.id, texto } });
+    resp = data;
+    if (error) { try { resp = error.context && typeof error.context.json === 'function' ? await error.context.json() : null; } catch (_) { resp = null; } erro = (resp && resp.erro) || error.message; }
+    else if (!data || !data.ok) erro = (data && data.erro) || 'Falha ao enviar.';
+  } catch (e) { erro = String(e.message || e); }
+  const i = MSGS.indexOf(temp);
+  if (erro) { if (i >= 0) MSGS[i] = { ...temp, status: 'falhou', erro }; alert('⚠ Não foi enviada: ' + erro); if ($('texto')) $('texto').value = texto; }
+  else if (i >= 0 && resp.mensagem) MSGS[i] = resp.mensagem;
+  renderChat(true);
+  if ($('btn-enviar')) $('btn-enviar').disabled = !janelaAberta(c);
+  if ($('texto')) { $('texto').disabled = !janelaAberta(c); $('texto').focus(); }
+}
+
+// ao vivo: mensagem nova, status de entrega/leitura, conversa nova
+let recarga = null;
+function ouvir() {
+  if (canalRT || !sb.channel) return;
+  canalRT = sb.channel('wa-conversas')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_mensagens' }, p => {
+      const m = p.new || {};
+      if (m.conversa_id === aberta) {
+        const j = MSGS.findIndex(x => x.id === m.id);
+        if (j >= 0) MSGS[j] = { ...MSGS[j], ...m };
+        else if (!MSGS.some(x => String(x.id).startsWith('tmp') && x.texto === m.texto && m.direcao === 'saida')) MSGS.push(m);
+        renderChat(false);
+        if (m.direcao === 'entrada') sb.from('whatsapp_conversas').update({ nao_lidas: 0 }).eq('id', aberta);
+      }
+      if (p.eventType === 'INSERT') ULT[m.conversa_id] = m;
+      agendarRecarga();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_conversas' }, () => agendarRecarga())
+    .subscribe();
+}
+function agendarRecarga() {
+  clearTimeout(recarga);
+  recarga = setTimeout(async () => {
+    const { data } = await sb.from('whatsapp_conversas').select('*, leads(nome)').order('ultima_msg_em', { ascending: false, nullsFirst: false }).limit(500);
+    if (data) { CONVS = data; const c = CONVS.find(x => x.id === aberta); if (c && c.nao_lidas) c.nao_lidas = 0; }
+    renderLista();
+  }, 400);
+}
+// se o Realtime cair (rede do celular), confere a cada 30 s
+setInterval(() => { if (perfil && document.visibilityState === 'visible') agendarRecarga(); }, 30000);
+
+iniciar();
+</script>
+</body>
+</html>
