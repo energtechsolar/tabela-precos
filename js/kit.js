@@ -62,6 +62,7 @@ function abrirKitPersonalizado(base) {
         <div class="regiao-aviso" id="kp-pag-dica" style="margin-top:4px"></div></div>
       <div class="kp-campo" id="kp-entrada-box"><label>Entrada no ato do pedido (R$)</label><input id="kp-entrada" class="admin-input" inputmode="decimal" value="${k.entrada ? fmtReais(k.entrada) : ''}" oninput="kitMudou()" onblur="formatarCampoReais(this)"></div>
       <div class="kp-campo"><label>Comissão do vendedor (%)</label><input id="kp-com" class="admin-input" inputmode="decimal" value="${k.com_pct != null ? String(+(k.com_pct * 100).toFixed(2)).replace('.', ',') : '0'}" oninput="kitMudou()"></div>
+      <div class="kp-campo"><label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="kp-art" ${k.art === false ? '' : 'checked'} ${k.art != null ? 'data-mexido="1"' : ''} onchange="this.dataset.mexido='1';kitMudou()"> Tem ART (CREA)</label><div class="regiao-aviso" style="margin-top:4px">Marcado: quando virar venda, o financeiro lança o custo da ART. Orçamento simples vem desmarcado.</div></div>
       ${adminLogado ? `<div class="kp-campo"><label>🔒 Custo do kit HOJE — quanto pagamos ao fornecedor (só admin)</label><input id="kp-custo" class="admin-input" inputmode="decimal" value="${k.uid && custoDoKit(k) != null ? fmtReais(custoDoKit(k)) : ''}" oninput="kitMudou()" onblur="formatarCampoReais(this)"><div class="regiao-aviso" style="margin-top:4px">Não é o valor da proposta. O valor que vai para o cliente e o banco você coloca depois, em "Valor do kit na proposta".</div></div>` : ''}
       <div class="kp-titulo kp-largo">Itens que aparecem na proposta <button class="link-mini" onclick="document.getElementById('kp-itens').dataset.editado='';kitMudou()">↺ gerar de novo</button></div>
       <div class="kp-largo"><textarea id="kp-itens" class="admin-input" rows="7" style="width:100%;resize:vertical" oninput="this.dataset.editado='1'">${escHtml(k.itens || '')}</textarea></div>
@@ -135,6 +136,7 @@ function lerKitPersonalizado() {
     com_pct: Math.max(0, numBRDec(v('kp-com')) || 0) / 100,
     marca_mod: marcaMod, marca_inv: marcasInv.join(' / '), baterias: bat,
     itensAuto, custo: document.getElementById('kp-custo') ? lerReais(v('kp-custo')) : null,
+    art: document.getElementById('kp-art') ? document.getElementById('kp-art').checked : completo,   // lança a ART no financeiro quando virar venda
   };
 }
 function kitMudou() {
@@ -148,6 +150,8 @@ function kitMudou() {
     : 'A proposta mostra só o valor, com "condições a combinar".';
   const it = document.getElementById('kp-itens');
   if (!it.dataset.editado) it.value = k.itensAuto;
+  const art = document.getElementById('kp-art');   // ART: segue o tipo de orçamento até o vendedor mexer
+  if (art && !art.dataset.mexido) { art.checked = !k.simples; k.art = art.checked; }
   const avisos = [];
   if (k.kwp && k.kw_inversor) {
     const r = k.kwp / k.kw_inversor;
