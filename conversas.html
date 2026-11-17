@@ -68,6 +68,10 @@
   .envio textarea { resize:none; min-height:42px; max-height:140px; }
   .aviso-janela { background:#2a1f05; border:1px solid #7c5a00; color:#facc15; font-size:12px; padding:8px 12px; margin:0 10px 8px; border-radius:8px; }
   .vazio { text-align:center; color:var(--muted); padding:30px 10px; font-size:13px; }
+  .ligar { border-bottom:1px solid var(--borda); padding:10px 16px; background:#171717; }
+  .ligar-res { max-height:220px; overflow-y:auto; margin-top:8px; }
+  .ligar-item { padding:7px 10px; border:1px solid var(--borda); border-radius:8px; margin-bottom:6px; cursor:pointer; font-size:13px; display:flex; justify-content:space-between; gap:8px; }
+  .ligar-item:hover { border-color:var(--amarelo); }
   .voltar { display:none; }
   @media (max-width:760px) {
     .app { grid-template-columns:1fr; }
@@ -122,7 +126,7 @@ const diaBR = iso => { const d = new Date(iso), h = new Date(); const ontem = ne
 const quando = iso => { if (!iso) return ''; const d = new Date(iso); return d.toDateString() === new Date().toDateString() ? hora(iso) : d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' }); };
 function telBonito(t) { let d = String(t || '').replace(/\D/g, ''); if (d.startsWith('55') && d.length >= 12) d = d.slice(2); if (d.length === 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`; if (d.length === 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`; return '+' + d; }
 const JANELA_MS = 24 * 3600 * 1000;
-let perfil = null, CANAIS = [], CONVS = [], MSGS = [], aberta = null, ULT = {}, urlsMidia = {}, canalRT = null;
+let perfil = null, CANAIS = [], CONVS = [], MSGS = [], aberta = null, ULT = {}, urlsMidia = {}, canalRT = null, painelLigar = false;
 
 function mostrar(qual, texto) {
   $('login').style.display = qual === 'login' ? '' : 'none';
@@ -192,6 +196,7 @@ function renderLista() {
 }
 
 async function abrir(id) {
+  if (aberta !== id) painelLigar = false;
   aberta = id; $('app').classList.add('aberta');
   const c = CONVS.find(x => x.id === id); if (!c) return;
   history.replaceState(null, '', '?conversa=' + id);
@@ -238,9 +243,11 @@ function renderChat(rolar) {
       <div><button class="btn btn-sec btn-p voltar" onclick="fechar()">←</button>
         <b>${esc(nomeConv(c))}</b> <span class="muted">${esc(telBonito(c.telefone))}${CANAIS.length > 1 ? ' · via ' + esc(canal.nome || '') : ''}</span></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-        ${c.lead_id ? `<a class="btn btn-sec btn-p" href="crm.html?lead=${c.lead_id}">🗂 Ficha do lead</a>` : '<span class="muted" title="Ligar ao lead: próxima etapa">sem lead ligado</span>'}
+        ${c.lead_id ? `<a class="btn btn-sec btn-p" href="crm.html?lead=${c.lead_id}">🗂 Ficha do lead</a><button class="btn btn-sec btn-p" title="Desligar desta conversa (o lead não é apagado)" onclick="desligarLead()">✕</button>`
+          : `<button class="btn btn-sec btn-p" onclick="abrirLigar()">🔗 Ligar a um lead</button><button class="btn btn-p" onclick="criarLead()">➕ Criar lead</button>`}
       </div>
     </div>
+    <div id="ligar" class="ligar" style="display:${painelLigar ? 'block' : 'none'}"></div>
     <div class="msgs" id="msgs">${bolhas || '<div class="vazio">Sem mensagens.</div>'}</div>
     ${podeLivre ? '' : `<div class="aviso-janela">⏰ Passaram mais de 24 h desde a última mensagem do cliente. Pela regra do WhatsApp, agora só é possível enviar uma <b>mensagem modelo aprovada</b> (em breve aqui). Quando o cliente responder, a conversa livre abre de novo.</div>`}
     <div class="envio">
@@ -250,6 +257,7 @@ function renderChat(rolar) {
     </div>`;
   if (rascunho && $('texto') && !$('texto').disabled) $('texto').value = rascunho;
   const novo = $('msgs'); if (rolar || noFim) novo.scrollTop = novo.scrollHeight;
+  if (painelLigar) montarLigar();
   carregarMidias();
 }
 // link temporário (1 h) para cada mídia do bucket privado
@@ -284,6 +292,67 @@ async function enviar() {
   renderChat(true);
   if ($('btn-enviar')) $('btn-enviar').disabled = !janelaAberta(c);
   if ($('texto')) { $('texto').disabled = !janelaAberta(c); $('texto').focus(); }
+}
+
+// ── ligar a conversa a um lead (ou criar o lead a partir dela) ──
+const soDig = t => String(t || '').replace(/\D/g, '');
+// número do WhatsApp (às vezes sem o 9 do celular) → formato dos leads: 55 + DDD + 9 + 8 dígitos
+function telLead(t) { let d = soDig(t); if (d.length === 12 && d.startsWith('55') && /[6-9]/.test(d[4])) d = d.slice(0, 4) + '9' + d.slice(4); return d; }
+let ligarBusca = '', ligarRes = [], ligarTimer = null;
+function abrirLigar() {
+  const c = CONVS.find(x => x.id === aberta); if (!c) return;
+  painelLigar = !painelLigar; ligarBusca = ''; ligarRes = [];
+  renderChat(false);
+  if (painelLigar) buscarLeads(soDig(c.telefone).slice(-8), true);   // já procura pelo telefone
+}
+function montarLigar() {
+  const el = $('ligar'); if (!el) return;
+  el.style.display = 'block';
+  el.innerHTML = `<div style="display:flex;gap:8px;align-items:center">
+      <input class="input" id="ligar-q" placeholder="🔎 Nome, telefone ou cidade do lead" value="${esc(ligarBusca)}" oninput="ligarBusca=this.value;clearTimeout(ligarTimer);ligarTimer=setTimeout(()=>buscarLeads(this.value),300)">
+      <button class="btn btn-sec btn-p" onclick="painelLigar=false;renderChat(false)">Fechar</button></div>
+    <div class="ligar-res">${ligarRes.length ? ligarRes.map(l => `<div class="ligar-item" onclick="ligarLead(${l.id})"><span><b>${esc(l.nome || 'Sem nome')}</b> <span class="muted">${esc(telBonito(l.telefone))}${l.cidade ? ' · ' + esc(l.cidade) : ''}</span></span><span class="muted">${esc(l.etapa || '')}${l.arquivado ? ' · arquivado' : ''}</span></div>`).join('')
+      : `<div class="muted" style="padding:6px 0">${ligarBusca || ligarRes.vazio ? 'Nenhum lead encontrado. Use ➕ Criar lead.' : 'Digite para procurar.'}</div>`}</div>`;
+  const q = $('ligar-q'); if (q && document.activeElement !== q && !ligarRes.vazio) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+}
+async function buscarLeads(q, peloTelefone) {
+  q = String(q || '').trim(); const d = soDig(q);
+  if (!q) { ligarRes = []; montarLigar(); return; }
+  let req = sb.from('leads').select('id, nome, telefone, cidade, etapa, arquivado').order('recebido_em', { ascending: false }).limit(12);
+  req = d.length >= 4 ? req.like('telefone', '%' + d.slice(-8) + '%') : req.or(`nome.ilike.%${q.replace(/[%,()]/g, ' ')}%,cidade.ilike.%${q.replace(/[%,()]/g, ' ')}%`);
+  const { data, error } = await req;
+  ligarRes = error ? [] : (data || []); if (!ligarRes.length) ligarRes.vazio = true;
+  if (peloTelefone && !ligarRes.length) ligarBusca = '';
+  montarLigar();
+}
+async function ligarLead(leadId) {
+  const c = CONVS.find(x => x.id === aberta); if (!c) return;
+  const { error } = await sb.from('whatsapp_conversas').update({ lead_id: leadId }).eq('id', c.id);
+  if (error) { alert('⚠ ' + error.message); return; }
+  painelLigar = false; await recarregarConversa(c.id);
+}
+async function desligarLead() {
+  const c = CONVS.find(x => x.id === aberta); if (!c || !confirm('Desligar esta conversa do lead? (o lead continua no CRM)')) return;
+  const { error } = await sb.from('whatsapp_conversas').update({ lead_id: null }).eq('id', c.id);
+  if (error) { alert('⚠ ' + error.message); return; }
+  await recarregarConversa(c.id);
+}
+async function criarLead() {
+  const c = CONVS.find(x => x.id === aberta); if (!c) return;
+  const nome = prompt('Nome do lead:', c.nome_contato || ''); if (nome === null) return;
+  const tel = telLead(c.telefone);
+  // evita lead duplicado: mesmo telefone já cadastrado
+  const { data: ja } = await sb.from('leads').select('id, nome').like('telefone', '%' + tel.slice(-8)).limit(1);
+  if (ja && ja.length && confirm(`Já existe o lead "${ja[0].nome || 'Sem nome'}" com esse telefone. Ligar a conversa a ele em vez de criar outro?`)) { await ligarLead(ja[0].id); return; }
+  const { data, error } = await sb.from('leads').insert({ nome: nome.trim() || 'Lead ' + telBonito(tel), telefone: tel, origem: 'whatsapp', etapa: 'novo', status: 'novo', responsavel_email: perfil.email }).select('id').single();
+  if (error) { alert('⚠ Não foi possível criar o lead: ' + error.message); return; }
+  await sb.from('lead_eventos').insert({ lead_id: data.id, texto: 'Lead criado a partir de uma conversa do WhatsApp.' });
+  await ligarLead(data.id);
+}
+async function recarregarConversa(id) {
+  const { data } = await sb.from('whatsapp_conversas').select('*, leads(nome)').eq('id', id).maybeSingle();
+  if (data) { const i = CONVS.findIndex(x => x.id === id); if (i >= 0) CONVS[i] = data; }
+  renderLista(); renderChat(false);
 }
 
 // ao vivo: mensagem nova, status de entrega/leitura, conversa nova
