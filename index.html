@@ -213,6 +213,60 @@ try {
     </div>
   </div>
 
+  <!-- PAINEL NEGOCIAÇÃO (logo abaixo do sistema selecionado, antes da análise de investimento) -->
+  <div class="negociacao-card fadein" style="margin:14px 0 20px">
+    <div class="neg-titulo">⚙ Régua de Negociação — Ajuste em Tempo Real</div>
+    <div class="neg-grid">
+
+      <!-- ADICIONAL -->
+      <div class="neg-bloco">
+        <label>Adicional de Margem (R$ por sistema)</label>
+        <div class="slider-val-row">
+          <span class="slider-val" id="val-adicional">R$ 0</span>
+          <span class="slider-sublabel">50% vendedor · 50% empresa</span>
+        </div>
+        <div class="slider-wrap">
+          <input type="range" id="slider-adicional" min="0" max="2000" step="50" value="0" oninput="atualizar()">
+          <div class="slider-legenda"><span>R$ 0</span><span>R$ 1.000</span><span>R$ 2.000</span></div>
+        </div>
+        <div class="split-info">
+          <div class="split-pill pill-comissao">
+            <div class="sp-lbl">Sua comissão (+)</div>
+            <div class="sp-val sp-vendedor" id="add-vendedor">R$ 0</div>
+          </div>
+          <div class="split-pill">
+            <div class="sp-lbl">Empresa (+)</div>
+            <div class="sp-val sp-empresa" id="add-empresa">R$ 0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DESCONTO -->
+      <div class="neg-bloco">
+        <label>Desconto ao Cliente (%)</label>
+        <div class="slider-val-row">
+          <span class="slider-val neutro" id="val-desconto">0%</span>
+          <span class="slider-sublabel" id="desc-sublabel">Até 3% gratuito · acima desconta 50/50</span>
+        </div>
+        <div class="slider-wrap">
+          <input type="range" id="slider-desconto" min="0" max="7" step="0.5" value="0" class="desconto-range" oninput="atualizar()">
+          <div class="slider-legenda"><span>0%</span><span id="desc-livre-label">↑ gratuito até 3%</span><span id="desc-max-label">máx 7%</span></div>
+        </div>
+        <div class="split-info">
+          <div class="split-pill pill-comissao">
+            <div class="sp-lbl">Deduzido da sua comissão</div>
+            <div class="sp-val sp-desconto" id="desc-vendedor">R$ 0</div>
+          </div>
+          <div class="split-pill">
+            <div class="sp-lbl">Deduzido da empresa</div>
+            <div class="sp-val sp-desconto" id="desc-empresa">R$ 0</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
   <!-- DASHBOARD ECONOMIA NACIONAL -->
   <div class="dash-economia" id="dash-economia">
     <div class="dash-header">
@@ -383,60 +437,6 @@ try {
       </thead>
       <tbody id="tbody-nacional"></tbody>
     </table>
-  </div>
-
-  <!-- PAINEL NEGOCIAÇÃO -->
-  <div class="negociacao-card fadein" style="margin-top:20px">
-    <div class="neg-titulo">⚙ Régua de Negociação — Ajuste em Tempo Real</div>
-    <div class="neg-grid">
-
-      <!-- ADICIONAL -->
-      <div class="neg-bloco">
-        <label>Adicional de Margem (R$ por sistema)</label>
-        <div class="slider-val-row">
-          <span class="slider-val" id="val-adicional">R$ 0</span>
-          <span class="slider-sublabel">50% vendedor · 50% empresa</span>
-        </div>
-        <div class="slider-wrap">
-          <input type="range" id="slider-adicional" min="0" max="2000" step="50" value="0" oninput="atualizar()">
-          <div class="slider-legenda"><span>R$ 0</span><span>R$ 1.000</span><span>R$ 2.000</span></div>
-        </div>
-        <div class="split-info">
-          <div class="split-pill pill-comissao">
-            <div class="sp-lbl">Sua comissão (+)</div>
-            <div class="sp-val sp-vendedor" id="add-vendedor">R$ 0</div>
-          </div>
-          <div class="split-pill">
-            <div class="sp-lbl">Empresa (+)</div>
-            <div class="sp-val sp-empresa" id="add-empresa">R$ 0</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- DESCONTO -->
-      <div class="neg-bloco">
-        <label>Desconto ao Cliente (%)</label>
-        <div class="slider-val-row">
-          <span class="slider-val neutro" id="val-desconto">0%</span>
-          <span class="slider-sublabel" id="desc-sublabel">Até 3% gratuito · acima desconta 50/50</span>
-        </div>
-        <div class="slider-wrap">
-          <input type="range" id="slider-desconto" min="0" max="7" step="0.5" value="0" class="desconto-range" oninput="atualizar()">
-          <div class="slider-legenda"><span>0%</span><span id="desc-livre-label">↑ gratuito até 3%</span><span id="desc-max-label">máx 7%</span></div>
-        </div>
-        <div class="split-info">
-          <div class="split-pill pill-comissao">
-            <div class="sp-lbl">Deduzido da sua comissão</div>
-            <div class="sp-val sp-desconto" id="desc-vendedor">R$ 0</div>
-          </div>
-          <div class="split-pill">
-            <div class="sp-lbl">Deduzido da empresa</div>
-            <div class="sp-val sp-desconto" id="desc-empresa">R$ 0</div>
-          </div>
-        </div>
-      </div>
-
-    </div>
   </div>
 
   <!-- PAINEL PROPOSTA -->
@@ -970,7 +970,7 @@ function reguaMudou() {
   atualizarModoValor();
 }
 ['slider-adicional', 'slider-desconto'].forEach(id => document.getElementById(id).addEventListener('input', reguaMudou));
-// ── INIT ────────────────────────────────────────────────────────────────────────────
+// ── INIT ────────────────────────────────────────────────────────────────────────────────
 renderSeletorRegiao();
 atualizar();            // mostra a tabela de reserva na hora
 const _precosCarregados = carregarDoSupabase();   // e troca pelos valores oficiais assim que chegarem
