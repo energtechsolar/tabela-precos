@@ -1,4 +1,5 @@
-// Eider Sistemas / CRM — bloco "💬 WhatsApp" na ficha do lead: últimas mensagens e botão para abrir a conversa.
+// Eider Sistemas / CRM — WhatsApp no CRM: bloco "💬 WhatsApp" na ficha do lead (últimas mensagens e botão para abrir a conversa)
+// e o 💬 nos cards do funil (abre a conversa; com número = mensagens novas).
 // Se existir conversa com o mesmo telefone ainda sem lead, oferece ligar. Só admin e vendas internas (como no banco).
 // Carregado pelo crm.html depois de js/crm.js: envolve abrirFicha() sem mudar o crm.js.
 (function () {
@@ -41,8 +42,44 @@
   window.ligarConversaAoLead = async function (conversaId, leadId) {
     const { error } = await sb.from('whatsapp_conversas').update({ lead_id: leadId }).eq('id', conversaId);
     if (error) { alert('⚠ ' + error.message); return; }
-    montar(leadId);
+    montar(leadId); carregarConvCards();
   };
+
+  // ── 💬 nos cards do funil ──
+  let CONV_LEAD = {}, buscaCards = 0;
+  async function carregarConvCards() {
+    if (!pode() || typeof sb === 'undefined' || !sb) return;
+    buscaCards = Date.now();
+    const { data, error } = await sb.from('whatsapp_conversas').select('id, lead_id, nao_lidas, ultima_msg_em').not('lead_id', 'is', null)
+      .order('ultima_msg_em', { ascending: false, nullsFirst: false }).limit(1000);
+    if (error) return;   // módulo desligado ou sem acesso: os cards ficam como estão
+    CONV_LEAD = {};
+    (data || []).forEach(c => { const a = CONV_LEAD[c.lead_id]; if (!a) CONV_LEAD[c.lead_id] = { id: c.id, nl: c.nao_lidas || 0 }; else a.nl += c.nao_lidas || 0; });
+    marcarCards();
+  }
+  function marcarCards() {
+    document.querySelectorAll('#kanban .lead[data-id]').forEach(el => {
+      const c = CONV_LEAD[+el.dataset.id]; let b = el.querySelector('.wa-card');
+      if (!c) { if (b) b.remove(); return; }
+      if (!b) {
+        b = document.createElement('span'); b.className = 'tag wa-card'; b.title = 'Abrir a conversa do WhatsApp';
+        b.style.cssText = 'cursor:pointer;border-color:#166534;color:#4ade80';
+        b.addEventListener('click', e => { e.stopPropagation(); location.href = 'conversas.html?conversa=' + b.dataset.conv; });
+        (el.querySelector('.lead-tags') || el).appendChild(b);
+      }
+      b.dataset.conv = c.id; b.textContent = '💬' + (c.nl ? ' ' + c.nl : '');
+      b.style.background = c.nl ? '#14532d' : ''; b.style.fontWeight = c.nl ? '700' : '';
+    });
+  }
+  if (typeof render === 'function') {
+    const _render = render;
+    render = function () {
+      const r = _render.apply(this, arguments);
+      if (pode()) { marcarCards(); if (Date.now() - buscaCards > 60000) carregarConvCards(); }
+      return r;
+    };
+  }
+  setInterval(() => { if (document.visibilityState === 'visible' && pode()) carregarConvCards(); }, 60000);
 
   const _abrir = abrirFicha;
   abrirFicha = async function (id) {
