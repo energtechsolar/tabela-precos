@@ -37,6 +37,8 @@ function abrirKitPersonalizado(base) {
     <div class="kp-grade">
       <div class="kp-campo kp-largo"><label>Tipo de sistema</label>
         <select id="kp-tipo" class="admin-input" onchange="kitMudou()">${Object.entries(TIPOS_SISTEMA).map(([v, t]) => `<option value="${v}" ${v === (k.tipo_sistema || 'ongrid') ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+      <div class="kp-largo regiao-aviso" style="margin:0">Módulos e inversores são opcionais. Para orçamento só de placas, só de inversor ou de serviço, preencha só o que tiver e escreva os itens no fim. Sem módulos <b>e</b> inversor, a proposta sai como <b>orçamento simples</b> (sem geração, economia e retorno).</div>
+      <div class="kp-campo kp-largo"><label>Nome do orçamento (opcional)</label><input id="kp-nome" class="admin-input" value="${escHtml(k.nome_livre || '')}" placeholder="Ex.: Inversor 10 kW, Limpeza de módulos, Ampliação 8 módulos" oninput="kitMudou()"></div>
       <div class="kp-titulo kp-largo">Módulos</div>
       <div class="kp-campo"><label>Quantidade</label><input id="kp-mod-qtd" class="admin-input" type="number" min="1" value="${k.mod || ''}" placeholder="240" oninput="kitMudou()"></div>
       <div class="kp-campo"><label>Potência de cada (W)</label><input id="kp-mod-w" class="admin-input" type="number" min="1" value="${k.potW || ''}" placeholder="620" oninput="kitMudou()"></div>
@@ -105,23 +107,30 @@ function lerKitPersonalizado() {
   const marcasInv = [...new Set(invs.map(i => i.marca).filter(Boolean))];
   const marcaMod = v('kp-mod-marca').trim();
   const estr = v('kp-estr') || 'fibrocimento', estrNome = (ESTRUTURAS_KIT.find(e => e[0] === estr) || [0, estr])[1];
+  const completo = qtd > 0 && w > 0 && invs.length > 0;   // sistema completo: proposta com geração e economia
   const itensAuto = [
     qtd && w ? qtd + ' X MÓDULO FOTOVOLTAICO ' + w + 'W' + (marcaMod ? ' (' + marcaMod + ')' : '') : '',
     ...invs.map(i => i.qtd + ' X INVERSOR ' + fmtKw(i.kw) + ' kW' + (tipoSis === 'hibrido' ? ' HÍBRIDO' : tipoSis === 'offgrid' ? ' OFF-GRID' : '') + (i.marca ? ' (' + i.marca + ')' : '')),
     bat && bat.qtd ? bat.qtd + ' X BATERIA ' + fmtKw(bat.kwh) + ' kWh' + (bat.marca ? ' (' + bat.marca + ')' : '') + ' — total ' + fmtKw(bat.qtd * bat.kwh) + ' kWh' : '',
-    'ESTRUTURA PARA TELHADO ' + estrNome.toUpperCase(),
-    'CABO SOLAR PRETO E VERMELHO',
-    'KIT ATERRAMENTO',
-    'QUADRO DE PROTEÇÃO CA (DPS E DISJUNTORES)',
-    tipoSis === 'zerogrid' ? 'CONTROLE DE EXPORTAÇÃO ZERO (SMART METER / LIMITADOR)' : '',
+    completo ? 'ESTRUTURA PARA TELHADO ' + estrNome.toUpperCase() : '',
+    completo ? 'CABO SOLAR PRETO E VERMELHO' : '',
+    completo ? 'KIT ATERRAMENTO' : '',
+    completo ? 'QUADRO DE PROTEÇÃO CA (DPS E DISJUNTORES)' : '',
+    completo && tipoSis === 'zerogrid' ? 'CONTROLE DE EXPORTAÇÃO ZERO (SMART METER / LIMITADOR)' : '',
   ].filter(Boolean).join('\n');
   const origem = v('kp-origem') || 'importado';
   const pag = v('kp-pag') === 'tabela' ? (origem === 'nacional' ? 'finame' : 'parcelado') : 'combinar';
+  const nomeLivre = v('kp-nome').trim();
+  const nomeAuto = completo ? 'Kit personalizado ' + fmtKw(kwp) + ' kWp'
+    : qtd && w && !invs.length ? qtd + ' módulos de ' + w + ' W'
+    : invs.length && !qtd ? 'Inversor ' + invTxt
+    : 'Orçamento personalizado';
   return {
+    simples: !completo, nome_livre: nomeLivre,
     personalizado: true, tipo_sistema: tipoSis, estrutura: estr, pagamento: pag, origem,
-    nome: 'Kit personalizado ' + fmtKw(kwp) + ' kWp', top: false,
+    nome: nomeLivre || nomeAuto, top: false,
     kwp, mod: qtd, potW: w, inv: invTxt || '—', inv_lista: invs, kw_inversor: kwInv,
-    kwh: Math.round(kwp * FATOR_REF), inv_r: lerReais(v('kp-valor')),
+    kwh: completo ? Math.round(kwp * FATOR_REF) : 0, inv_r: lerReais(v('kp-valor')),
     entrada: pag === 'parcelado' ? lerReais(v('kp-entrada')) : 0,
     com_pct: Math.max(0, numBRDec(v('kp-com')) || 0) / 100,
     marca_mod: marcaMod, marca_inv: marcasInv.join(' / '), baterias: bat,
@@ -147,22 +156,24 @@ function kitMudou() {
   if (k.kw_inversor > 75 && k.tipo_sistema !== 'offgrid') avisos.push('<span style="color:var(--amarelo)">⚠ Acima de 75 kW: minigeração. Conexão normalmente em média tensão, com projeto e prazos de acesso próprios na distribuidora — confira prazo e escopo da proposta.</span>');
   if (k.tipo_sistema === 'zerogrid') avisos.push('Zero grid: não injeta energia na rede, então não gera créditos. A economia real depende do consumo no horário de sol — confira a economia que vai na proposta.');
   if (k.tipo_sistema === 'hibrido' && !(k.baterias && k.baterias.qtd)) avisos.push('<span style="color:var(--amarelo)">⚠ Sistema híbrido sem baterias informadas.</span>');
-  const ger = Math.round(k.kwp * fatorRegiao());
+  const ger = k.simples ? 0 : Math.round(k.kwp * fatorRegiao());
+  if (k.simples) avisos.unshift('🧾 <b>Orçamento simples</b>: a proposta mostra os itens, o valor e as condições de pagamento, sem geração, economia e retorno.');
   document.getElementById('kp-resumo').innerHTML = `<div style="background:var(--bg);border:1px solid var(--borda);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.6">
-    <b>${k.kwp ? String(k.kwp).replace('.', ',') + ' kWp' : '—'}</b> · inversores ${k.kw_inversor ? String(+k.kw_inversor.toFixed(2)).replace('.', ',') + ' kW' : '—'} · geração estimada ~${ger.toLocaleString('pt-BR')} kWh/mês (${regiaoSel().nome.split(' (')[0]} ${regiaoSel().uf}, telhado ao norte)
-    ${k.inv_r ? ' · ' + fmt(k.inv_r) + (k.kwp ? ' (' + fmt(k.inv_r / (k.kwp * 1000)) + ' por Wp)' : '') : ''}
+    <b>${k.kwp ? String(k.kwp).replace('.', ',') + ' kWp' : '—'}</b> · inversores ${k.kw_inversor ? String(+k.kw_inversor.toFixed(2)).replace('.', ',') + ' kW' : '—'} ${k.simples ? '' : ` · geração estimada ~${ger.toLocaleString('pt-BR')} kWh/mês (${regiaoSel().nome.split(' (')[0]} ${regiaoSel().uf}, telhado ao norte)`}
+    ${k.inv_r ? ' · ' + fmt(k.inv_r) + (k.kwp && !k.simples ? ' (' + fmt(k.inv_r / (k.kwp * 1000)) + ' por Wp)' : '') : ''}
     ${k.custo ? ' · <span style="color:var(--verde)">🔒 venda − custo: ' + fmt(k.inv_r - k.custo) + '</span>' : ''}
     ${avisos.length ? '<br>' + avisos.join('<br>') : ''}</div>`;
 }
 function usarKitPersonalizado() {
   const k = lerKitPersonalizado(), erro = document.getElementById('kp-erro');
-  const falta = !(k.mod > 0 && k.potW > 0) ? 'Informe a quantidade e a potência dos módulos.'
-    : !(k.kw_inversor > 0) ? 'Informe ao menos um inversor com a potência em kW.'
+  const itensTxt = document.getElementById('kp-itens').value.trim() || k.itensAuto;
+  const falta = (k.mod > 0) !== (k.potW > 0) ? 'Nos módulos, informe a quantidade e a potência de cada (ou deixe os dois em branco).'
+    : !itensTxt ? 'Escreva ao menos um item em "Itens que aparecem na proposta" (ex.: 1 X INVERSOR 10 kW, ou o serviço).'
     : !(k.inv_r > 0) ? 'Informe o valor de venda.'
     : k.pagamento === 'parcelado' && !(k.entrada >= 0 && k.entrada < k.inv_r) ? 'A entrada precisa ser menor que o valor de venda.' : '';
   if (falta) { erro.textContent = falta; erro.style.display = 'block'; return; }
   erro.style.display = 'none';
-  const item = { ...k, uid: 'kp-' + Date.now().toString(36), itens: document.getElementById('kp-itens').value.trim() || k.itensAuto };
+  const item = { ...k, uid: 'kp-' + Date.now().toString(36), itens: itensTxt };
   delete item.itensAuto; delete item.custo;
   const tipo = k.origem === 'nacional' ? 'nacional' : 'importado';
   const idx = colocarKitNaLista(item, tipo);
@@ -178,3 +189,23 @@ function usarKitPersonalizado() {
   if (av) { av.textContent = '🧩 ' + item.nome + ' (' + TIPOS_SISTEMA[k.tipo_sistema] + ') pronto. Preencha o cliente abaixo e clique em "Criar Orçamento". Para ajustar o kit, clique de novo em "Kit personalizado".'; av.style.display = 'block'; av.style.borderColor = '#60a5fa'; }
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { const o = document.getElementById('kit-overlay'); if (o && o.classList.contains('visivel')) fecharKitPersonalizado(); } });
+
+// orçamento simples (só placas, só inversor, serviço): o painel da proposta não mostra kWp nem geração
+if (typeof abrirProposta === 'function') {
+  const _abrirProp = abrirProposta;
+  abrirProposta = function (tipo, idx, item) {
+    const r = _abrirProp.apply(this, arguments);
+    if (item && item.simples) {
+      const t = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+      t('psi-kwp', 'Orçamento simples'); t('psi-kwh', '—');
+    }
+    return r;
+  };
+}
+if (typeof calcularProducao === 'function') {
+  const _calcProd = calcularProducao;
+  calcularProducao = function () {
+    if (typeof propostaItem !== 'undefined' && propostaItem && propostaItem.simples) { const el = document.getElementById('proposta-producao'); if (el) el.classList.remove('visivel'); return; }
+    return _calcProd.apply(this, arguments);
+  };
+}

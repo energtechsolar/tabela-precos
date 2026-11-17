@@ -73,7 +73,8 @@ function montarPropostaPDF(d, fotos) {
   const seta = (x, y, c) => { fill(c || AM); doc.lines([[2.4, 2], [-2.4, 2]], x, y - 2, [1,1], 'F', true); };
 
   const imp = d.tipo === 'importado';
-  const sep = d.modoValor === 'separado';
+  const simples = !!d.item.simples;   // orçamento simples (só placas, só inversor, serviço): sem geração, economia e retorno
+  const sep = !simples && d.modoValor === 'separado';
   const cheio = d.valorCheio || d.valor;                 // parcelado e financiamento: sem o desconto do à vista
   const temDesc = (d.descontoAVista || 0) > 0.5;
   const local = d.cidade || (d.regiao.nome.split(' (')[0] + ' / ' + d.regiao.uf);
@@ -100,18 +101,21 @@ function montarPropostaPDF(d, fotos) {
   if (fotos.capa) doc.addImage(fotos.capa, 'JPEG', FX, FY, FW, FH);
   else { caixa(FX, FY, FW, FH, PR2); icone('sol', FX + FW / 2, FY + FH / 2, 16, [70,70,70]); }
 
-  cor(BR); fonte(8.5, 'bold'); texto({ hibrido:'SISTEMA FOTOVOLTAICO HÍBRIDO COM BATERIAS', zerogrid:'SISTEMA FOTOVOLTAICO ZERO GRID', offgrid:'SISTEMA FOTOVOLTAICO OFF-GRID COM BATERIAS' }[tipoSis] || 'SISTEMA DE ENERGIA SOLAR FOTOVOLTAICA', 21, 141, { charSpace:0.7 });
+  cor(BR); fonte(8.5, 'bold'); texto(simples ? 'ORÇAMENTO DE EQUIPAMENTOS E SERVIÇOS' : { hibrido:'SISTEMA FOTOVOLTAICO HÍBRIDO COM BATERIAS', zerogrid:'SISTEMA FOTOVOLTAICO ZERO GRID', offgrid:'SISTEMA FOTOVOLTAICO OFF-GRID COM BATERIAS' }[tipoSis] || 'SISTEMA DE ENERGIA SOLAR FOTOVOLTAICA', 21, 141, { charSpace:0.7 });
   fonte(36, 'bold'); texto('PROPOSTA', 20.3, 156.5); texto('COMERCIAL', 20.3, 172);
   cor(AM); fonte(8, 'bold'); texto('PREPARADA PARA', 21, 184.5, { charSpace:0.8 });
   cor(BR); caber(d.nome, 165, 20, 12, 'bold'); texto(d.nome, 21, 193.5);
   cor(CL); fonte(9.5); texto(local, 21, 199.5);
 
-  const c1w = (168 - 8) / 3;
-  const capaCards = [
+  const capaCards = simples ? [
+    ['painel', d.item.nome, d.itens.length + (d.itens.length === 1 ? ' item' : ' itens'), 'ESCOPO'],
+    ['moeda', brl(d.valor), aCombinar ? 'condições a combinar' : 'investimento total', 'INVESTIMENTO'],
+  ] : [
     ['raio', kwpTxt + ' kWp', d.item.mod + ' módulos de ' + d.potW + ' W', 'POTÊNCIA DO SISTEMA'],
     ['grafico', kwh(d.geracao) + ' kWh/mês', kwh(d.geracao * 12) + ' kWh/ano', 'GERAÇÃO ESTIMADA'],
     ['moeda', brl0(d.economia) + '/mês', 'na conta de luz', 'ECONOMIA ESTIMADA'],
   ];
+  const c1w = (168 - 4 * (capaCards.length - 1)) / capaCards.length;
   capaCards.forEach(([ic, val, sub, rot], i) => {
     const x = 21 + i * (c1w + 4), y = 205;
     caixa(x, y, c1w, 33, PR2); fill(AM); doc.rect(x, y, c1w, 0.6, 'F');
@@ -131,6 +135,40 @@ function montarPropostaPDF(d, fotos) {
     cor(PR); fonte(9.5, 'bold'); texto(linhas(v, iw - 8)[0], x + 4.5, 263.8);
   });
 
+  const bw2 = (CW - 5) / 2;
+  let y = 0;
+  if (simples) {
+  // ═══════════════ ORÇAMENTO SIMPLES — PÁGINA 2: ITENS E INVESTIMENTO ═══════════════
+    doc.addPage(); cabecalho();
+    secao(2, 'ITENS DO ORÇAMENTO', 'O que está incluído nesta proposta.');
+    y = 44;
+    rotulo('Itens', X0, y); y += 2;
+    fonte(8.2); const itL = d.itens.map(t => linhas(t, CW - 16));
+    const hIt = itL.reduce((s, l) => s + l.length * 3.7 + 2, 0) + 6;
+    caixa(X0, y, CW, hIt, BR, BD);
+    let yi = y + 6.5;
+    itL.forEach(l => { fill(AM); doc.circle(X0 + 6, yi - 1.1, 0.9, 'F'); cor(PR); fonte(8.2); doc.text(l, X0 + 9, yi); yi += l.length * 3.7 + 2; });
+    y += hIt + 7;
+    const hI = temDesc ? 27 : 21;
+    caixa(X0, y, CW, hI, PR);
+    cor(AM); fonte(7, 'bold'); texto('INVESTIMENTO TOTAL', X0 + 6, y + 7.5);
+    if (d.valorDe) {
+      const tDe = brl(d.valorDe), xr = X1 - 6;
+      cor(CL); fonte(8); texto('de ' + tDe, xr, y + 7.5, { align:'right' });
+      const wDe = doc.getTextWidth(tDe); draw(CL); doc.setLineWidth(0.35); doc.line(xr - wDe, y + 6.4, xr, y + 6.4);
+    }
+    cor(BR); caber(brl(d.valor), CW - 12, 20, 13, 'bold'); texto(brl(d.valor), X0 + 6, y + 17);
+    if (temDesc) { cor(AM); fonte(7.2, 'bold'); texto('à vista  ·  parcelado: ' + brl(cheio), X0 + 6, y + 23.5); }
+    y += hI + 5;
+    [['Prazo de entrega', PROPOSTA_CFG.prazo_entrega || 'a combinar'], ['Validade da proposta', d.validade]].forEach(([r, v], i) => {
+      const x = X0 + i * (bw2 + 5);
+      caixa(x, y, bw2, 17, CZC, BD);
+      rotulo(r, x + 4.5, y + 6);
+      cor(PR); fonte(9, 'bold'); texto(linhas(v, bw2 - 9)[0], x + 4.5, y + 12.5);
+    });
+    y += 17;
+    preencher(fotos.pag3, y + 6, null, 0);
+  } else {
   // ═══════════════ PÁGINA 2 — RESULTADOS ═══════════════
   doc.addPage(); cabecalho();
   secao(2, 'RESULTADOS DO SEU SISTEMA', 'O que o seu sistema vai produzir e quanto você vai economizar.');
@@ -238,7 +276,6 @@ function montarPropostaPDF(d, fotos) {
   secao(3, 'EQUIPAMENTOS E SERVIÇOS', 'Soluções de qualidade, com marcas reconhecidas e certificadas.');
   const marcaMod = d.item.marca_mod || (imp ? PROPOSTA_CFG.modulos_importado : PROPOSTA_CFG.modulos_nacional);
   const marcaInv = d.item.marca_inv || (imp ? PROPOSTA_CFG.inversor_importado : PROPOSTA_CFG.inversor_nacional);
-  const bw2 = (CW - 5) / 2;
   const equip = [
     ['Módulos fotovoltaicos', d.item.mod + ' x ' + d.potW + ' W', marcaMod, ['Alta eficiência', (anos(PROPOSTA_CFG.garantia_modulos) || '12 anos') + ' de garantia', 'Certificação Inmetro', 'Resistência a intempéries']],
     ['Inversor', 'Inversor ' + d.item.inv, marcaInv, ['Monitoramento via Wi-Fi', 'Alta confiabilidade', 'Proteções integradas', 'Garantia de ' + (anos(PROPOSTA_CFG.garantia_inversor) || '10 anos')]],
@@ -264,7 +301,7 @@ function montarPropostaPDF(d, fotos) {
   });
 
   // itens do kit (editáveis pelo vendedor)
-  let y = 122;
+  y = 122;
   if (sep) {
     // orçamento detalhado: kit (faturado pelo fornecedor / FINAME) e serviço da Energtech com valores próprios
     rotulo('Orçamento detalhado', X0, y); y += 2;
@@ -363,10 +400,11 @@ function montarPropostaPDF(d, fotos) {
       if (i < 3) seta(x + cw4 + gap / 2 - 1.2, cy);
     });
   }, 36);
+  }   // fim das páginas 2 e 3 do sistema completo
 
   // ═══════════════ PÁGINA 4 — INVESTIMENTO E FORMAS DE PAGAMENTO ═══════════════
   doc.addPage(); cabecalho();
-  secao(4, 'INVESTIMENTO E FORMAS DE PAGAMENTO', soAVista || negociada ? 'Condição de pagamento desta proposta.' : 'Escolha a condição que melhor se adapta a você.');
+  secao(simples ? 3 : 4, 'INVESTIMENTO E FORMAS DE PAGAMENTO', soAVista || negociada ? 'Condição de pagamento desta proposta.' : 'Escolha a condição que melhor se adapta a você.');
   const itensCfg = k => String(PROPOSTA_CFG[k] || '').split('\n').map(t => t.trim()).filter(Boolean);
   const opcoes = [];
   if (aCombinar) opcoes.push({ titulo:'INVESTIMENTO', desenha:(x, y, w) => {
@@ -421,7 +459,7 @@ function montarPropostaPDF(d, fotos) {
   const prazos = String(PROPOSTA_CFG.fin_prazos || '').split(/[,;\s]+/).map(Number).filter(n => n > 0).slice(0, 6);
   const taxaFin = (+PROPOSTA_CFG.fin_taxa_mes || 0) / 100;
   const pmt = (v, n) => taxaFin > 0 ? v * taxaFin / (1 - Math.pow(1 + taxaFin, -n)) : v / n;
-  const mostrarFin = PROPOSTA_CFG.fin_ativo && imp && !aCombinar && !soAVista && !negociada && prazos.length > 0;   // nacional: só FINAME (a linha da Caixa é para imóvel urbano)
+  const mostrarFin = !simples && PROPOSTA_CFG.fin_ativo && imp && !aCombinar && !soAVista && !negociada && prazos.length > 0;   // nacional: só FINAME (a linha da Caixa é para imóvel urbano)
   if (mostrarFin) opcoes.push({ titulo:'FINANCIAMENTO', sub: PROPOSTA_CFG.fin_banco, desenha:(x, y, w) => {
     cor(PR); fonte(8.5, 'bold'); texto('Parcelas estimadas', x + 4, y + 7);
     let yy = y + 10;
@@ -442,7 +480,7 @@ function montarPropostaPDF(d, fotos) {
   let hBody = 0;
   opcoes.forEach((o, i) => { const x = X0 + i * (ow + 4); hBody = Math.max(hBody, o.desenha(x, yOp + hHead + 400, ow) + 4); });
   doc.deletePage(doc.getNumberOfPages()); doc.addPage(); cabecalho();
-  secao(4, 'INVESTIMENTO E FORMAS DE PAGAMENTO', soAVista || negociada ? 'Condição de pagamento desta proposta.' : 'Escolha a condição que melhor se adapta a você.');
+  secao(simples ? 3 : 4, 'INVESTIMENTO E FORMAS DE PAGAMENTO', soAVista || negociada ? 'Condição de pagamento desta proposta.' : 'Escolha a condição que melhor se adapta a você.');
   opcoes.forEach((o, i) => {
     const x = X0 + i * (ow + 4);
     caixa(x, yOp, ow, hHead, PR);
@@ -456,7 +494,7 @@ function montarPropostaPDF(d, fotos) {
   const msgEco = (d.economia > 0 && menorParcela <= d.economia) ? 'Sua economia estimada é de ' + brl0(d.economia) + ' por mês, e a parcela pode começar em ' + brl0(menorParcela) + '.' : '';
   fonte(7.4); const corpo = linhas('Em muitos casos, o valor da parcela pode ser igual ou menor do que a sua conta de luz atual. Ou seja: você troca a conta de energia por um investimento que fica seu.' + (msgEco ? ' ' + msgEco : ''), CW - 16);
   const hEco = 13 + corpo.length * 3.4;
-  if (!aCombinar && !soAVista) {
+  if (!aCombinar && !soAVista && !simples) {
     caixa(X0, y, CW, hEco, AM);
     cor(PR); fonte(10, 'bold'); texto('Parcela menor que a fatura', X0 + 8, y + 7.5);
     fonte(7.4); doc.text(corpo, X0 + 8, y + 12.5);
@@ -525,7 +563,7 @@ function montarPropostaPDF(d, fotos) {
   y += hP + 5;
   cor(CZ); fonte(6.6); obs.forEach(t => { const l = linhas(t, CW); doc.text(l, X0, y); y += l.length * 3 + 0.6; });
   preencher(fotos.pag4, y - 2, (y0, livre) => {
-    if (!(d.conta > 0) || !(menorParcela > 0)) return;
+    if (simples || !(d.conta > 0) || !(menorParcela > 0)) return;
     // comparativo em reais: conta de hoje x durante as parcelas x depois de quitado
     const y1 = y0 + Math.min(9, livre - 40);
     tituloArte('grafico', 'QUANTO VOCÊ PAGA POR MÊS', y1);
@@ -547,6 +585,8 @@ function montarPropostaPDF(d, fotos) {
 
   // ═══════════════ PÁGINA 5 — GARANTIAS, PROCESSO E PRÓXIMOS PASSOS ═══════════════
   doc.addPage(); cabecalho();
+  if (simples) { secao(4, 'PRÓXIMOS PASSOS', 'Vamos seguir com o seu pedido?'); y = 44; }
+  else {
   secao(5, 'GARANTIAS, PROCESSO E PRÓXIMOS PASSOS', 'Segurança para você do início ao fim.');
   cor(PR); fonte(9, 'bold'); texto('GARANTIAS', X0 + 1, 46); texto('NOSSO PROCESSO', X0 + bw2 + 6, 46);
   y = 50;
@@ -570,6 +610,7 @@ function montarPropostaPDF(d, fotos) {
     yp += 11.5;
   });
   y = Math.max(y, yp) + 8;
+  }
   // por que escolher + próximos passos
   const hb = 52;
   caixa(X0, y, bw2, hb, PR);
@@ -586,7 +627,7 @@ function montarPropostaPDF(d, fotos) {
   const px = X0 + bw2 + 5;
   caixa(px, y, bw2, hb, CZC, BD);
   cor(CZ); fonte(6.6, 'bold'); texto('PRÓXIMOS PASSOS', px + bw2 / 2, y + 9, { align:'center', charSpace:0.2 });
-  cor(PR); fonte(10.5, 'bold'); texto('Vamos seguir com o seu projeto?', px + bw2 / 2, y + 17, { align:'center' });
+  cor(PR); fonte(10.5, 'bold'); texto(simples ? 'Vamos seguir com o seu pedido?' : 'Vamos seguir com o seu projeto?', px + bw2 / 2, y + 17, { align:'center' });
   const btW = 56, btX = px + (bw2 - btW) / 2, btY = y + 22;
   fill(AM); doc.rect(btX, btY, btW, 9, 'F'); cor(PR); fonte(8.5, 'bold'); texto('APROVAR PROPOSTA', px + bw2 / 2, btY + 6, { align:'center' });
   const foneAprov = String(PROPOSTA_CFG.telefone_aprovacao || '').replace(/\D/g, '');
@@ -601,7 +642,7 @@ function montarPropostaPDF(d, fotos) {
     .filter(([q]) => tipoSis === 'ongrid' || !/bateria/i.test(q))   // zero grid / híbrido / off-grid: a resposta "não precisa de bateria" não vale
     .map(([q, a]) => [q, a.replace(/a concessionária/g, 'a ' + conc)]);
   const livreF = FIM - 8 - y;
-  if (faq.length && livreF >= 34) {
+  if (!simples && faq.length && livreF >= 34) {
     tituloArte('escudo', 'PERGUNTAS FREQUENTES', y + 2);
     const cols = 2, rows = Math.ceil(faq.length / cols), fw2 = (CW - 5) / 2;
     const hF = Math.min(25, (livreF - 8 - (rows - 1) * 3) / rows);
@@ -617,7 +658,8 @@ function montarPropostaPDF(d, fotos) {
 
   const total = doc.getNumberOfPages();
   for (let i = 1; i <= total; i++) { doc.setPage(i); rodape(i, total); }
-  const arq = nomeArquivoPadrao('Proposta', d.nome, d.item.kwp, d.numero, d.emissao);
+  const arq = simples ? nomeArquivoPadrao('Orcamento', d.nome, 0, d.numero, d.emissao).replace('_0kWp', '')
+    : nomeArquivoPadrao('Proposta', d.nome, d.item.kwp, d.numero, d.emissao);
   return { doc, arq };
 }
 

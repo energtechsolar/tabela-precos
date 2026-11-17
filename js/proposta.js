@@ -229,7 +229,7 @@ function calcularDadosProposta(e) {
   const meta = e.meta || 0;
   const usaMeta = meta > 0 && meta > conta;
   if (usaMeta) { consumo = consumo && conta ? Math.round(consumo * meta / conta) : Math.round(meta / tarifa); conta = meta; }
-  const geracao  = Math.round(item.kwp * (e.regiao.fator || fatorRegiao()) * (FATOR_ORIENTACAO[orientacao] || 1));
+  const geracao  = item.simples ? 0 : Math.round(item.kwp * (e.regiao.fator || fatorRegiao()) * (FATOR_ORIENTACAO[orientacao] || 1));
   const creditos = geracao * tarifa;
   const economia = conta ? Math.max(0, Math.min(creditos, conta - taxa)) : Math.max(0, creditos - taxa);
   const novaConta = conta ? Math.max(taxa, conta - economia) : null;
@@ -254,7 +254,7 @@ function calcularDadosProposta(e) {
   const pag = tipo === 'importado'
     ? { modo: modoPag, entrada: entImp, saldo: saldoImp, n: bol.n, juros: bol.juros, parcela: parcImp, parcela10: parcImp, totalPrazo: entImp + parcImp * bol.n }
     : { p96: calcParcelaMensal(valorCheio, 8), p120: calcParcelaMensal(valorCheio, 10), kit: valorCheio / 1.30, servicos: valorCheio - valorCheio / 1.30 };
-  const modoValor = e.modoValor || 'global';
+  const modoValor = item.simples ? 'global' : (e.modoValor || 'global');   // orçamento simples: valor único
   let valorKit = modoValor === 'separado' ? (e.valorKit || valor / (+PROPOSTA_CFG.fator_kit || 1.30)) : null;
   if (valorKit !== null) valorKit = Math.min(valorKit, valor);
   const valorServico = valorKit !== null ? valor - valorKit : null;
@@ -286,7 +286,7 @@ async function reimprimirProposta(id) {
   const { data: o, error } = await sb.from('orcamentos').select('*').eq('id', id).maybeSingle();
   if (error || !o) { msg('⚠ Proposta Nº ' + id + ' não encontrada ou sem permissão para ver.', true); return; }
   const dd = o.dados || {}, kit = dd.kit || {}, calc = dd.calculo || { valorFinal: o.valor_final };
-  if (!kit.kwp) { msg('⚠ Esta proposta foi salva numa versão antiga do sistema e não tem os dados completos para gerar o PDF.', true); return; }
+  if (!kit.kwp && !kit.simples) { msg('⚠ Esta proposta foi salva numa versão antiga do sistema e não tem os dados completos para gerar o PDF.', true); return; }
   calc.valorFinal = +o.valor_final;
   let vendedor = '';
   try { const { data: v } = await sb.from('vendedores').select('nome').eq('email', o.vendedor_email).maybeSingle(); vendedor = (v && v.nome) || o.vendedor_email; } catch (e) {}
@@ -361,12 +361,17 @@ function mensagemProposta(d) {
     `Olá${primeiro ? ', ' + primeiro : ''}! ☀`,
     d.vendedor ? `Aqui é ${d.vendedor}, da *Energtech Engenharia Solar*. Segue o resumo da sua proposta:` : `Segue o resumo da sua proposta da *Energtech Engenharia Solar*:`,
     '',
+  ];
+  if (d.item.simples) {   // orçamento simples (só placas, só inversor, serviço): itens, valor e pagamento
+    linhasMsg.push(`🧾 *Orçamento:* ${d.item.nome}`, ...d.itens.slice(0, 12).map(t => '• ' + t));
+  } else linhasMsg.push(
     `🔋 *Sistema:* ${d.item.kwp.toLocaleString('pt-BR')} kWp (${d.item.mod} módulos de ${d.potW} W` + (d.item.personalizado && d.item.inv ? ` + inversor ${d.item.inv}` : '') + `)`
       + ({ zerogrid: ' · zero grid', hibrido: ' · híbrido com baterias', offgrid: ' · off-grid' }[d.item.tipo_sistema] || ''),
     `⚡ *Geração estimada:* ${Math.round(d.geracao).toLocaleString('pt-BR')} kWh por mês`,
     `💡 *Economia estimada:* ${brl(d.economia)} por mês`,
-  ];
-  if (d.conta && d.usaMeta) linhasMsg.push(`📉 *Conta de luz:* considerando o consumo previsto de ${brl(d.conta)} por mês, passa para cerca de ${brl(d.novaConta)}`);
+  );
+  if (d.item.simples) { /* sem conta de luz */ }
+  else if (d.conta && d.usaMeta) linhasMsg.push(`📉 *Conta de luz:* considerando o consumo previsto de ${brl(d.conta)} por mês, passa para cerca de ${brl(d.novaConta)}`);
   else if (d.conta) linhasMsg.push(`📉 *Sua conta de luz:* de ${brl(d.conta)} para cerca de ${brl(d.novaConta)}`);
   linhasMsg.push(d.valorDe ? `💰 *Investimento:* de ~${brl(d.valorDe)}~ por *${brl(d.valor)}*${avista}` : `💰 *Investimento:* ${brl(d.valor)}`);
   if (d.modoValor === 'separado') linhasMsg.push(`     (kit ${brl(d.valorKit)} + mão de obra ${brl(d.valorServico)})`);
@@ -382,7 +387,7 @@ function preencherItensProposta() {
   const tipo = propostaTipo || 'importado';
   document.getElementById('prop-itens').value = itensDoKit(propostaItem, tipo);
   document.getElementById('prop-servico').value = PROPOSTA_CFG.servico_desc || '';
-  const modo = tipo === 'nacional' ? 'separado' : 'global';
+  const modo = tipo === 'nacional' && !propostaItem.simples ? 'separado' : 'global';
   { const pm = document.getElementById('pag-modo'); if (pm) pm.value = tipo === 'importado' && propostaItem.pagamento === 'combinar' ? 'combinar' : 'opcoes'; const pv = document.getElementById('bol-parcela-valor'); if (pv) pv.value = ''; }
   document.querySelectorAll('input[name="modo-valor"]').forEach(r => r.checked = r.value === modo);
   // a tabela é orientativa: o vendedor pode ajustar o total, ou o kit e a mão de obra
