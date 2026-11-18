@@ -41,3 +41,17 @@ async function paraJpeg(f) {
   catch (e) { console.error('HEIC:', e); throw new Error('não foi possível converter a foto HEIC — no iPhone, mande como JPG (Ajustes › Câmera › Formatos › Mais compatível)'); }
   return new File([b], nome, { type: 'image/jpeg' });
 }
+
+// complementos de algumas telas: carregados depois do script da própria tela (assim a tela grande não precisa mudar)
+(function () {
+  const EXTRAS = {
+    'instalacoes.html': ['js/agenda-extra.js?v=20261118a'],
+    'equipe.html': ['js/equipe-dias.js?v=20261118a'],
+    'financeiro.html': ['js/obra-resumo.js?v=20261118a'],
+  };
+  const lista = EXTRAS[location.pathname.split('/').pop() || 'index.html'];
+  if (!lista) return;
+  document.addEventListener('DOMContentLoaded', () => lista.forEach(src => {
+    const s = document.createElement('script'); s.src = src; s.async = false; document.body.appendChild(s);
+  }));
+})();
