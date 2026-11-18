@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://cmrndntnaaooapbdmgip.supabase.co; media-src 'self' blob: https://cmrndntnaaooapbdmgip.supabase.co; connect-src 'self' https://cmrndntnaaooapbdmgip.supabase.co wss://cmrndntnaaooapbdmgip.supabase.co;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://cmrndntnaaooapbdmgip.supabase.co; media-src 'self' blob: https://cmrndntnaaooapbdmgip.supabase.co; connect-src 'self' https://cmrndntnaaooapbdmgip.supabase.co wss://cmrndntnaaooapbdmgip.supabase.co; frame-src https://cmrndntnaaooapbdmgip.supabase.co blob:;">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Conversas — WhatsApp</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -79,6 +79,15 @@
   .rapidas { margin:0 10px 6px; background:#1a1a1a; border:1px solid var(--borda); border-radius:10px; max-height:260px; overflow-y:auto; }
   .rapida { padding:8px 12px; border-bottom:1px solid #262626; cursor:pointer; display:flex; gap:8px; justify-content:space-between; }
   .rapida:hover { background:#222; } .rapida b { color:var(--amarelo); font-size:13px; } .rapida .muted { font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .visor { position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:80; display:flex; flex-direction:column; }
+  .visor-topo { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:10px 14px; background:#151515; border-bottom:1px solid var(--borda); }
+  .visor-topo b { color:#fff; flex:1; min-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .visor-corpo { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:10px; }
+  .visor-corpo img { max-width:100%; max-height:100%; object-fit:contain; border-radius:6px; }
+  .visor-corpo iframe { width:100%; height:100%; border:0; background:#fff; border-radius:6px; }
+  .visor-ficha { display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding:8px 14px; background:#111; border-top:1px solid var(--borda); font-size:13px; }
+  .visor-ficha .select { width:auto; padding:5px 8px; font-size:13px; }
+  .bolha .ver { cursor:pointer; }
   .voltar { display:none; }
   @media (max-width:760px) {
     .app { grid-template-columns:1fr; }
@@ -135,6 +144,8 @@ function telBonito(t) { let d = String(t || '').replace(/\D/g, ''); if (d.starts
 const JANELA_MS = 24 * 3600 * 1000;
 let perfil = null, CANAIS = [], CONVS = [], MSGS = [], aberta = null, ULT = {}, urlsMidia = {}, canalRT = null, painelLigar = false;
 let anexo = null, RESPOSTAS = [], painelRapidas = false, filtroRapidas = '';   // arquivo escolhido para enviar · mensagens rápidas
+let painelDocs = false, DOCS_LEAD = null, PROPS_LEAD = [];   // documentos da ficha do lead (para enviar pelo WhatsApp)
+const TIPOS_FICHA = [['fatura', 'Fatura de energia'], ['cnh', 'CNH / RG'], ['disjuntor', 'Foto do disjuntor'], ['padrao', 'Foto do padrão de entrada'], ['transformador', 'Foto do transformador']];
 
 function mostrar(qual, texto) {
   $('login').style.display = qual === 'login' ? '' : 'none';
@@ -205,7 +216,7 @@ function renderLista() {
 }
 
 async function abrir(id) {
-  if (aberta !== id) { painelLigar = false; painelRapidas = false; tirarAnexo(true); }
+  if (aberta !== id) { painelLigar = false; painelRapidas = false; painelDocs = false; DOCS_LEAD = null; tirarAnexo(true); }
   aberta = id; $('app').classList.add('aberta');
   const c = CONVS.find(x => x.id === id); if (!c) return;
   history.replaceState(null, '', '?conversa=' + id);
@@ -227,10 +238,10 @@ function corpo(m) {
   let h = '';
   if (m.midia_path) {
     if (!u) h += `<div class="muted" data-midia="${esc(m.midia_path)}">⏳ carregando ${esc((ICONE[m.tipo] || 'arquivo').toLowerCase())}…</div>`;
-    else if (m.tipo === 'imagem') h += `<a href="${u}" target="_blank" rel="noopener"><img src="${u}" alt="foto"></a>`;
+    else if (m.tipo === 'imagem') h += `<img class="ver" src="${u}" alt="foto" title="Ver" onclick="abrirVisor('${m.id}')">`;
     else if (m.tipo === 'audio') h += `<audio controls src="${u}"></audio>`;
     else if (m.tipo === 'video') h += `<video controls src="${u}" style="max-width:260px"></video>`;
-    else h += `<a href="${u}" target="_blank" rel="noopener">📄 ${esc(m.texto || 'Abrir documento')}</a>`;
+    else h += `<a href="#" class="ver" onclick="abrirVisor('${m.id}');return false">📄 ${esc(m.texto || 'Abrir documento')}</a>`;
     if (m.texto && m.tipo !== 'documento') h += `<div>${esc(m.texto)}</div>`;
   } else if (['imagem', 'audio', 'video', 'documento'].includes(m.tipo)) h += `<span class="muted">${ICONE[m.tipo]} (não foi possível baixar)</span>${m.texto ? '<div>' + esc(m.texto) + '</div>' : ''}`;
   else h += esc(m.texto || ICONE[m.tipo] || '');
@@ -260,9 +271,11 @@ function renderChat(rolar) {
     <div class="msgs" id="msgs">${bolhas || '<div class="vazio">Sem mensagens.</div>'}</div>
     ${podeLivre ? '' : `<div class="aviso-janela">⏰ Passaram mais de 24 h desde a última mensagem do cliente. Pela regra do WhatsApp, agora só é possível enviar uma <b>mensagem modelo aprovada</b> (em breve aqui). Quando o cliente responder, a conversa livre abre de novo.</div>`}
     ${podeLivre && painelRapidas ? `<div class="rapidas" id="rapidas">${htmlRapidas()}</div>` : ''}
-    ${podeLivre && anexo ? `<div class="anexo-chip">${anexo.previa ? `<img src="${anexo.previa}" alt="">` : '<span style="font-size:22px">📄</span>'}<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>${esc(anexo.nome)}</b> <span class="muted">${tamTxt(anexo.arquivo.size)}${anexo.aviso ? ' · ' + esc(anexo.aviso) : ''}</span><br><span class="muted">O texto abaixo vai como legenda (opcional).</span></span><button class="btn btn-sec btn-p" onclick="tirarAnexo()">✕</button></div>` : ''}
+    ${podeLivre && painelDocs ? `<div class="rapidas" id="docs-lead">${htmlDocs()}</div>` : ''}
+    ${podeLivre && anexo ? `<div class="anexo-chip">${anexo.previa ? `<img src="${anexo.previa}" alt="">` : '<span style="font-size:22px">📄</span>'}<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>${esc(anexo.nome)}</b> <span class="muted">${anexo.arquivo ? tamTxt(anexo.arquivo.size) : 'da ficha do lead'}${anexo.aviso ? ' · ' + esc(anexo.aviso) : ''}</span><br><span class="muted">O texto abaixo vai como legenda (opcional).</span></span><button class="btn btn-sec btn-p" onclick="tirarAnexo()">✕</button></div>` : ''}
     <div class="envio">
       <label class="btn-ico" title="Anexar foto, PDF, documento, vídeo ou áudio" style="${podeLivre ? '' : 'opacity:.4;pointer-events:none'}">📎<input type="file" id="arq" style="display:none" onchange="escolherAnexo(this)"></label>
+      ${c.lead_id ? `<button class="btn-ico" title="Documentos da ficha do lead (CNH, fatura, fotos...)" onclick="alternarDocs()" ${podeLivre ? '' : 'disabled'}>📂</button>` : ''}
       <button class="btn-ico" title="Mensagens rápidas (ou digite / na mensagem)" onclick="alternarRapidas()" ${podeLivre ? '' : 'disabled'}>⚡</button>
       <textarea class="input" id="texto" rows="1" placeholder="${podeLivre ? 'Escreva uma mensagem… (/ = mensagens rápidas · Enter envia)' : 'Conversa livre fechada (mais de 24 h)'}" ${podeLivre ? '' : 'disabled'}
         oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,140)+'px';digitou(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviar()}"></textarea>
@@ -291,11 +304,12 @@ async function enviar() {
   btn.disabled = true; campo.disabled = true;
   // mostra na hora (fica "🕓" até a função confirmar)
   const temp = { id: 'tmp' + Date.now(), direcao: 'saida', tipo: arq ? 'documento' : 'texto', texto: arq ? '⏳ enviando ' + arq.nome + (texto ? ' — ' + texto : '') : texto, status: 'pendente', autor: perfil.email, criado_em: new Date().toISOString() };
-  MSGS.push(temp); campo.value = ''; anexo = null; painelRapidas = false; renderChat(true);
+  MSGS.push(temp); campo.value = ''; anexo = null; painelRapidas = false; painelDocs = false; renderChat(true);
   let resp = null, erro = null;
   try {
     const corpo = { conversa_id: c.id, texto };
-    if (arq) {   // sobe o arquivo na pasta privada da conversa; o servidor manda ao WhatsApp por um link temporário
+    if (arq && arq.doc_path) corpo.doc_path = arq.doc_path;   // documento da ficha: o servidor confere e copia
+    else if (arq) {   // sobe o arquivo na pasta privada da conversa; o servidor manda ao WhatsApp por um link temporário
       const caminho = `${c.empresa_id}/${c.id}/env-${Date.now()}-${arq.nome.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_').slice(-80)}`;
       const up = await sb.storage.from('whatsapp').upload(caminho, arq.arquivo, { contentType: arq.mime, upsert: false });
       if (up.error) throw new Error('não foi possível subir o arquivo: ' + up.error.message);
@@ -358,7 +372,7 @@ function htmlRapidas() {
     : `<div class="rapida muted">${RESPOSTAS.length ? 'Nenhuma encontrada.' : 'Nenhuma mensagem rápida ainda.'}</div>`)
     + `<div class="rapida" onclick="editarRapida()"><b>+ Nova mensagem rápida</b></div>`;
 }
-function alternarRapidas() { painelRapidas = !painelRapidas; filtroRapidas = ''; renderChat(false); }
+function alternarRapidas() { painelRapidas = !painelRapidas; painelDocs = false; filtroRapidas = ''; renderChat(false); }
 function digitou(el) {   // "/" no começo abre a lista e filtra pelo que vem depois
   const v = el.value;
   if (v.startsWith('/')) { const novo = v.slice(1); if (!painelRapidas || novo !== filtroRapidas) { painelRapidas = true; filtroRapidas = novo; const box = $('rapidas'); if (box) box.innerHTML = htmlRapidas(); else { renderChat(false); const t = $('texto'); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } } } }
@@ -388,6 +402,107 @@ async function apagarRapida(id) {
   const { error } = await sb.from('whatsapp_respostas').delete().eq('id', id);
   if (error) { alert('⚠ ' + error.message); return; }
   await carregarRespostas(); renderChat(false);
+}
+
+// ── documentos da ficha do lead: escolhe e envia pelo WhatsApp (o servidor confere que o documento é deste lead) ──
+async function alternarDocs() {
+  const c = CONVS.find(x => x.id === aberta); if (!c || !c.lead_id) return;
+  painelDocs = !painelDocs; painelRapidas = false;
+  if (painelDocs && DOCS_LEAD === null) {
+    const [l, o] = await Promise.all([
+      sb.from('leads').select('documentos').eq('id', c.lead_id).maybeSingle(),
+      sb.from('orcamentos').select('id, sistema, kwp, valor_final, criado_em').eq('lead_id', c.lead_id).order('criado_em', { ascending: false }).limit(8),
+    ]);
+    DOCS_LEAD = ((l.data && l.data.documentos) || []).filter(d => d && d.path);
+    PROPS_LEAD = o.data || [];
+  }
+  renderChat(false);
+}
+function htmlDocs() {
+  const rot = t => (TIPOS_FICHA.find(x => x[0] === t) || [t, t])[1];
+  const lista = DOCS_LEAD || [];
+  return (lista.length ? lista.map((d, i) => `<div class="rapida" onclick="escolherDocFicha(${i})"><span style="min-width:0;flex:1"><b>${esc(rot(d.tipo))}</b><div class="muted">${esc(d.nome || d.path.split('/').pop())}${d.em ? ' · ' + new Date(d.em).toLocaleDateString('pt-BR') : ''}</div></span><span class="muted">enviar ›</span></div>`).join('')
+    : '<div class="rapida muted">Nenhum documento na ficha deste lead ainda.</div>')
+    + PROPS_LEAD.map(p => `<div class="rapida" onclick="enviarPropostaSalva(${p.id})"><span style="min-width:0;flex:1"><b>📄 Proposta Nº ${String(p.id).padStart(5, '0')}</b><div class="muted">${esc(p.sistema || '')}${+p.kwp ? ' · ' + String(p.kwp).replace('.', ',') + ' kWp' : ''} · R$ ${(+p.valor_final || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · ${new Date(p.criado_em).toLocaleDateString('pt-BR')}</div></span><span class="muted">gerar e enviar ›</span></div>`).join('');
+}
+// a proposta é gerada no precificador (mesmo PDF de sempre) e enviada direto nesta conversa
+function enviarPropostaSalva(id) {
+  const c = CONVS.find(x => x.id === aberta); if (!c) return;
+  if (!confirm('Gerar o PDF da proposta Nº ' + String(id).padStart(5, '0') + ' e enviar nesta conversa?\n\nAbre o precificador numa aba nova; quando aparecer "enviada", pode fechar a aba.')) return;
+  painelDocs = false; renderChat(false);
+  window.open('index.html?pdf=' + id + '&wa=' + c.id, '_blank');
+}
+function escolherDocFicha(i) {
+  const d = (DOCS_LEAD || [])[i]; if (!d) return;
+  if (anexo && anexo.previa) URL.revokeObjectURL(anexo.previa);
+  anexo = { doc_path: d.path, nome: d.nome || d.path.split('/').pop(), arquivo: null, mime: '', aviso: '', previa: '' };
+  painelDocs = false; renderChat(true);
+  if ($('texto')) $('texto').focus();
+}
+
+// ── visualizador: foto ou PDF por cima da conversa, sem baixar; salvar na ficha do lead e ler fatura / CNH ──
+function abrirVisor(id) {
+  const m = MSGS.find(x => String(x.id) === String(id)), c = CONVS.find(x => x.id === aberta);
+  const u = m && m.midia_path ? urlsMidia[m.midia_path] : null; if (!u || !c) return;
+  const ehPdf = /pdf/i.test(m.midia_mime || '') || /\.pdf$/i.test(m.midia_path);
+  const nome = m.tipo === 'documento' ? (m.texto || 'documento') : (ICONE[m.tipo] || 'arquivo');
+  const corpoV = m.tipo === 'imagem' ? `<img src="${u}" alt="foto">`
+    : ehPdf ? `<iframe src="${u}" title="PDF"></iframe>`
+    : m.tipo === 'video' ? `<video controls src="${u}" style="max-width:100%;max-height:100%"></video>`
+    : m.tipo === 'audio' ? `<audio controls src="${u}"></audio>`
+    : '<div class="muted">Este tipo de arquivo não tem pré-visualização: use "Abrir em nova aba" ou "Baixar".</div>';
+  const salvavel = m.direcao === 'entrada' && (m.tipo === 'imagem' || ehPdf);
+  const ficha = !salvavel ? '' : c.lead_id
+    ? `<div class="visor-ficha"><span>💾 Salvar na ficha do lead como</span>
+        <select class="select" id="visor-tipo">${TIPOS_FICHA.map(([k, r]) => `<option value="${k}">${r}</option>`).join('')}</select>
+        <button class="btn btn-sec btn-p" onclick="salvarNaFicha('${m.id}', false)">Salvar</button>
+        <button class="btn btn-p" onclick="salvarNaFicha('${m.id}', 'fatura')">🔎 Ler fatura</button>
+        <button class="btn btn-p" onclick="salvarNaFicha('${m.id}', 'cnh')">🪪 Ler CNH / RG</button>
+        <span class="muted" id="visor-msg"></span></div>`
+    : '<div class="visor-ficha muted">Para salvar este arquivo na ficha (e ler fatura ou CNH), ligue a conversa a um lead: "🔗 Ligar a um lead".</div>';
+  fecharVisor();
+  const v = document.createElement('div'); v.className = 'visor'; v.id = 'visor';
+  v.innerHTML = `<div class="visor-topo"><b>${esc(nome)}</b>
+      <a class="btn btn-sec btn-p" href="${u}" target="_blank" rel="noopener">↗ Abrir em nova aba</a>
+      <button class="btn btn-sec btn-p" onclick="baixarMidia('${m.id}')">⬇ Baixar</button>
+      <button class="btn btn-sec btn-p" onclick="fecharVisor()">✕ Fechar</button></div>
+    <div class="visor-corpo" onclick="if(event.target===this)fecharVisor()">${corpoV}</div>${ficha}`;
+  document.body.appendChild(v);
+}
+function fecharVisor() { const v = $('visor'); if (v) v.remove(); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fecharVisor(); });
+async function baixarMidia(id) {
+  const m = MSGS.find(x => String(x.id) === String(id)); if (!m) return;
+  const nome = (m.tipo === 'documento' && m.texto) || m.midia_path.split('/').pop();
+  const { data, error } = await sb.storage.from('whatsapp').createSignedUrl(m.midia_path, 600, { download: nome });
+  if (error || !data) { alert('⚠ Não foi possível baixar: ' + (error ? error.message : '')); return; }
+  const a = document.createElement('a'); a.href = data.signedUrl; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove();
+}
+// copia o arquivo da conversa para a pasta privada "documentos" do lead e coloca na ficha; "ler" abre a ficha já lendo os dados
+async function salvarNaFicha(id, ler) {
+  const m = MSGS.find(x => String(x.id) === String(id)), c = CONVS.find(x => x.id === aberta); if (!m || !c || !c.lead_id) return;
+  const tipo = ler || ($('visor-tipo') || {}).value || 'fatura', msg = $('visor-msg');
+  const aviso = t => { if (msg) msg.textContent = t; };
+  aviso('⏳ Salvando na ficha…');
+  try {
+    const dl = await sb.storage.from('whatsapp').download(m.midia_path);
+    if (dl.error || !dl.data) throw new Error('não consegui abrir o arquivo');
+    const ehPdf = /pdf/i.test(m.midia_mime || dl.data.type || '') || /\.pdf$/i.test(m.midia_path);
+    const ext = ehPdf ? 'pdf' : /png/i.test(m.midia_mime || dl.data.type || '') ? 'png' : 'jpg';
+    const path = 'lead-' + c.lead_id + '/' + tipo + '-' + Date.now() + '.' + ext;
+    const up = await sb.storage.from('documentos').upload(path, dl.data, { contentType: ehPdf ? 'application/pdf' : (ext === 'png' ? 'image/png' : 'image/jpeg'), upsert: false });
+    if (up.error) throw new Error(up.error.message);
+    const { data: l, error: eL } = await sb.from('leads').select('documentos').eq('id', c.lead_id).maybeSingle();
+    if (eL || !l) throw new Error('não consegui abrir a ficha do lead');
+    const docId = String(Date.now());
+    const nome = (m.tipo === 'documento' && m.texto) || (TIPOS_FICHA.find(x => x[0] === tipo) || [, tipo])[1] + '.' + ext;
+    const docs = [...(l.documentos || []), { id: docId, tipo, nome: nome + ' (WhatsApp)', path, em: new Date().toISOString(), autor: perfil.email, origem: 'whatsapp' }];
+    const { error: eU } = await sb.from('leads').update({ documentos: docs, atualizado_em: new Date().toISOString() }).eq('id', c.lead_id);
+    if (eU) { await sb.storage.from('documentos').remove([path]); throw new Error(eU.message); }
+    DOCS_LEAD = null;
+    if (ler) { aviso('✅ Salvo. Abrindo a ficha para ler os dados…'); window.open('crm.html?lead=' + c.lead_id + '&ler=' + docId, '_blank'); }
+    else aviso('✅ Salvo na ficha do lead.');
+  } catch (e) { aviso('⚠ Não foi possível salvar: ' + (e.message || e)); }
 }
 
 // ── ligar a conversa a um lead (ou criar o lead a partir dela) ──

@@ -1,5 +1,5 @@
 // Eider Sistemas / CRM — WhatsApp no CRM: bloco "💬 WhatsApp" na ficha do lead (últimas mensagens e botão para abrir a conversa)
-// e o 💬 nos cards do funil (abre a conversa; com número = mensagens novas).
+// e o 💬 nos cards do funil (abre a conversa; com número = mensagens novas). Também lê a fatura/CNH enviada pelo WhatsApp (?ler=).
 // Se existir conversa com o mesmo telefone ainda sem lead, oferece ligar. Só admin e vendas internas (como no banco).
 // Carregado pelo crm.html depois de js/crm.js: envolve abrirFicha() sem mudar o crm.js.
 (function () {
@@ -81,10 +81,18 @@
   }
   setInterval(() => { if (document.visibilityState === 'visible' && pode()) carregarConvCards(); }, 60000);
 
+  // vindo da tela Conversas com "🔎 Ler fatura" / "🪪 Ler CNH": crm.html?lead=ID&ler=DOC abre a ficha já lendo o documento
+  const pedido = new URLSearchParams(location.search);
+  let lerPendente = pedido.get('ler') ? { lead: +pedido.get('lead'), doc: pedido.get('ler') } : null;
+
   const _abrir = abrirFicha;
   abrirFicha = async function (id) {
     const r = await _abrir.apply(this, arguments);
     if (pode()) montar(id).catch(e => console.warn('WhatsApp na ficha:', e));
+    if (lerPendente && lerPendente.lead === id && typeof window.lerDocLead === 'function') {
+      const doc = lerPendente.doc; lerPendente = null;
+      setTimeout(() => { window.lerDocLead(id, doc); const m = document.getElementById('doc-msg'); if (m) m.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300);
+    }
     return r;
   };
 })();
