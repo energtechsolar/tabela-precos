@@ -88,6 +88,14 @@
   .visor-ficha { display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding:8px 14px; background:#111; border-top:1px solid var(--borda); font-size:13px; }
   .visor-ficha .select { width:auto; padding:5px 8px; font-size:13px; }
   .bolha .ver { cursor:pointer; }
+  .agendadas { margin:0 10px 6px; }
+  .agendada { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; background:#161b26; border:1px solid #1e3a5f; border-left:3px solid var(--azul); border-radius:8px; padding:6px 10px; font-size:12px; margin-bottom:4px; }
+  .agendada.bloqueada, .agendada.falhou { border-left-color:var(--laranja); border-color:#7c2d12; background:#1f1610; }
+  .agendada b { color:#fff; }
+  .agendar { margin:0 10px 6px; background:#161b26; border:1px solid #1e3a5f; border-radius:10px; padding:8px 10px; font-size:13px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .agendar .input { width:auto; padding:5px 8px; font-size:13px; }
+  .agendar .aviso { flex-basis:100%; font-size:12px; color:var(--muted); }
+  .agendar .aviso.fora { color:#facc15; }
   .voltar { display:none; }
   @media (max-width:760px) {
     .app { grid-template-columns:1fr; }
@@ -145,6 +153,7 @@ const JANELA_MS = 24 * 3600 * 1000;
 let perfil = null, CANAIS = [], CONVS = [], MSGS = [], aberta = null, ULT = {}, urlsMidia = {}, canalRT = null, painelLigar = false;
 let anexo = null, RESPOSTAS = [], painelRapidas = false, filtroRapidas = '';   // arquivo escolhido para enviar · mensagens rápidas
 let painelDocs = false, DOCS_LEAD = null, PROPS_LEAD = [];   // documentos da ficha do lead (para enviar pelo WhatsApp)
+let AGENDADAS = [], painelAgendar = false, reagendando = null;   // mensagens agendadas da conversa aberta
 const TIPOS_FICHA = [['fatura', 'Fatura de energia'], ['cnh', 'CNH / RG'], ['disjuntor', 'Foto do disjuntor'], ['padrao', 'Foto do padrão de entrada'], ['transformador', 'Foto do transformador']];
 
 function mostrar(qual, texto) {
@@ -216,13 +225,14 @@ function renderLista() {
 }
 
 async function abrir(id) {
-  if (aberta !== id) { painelLigar = false; painelRapidas = false; painelDocs = false; DOCS_LEAD = null; tirarAnexo(true); }
+  if (aberta !== id) { painelLigar = false; painelRapidas = false; painelDocs = false; DOCS_LEAD = null; painelAgendar = false; reagendando = null; AGENDADAS = []; tirarAnexo(true); }
   aberta = id; $('app').classList.add('aberta');
   const c = CONVS.find(x => x.id === id); if (!c) return;
   history.replaceState(null, '', '?conversa=' + id);
   const { data, error } = await sb.from('whatsapp_mensagens').select('id, direcao, tipo, texto, midia_path, midia_mime, status, erro, autor, criado_em').eq('conversa_id', id).order('criado_em').limit(1000);
   if (error) { $('chat').innerHTML = `<div class="vazio">⚠ ${esc(error.message)}</div>`; return; }
   MSGS = data || [];
+  await carregarAgendadas(id);
   renderChat(true);
   if (c.nao_lidas) { c.nao_lidas = 0; renderLista(); await sb.from('whatsapp_conversas').update({ nao_lidas: 0 }).eq('id', id); }
   else renderLista();
@@ -270,6 +280,8 @@ function renderChat(rolar) {
     <div id="ligar" class="ligar" style="display:${painelLigar ? 'block' : 'none'}"></div>
     <div class="msgs" id="msgs">${bolhas || '<div class="vazio">Sem mensagens.</div>'}</div>
     ${podeLivre ? '' : `<div class="aviso-janela">⏰ Passaram mais de 24 h desde a última mensagem do cliente. Pela regra do WhatsApp, agora só é possível enviar uma <b>mensagem modelo aprovada</b> (em breve aqui). Quando o cliente responder, a conversa livre abre de novo.</div>`}
+    ${AGENDADAS.length ? `<div class="agendadas">${htmlAgendadas()}</div>` : ''}
+    ${podeLivre && painelAgendar ? `<div class="agendar" id="agendar">${htmlAgendar(c)}</div>` : ''}
     ${podeLivre && painelRapidas ? `<div class="rapidas" id="rapidas">${htmlRapidas()}</div>` : ''}
     ${podeLivre && painelDocs ? `<div class="rapidas" id="docs-lead">${htmlDocs()}</div>` : ''}
     ${podeLivre && anexo ? `<div class="anexo-chip">${anexo.previa ? `<img src="${anexo.previa}" alt="">` : '<span style="font-size:22px">📄</span>'}<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>${esc(anexo.nome)}</b> <span class="muted">${anexo.arquivo ? tamTxt(anexo.arquivo.size) : 'da ficha do lead'}${anexo.aviso ? ' · ' + esc(anexo.aviso) : ''}</span><br><span class="muted">O texto abaixo vai como legenda (opcional).</span></span><button class="btn btn-sec btn-p" onclick="tirarAnexo()">✕</button></div>` : ''}
@@ -279,11 +291,13 @@ function renderChat(rolar) {
       <button class="btn-ico" title="Mensagens rápidas (ou digite / na mensagem)" onclick="alternarRapidas()" ${podeLivre ? '' : 'disabled'}>⚡</button>
       <textarea class="input" id="texto" rows="1" placeholder="${podeLivre ? 'Escreva uma mensagem… (/ = mensagens rápidas · Enter envia)' : 'Conversa livre fechada (mais de 24 h)'}" ${podeLivre ? '' : 'disabled'}
         oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,140)+'px';digitou(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviar()}"></textarea>
+      <button class="btn-ico" title="Agendar esta mensagem para outro dia e hora" onclick="alternarAgendar()" ${podeLivre ? '' : 'disabled'}>⏰</button>
       <button class="btn" id="btn-enviar" onclick="enviar()" ${podeLivre ? '' : 'disabled'}>Enviar</button>
     </div>`;
   if (rascunho && $('texto') && !$('texto').disabled) $('texto').value = rascunho;
   const novo = $('msgs'); if (rolar || noFim) novo.scrollTop = novo.scrollHeight;
   if (painelLigar) montarLigar();
+  if (painelAgendar) avisoAgendar();
   carregarMidias();
 }
 // link temporário (1 h) para cada mídia do bucket privado
@@ -402,6 +416,71 @@ async function apagarRapida(id) {
   const { error } = await sb.from('whatsapp_respostas').delete().eq('id', id);
   if (error) { alert('⚠ ' + error.message); return; }
   await carregarRespostas(); renderChat(false);
+}
+
+// ── mensagens agendadas: o agendador do banco envia na hora marcada (função whatsapp-agendadas, a cada minuto).
+//    Fora da janela de 24 h do WhatsApp só sai como mensagem modelo: fica "bloqueada" até liberar os modelos no número
+//    (depois do cadastro do pagamento na Meta). Se o cliente responder antes, a janela abre e ela sai normalmente.
+const dataHora = iso => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+const paraLocal = d => { const z = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`; };
+async function carregarAgendadas(id) {
+  const { data } = await sb.from('whatsapp_agendadas').select('id, texto, enviar_em, status, erro').eq('conversa_id', id)
+    .in('status', ['agendada', 'enviando', 'bloqueada', 'falhou']).order('enviar_em');
+  const nova = data || [], mudou = JSON.stringify(nova) !== JSON.stringify(AGENDADAS);
+  AGENDADAS = nova; return mudou;
+}
+function htmlAgendadas() {
+  const ST = { agendada: '', enviando: ' · enviando…', bloqueada: ' · ⚠ não saiu', falhou: ' · ⚠ falhou' };
+  return AGENDADAS.map(a => `<div class="agendada ${a.status}"><span style="min-width:0;flex:1">⏰ <b>${dataHora(a.enviar_em)}</b>${ST[a.status] || ''} · ${esc(a.texto.length > 90 ? a.texto.slice(0, 90) + '…' : a.texto)}${a.erro ? '<br><span class="muted">' + esc(a.erro) + '</span>' : ''}</span>
+    <span style="white-space:nowrap">${a.status !== 'enviando' ? `<button class="btn btn-sec btn-p" onclick="reagendar(${a.id})">↻ ${a.status === 'agendada' ? 'Mudar' : 'Reagendar'}</button> <button class="btn btn-sec btn-p" title="Cancelar" onclick="cancelarAgendada(${a.id})">✕</button>` : ''}</span></div>`).join('');
+}
+function proximoDiaUtil9h(dias) { const d = new Date(); d.setDate(d.getDate() + dias); while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0); return d; }
+function htmlAgendar() {
+  const a = reagendando ? AGENDADAS.find(x => x.id === reagendando) : null;
+  const ini = a && new Date(a.enviar_em) > new Date() ? new Date(a.enviar_em) : proximoDiaUtil9h(1);
+  const atalho = (r, d) => `<button class="btn btn-sec btn-p" onclick="$('ag-quando').value=paraLocal(proximoDiaUtil9h(${d}));avisoAgendar()">${r}</button>`;
+  return `<span>⏰ ${a ? 'Reagendar para' : 'Enviar o texto da mensagem em'}</span>
+    <input class="input" type="datetime-local" id="ag-quando" value="${paraLocal(ini)}" min="${paraLocal(new Date())}" onchange="avisoAgendar()" oninput="avisoAgendar()">
+    ${atalho('Amanhã 9h', 1)}${atalho('Em 3 dias', 3)}${atalho('Em 7 dias', 7)}
+    <button class="btn btn-p" onclick="agendar()">${a ? 'Salvar' : 'Agendar'}</button>
+    <button class="btn btn-sec btn-p" onclick="painelAgendar=false;reagendando=null;renderChat(false)">Fechar</button>
+    <div class="aviso" id="ag-aviso"></div>`;
+}
+function alternarAgendar() { painelAgendar = !painelAgendar; reagendando = null; painelRapidas = false; painelDocs = false; renderChat(false); if ($('texto')) $('texto').focus(); }
+function avisoAgendar() {
+  const c = CONVS.find(x => x.id === aberta), el = $('ag-aviso'), q = $('ag-quando'); if (!c || !el || !q) return;
+  const t = new Date(q.value), canal = CANAIS.find(x => x.id === c.canal_id) || {};
+  const fimJanela = c.ultima_entrada_em ? new Date(new Date(c.ultima_entrada_em).getTime() + JANELA_MS) : new Date(0);
+  if (isNaN(t)) { el.className = 'aviso'; el.textContent = ''; return; }
+  if (t <= fimJanela) { el.className = 'aviso'; el.textContent = '✅ Dentro da janela de 24 h do WhatsApp (termina ' + dataHora(fimJanela) + '): sai como mensagem normal, no horário marcado.'; return; }
+  el.className = 'aviso fora';
+  el.textContent = '⚠ Fora da janela de 24 h (termina ' + dataHora(fimJanela) + '). Pela regra do WhatsApp, só sai como mensagem modelo'
+    + (canal.modelos_liberados ? ' (cadastro dos modelos no CRM em breve).' : ', que fica liberada depois do cadastro do pagamento na Meta: até lá ela fica bloqueada.')
+    + ' Se o cliente responder antes do horário, a janela abre de novo e ela sai normalmente.';
+}
+async function agendar() {
+  const c = CONVS.find(x => x.id === aberta), q = $('ag-quando'), campo = $('texto'); if (!c || !q) return;
+  const t = new Date(q.value);
+  if (isNaN(t) || t.getTime() < Date.now() + 60000) { alert('Escolha uma data e hora pelo menos 1 minuto à frente.'); return; }
+  let res;
+  if (reagendando) res = await sb.from('whatsapp_agendadas').update({ enviar_em: t.toISOString(), status: 'agendada', erro: null }).eq('id', reagendando);
+  else {
+    const texto = campo ? campo.value.trim() : '';
+    if (!texto) { alert('Escreva a mensagem na caixa de texto e depois clique em Agendar.'); return; }
+    if (anexo) { alert('Por enquanto o agendamento é só de texto: envie o arquivo agora ou tire o anexo.'); return; }
+    res = await sb.from('whatsapp_agendadas').insert({ empresa_id: c.empresa_id, conversa_id: c.id, texto: texto.slice(0, 4096), enviar_em: t.toISOString() });
+    if (!res.error && campo) campo.value = '';
+  }
+  if (res.error) { alert('⚠ Não foi possível agendar: ' + res.error.message); return; }
+  painelAgendar = false; reagendando = null;
+  await carregarAgendadas(c.id); renderChat(false);
+}
+function reagendar(id) { reagendando = id; painelAgendar = true; painelRapidas = false; painelDocs = false; renderChat(false); }
+async function cancelarAgendada(id) {
+  const a = AGENDADAS.find(x => x.id === id); if (!a || !confirm('Cancelar a mensagem agendada para ' + dataHora(a.enviar_em) + '?')) return;
+  const { error } = await sb.from('whatsapp_agendadas').update({ status: 'cancelada' }).eq('id', id);
+  if (error) { alert('⚠ ' + error.message); return; }
+  await carregarAgendadas(aberta); renderChat(false);
 }
 
 // ── documentos da ficha do lead: escolhe e envia pelo WhatsApp (o servidor confere que o documento é deste lead) ──
@@ -579,6 +658,7 @@ function ouvir() {
         else if (!MSGS.some(x => String(x.id).startsWith('tmp') && x.texto === m.texto && m.direcao === 'saida')) MSGS.push(m);
         renderChat(false);
         if (m.direcao === 'entrada') sb.from('whatsapp_conversas').update({ nao_lidas: 0 }).eq('id', aberta);
+        else if (AGENDADAS.length) carregarAgendadas(aberta).then(mudou => { if (mudou) renderChat(false); });   // saiu uma agendada
       }
       if (p.eventType === 'INSERT') ULT[m.conversa_id] = m;
       agendarRecarga();
@@ -592,6 +672,7 @@ function agendarRecarga() {
     const { data } = await sb.from('whatsapp_conversas').select('*, leads(nome)').order('ultima_msg_em', { ascending: false, nullsFirst: false }).limit(500);
     if (data) { CONVS = data; const c = CONVS.find(x => x.id === aberta); if (c && c.nao_lidas) c.nao_lidas = 0; }
     renderLista();
+    if (aberta && AGENDADAS.length && !painelAgendar && await carregarAgendadas(aberta)) renderChat(false);
   }, 400);
 }
 // se o Realtime cair (rede do celular), confere a cada 30 s
