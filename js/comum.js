@@ -49,6 +49,7 @@ async function paraJpeg(f) {
     'equipe.html': ['js/equipe-dias.js?v=20261118a'],
     'financeiro.html': ['js/obra-resumo.js?v=20261118a'],
     'conversas.html': ['js/leo-conversas.js?v=20261118a'],
+    'crm.html': ['js/contrato-v2.js?v=20261124a'],
   };
   const lista = EXTRAS[location.pathname.split('/').pop() || 'index.html'];
   if (!lista) return;
