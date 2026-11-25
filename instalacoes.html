@@ -146,7 +146,7 @@
 <div class="overlay" id="ov-prog" onclick="if(event.target===this)fecharProg()"><div class="ficha" id="ficha-prog"></div></div>
 <div class="overlay" id="ov-reag" onclick="if(event.target===this)fecharReag()"><div class="modal" id="reag-corpo"></div></div>
 
-<script src="js/comum.js?v=20261019a"></script>
+<script src="js/comum.js?v=20261125p"></script>
 <script>
 // Energtech — Programação de instalações (admin, vendas internas e engenharia)
 // Agenda da semana: cada programação tem data, obra (projeto do CRM, cliente da base ou nome digitado) e a equipe escalada.
@@ -234,7 +234,7 @@ async function carregar() {
   const ids = [...new Set(PROJ.map(x => x.lead_id).concat(PROG.map(x => x.lead_id), ATRASADAS.map(x => x.lead_id)).filter(Boolean))];
   LEADS = {};
   for (let i = 0; i < ids.length; i += 300) {
-    const { data } = await sb.from('leads').select('id, nome, telefone, cidade, endereco, forma_pagamento').in('id', ids.slice(i, i + 300));
+    const { data } = await sb.from('leads').select('id, nome, telefone, cidade, endereco, forma_pagamento, pagamento_tipo').in('id', ids.slice(i, i + 300));
     (data || []).forEach(l => LEADS[l.id] = l);
   }
   msg(''); render();
@@ -287,7 +287,7 @@ async function mudarPrazo() {
   if (error) { msg('⚠ ' + error.message, true); return; }
   PRAZO = n; $('prazo-txt').textContent = n; msg('✅ Prazo de entrega: ' + n + ' dias. Vale para os próximos kits pagos.');
 }
-const financiada = l => /financ|finame|banco|bndes|caixa/i.test((l && l.forma_pagamento) || '');
+const financiada = l => pagFinanciado(l);
 // venda financiada: o banco paga o kit direto ao fornecedor e informa a data → pré-programa a instalação
 async function kitPagoBanco(pid) {
   const pj = PROJ.find(p => p.id === pid), l = (pj && LEADS[pj.lead_id]) || {};

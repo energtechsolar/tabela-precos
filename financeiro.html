@@ -113,8 +113,8 @@
   </div>
 </div>
 
-<script src="js/comum.js?v=20261019a"></script>
-<script src="js/parcelas.js?v=20261103a"></script>
+<script src="js/comum.js?v=20261125p"></script>
+<script src="js/parcelas.js?v=20261125p"></script>
 <script src="js/modulos.js?v=20261105a"></script>
 <script>
 // Energtech — Financeiro (só admin)
@@ -187,7 +187,7 @@ async function carregar() {
     sb.from('pagamentos').select('*, leads(nome), equipe(nome)').limit(10000),
     sb.from('custos_fixos').select('*').order('nome'),
     sb.from('fin_parametros').select('*').eq('id', 1).maybeSingle(),
-    sb.from('leads').select('id, nome, etapa_em, forma_pagamento, orcamento_ganho_id, vendedor_id, historico:dados_brutos->>historico').eq('etapa', 'ganho').limit(5000),
+    sb.from('leads').select('id, nome, etapa_em, forma_pagamento, pagamento_tipo, orcamento_ganho_id, vendedor_id, historico:dados_brutos->>historico').eq('etapa', 'ganho').limit(5000),
     // custos de cada obra que não passam por "pagamentos" com o cliente: diárias da equipe e material tirado do estoque
     sb.from('equipe_lancamentos').select('lead_id, data, tipo, quantidade, valor, equipe(nome)').not('lead_id', 'is', null).limit(10000),
     sb.from('estoque_movimentos').select('lead_id, data, quantidade, custo_unit, produtos(nome)').eq('tipo', 'saida').not('lead_id', 'is', null).limit(10000),
@@ -213,7 +213,7 @@ async function carregar() {
       const kit = x.modo_valor === 'separado' ? +x.valor_kit || 0 : 0;
       const rep = kit && l.custo != null ? Math.max(0, kit - l.custo) : 0;
       l.impRepasse = Math.round(rep * (x.repasse_pct != null && x.repasse_pct !== '' ? +x.repasse_pct : 4)) / 100;
-      l.financ = /financ|finame|banco|bndes|caixa/i.test(l.forma_pagamento || '');
+      l.financ = pagFinanciado(l);
     });
   }
   msg('');
@@ -360,7 +360,7 @@ async function gerarParcelas(leadId) {
   const l = GANHOS.find(x => x.id === leadId); if (!l) return;
   if (!l.orcamento_ganho_id) { msg('⚠ Marque no CRM qual proposta fechou (bloco Negócio ganho → alterar).', true); return; }
   msg('⏳ Gerando parcelas…');
-  const r = await parcelasDaVenda({ leadId, orcamentoId: l.orcamento_ganho_id, forma: l.forma_pagamento, valorFinal: l.valor,
+  const r = await parcelasDaVenda({ leadId, orcamentoId: l.orcamento_ganho_id, forma: l.forma_pagamento, tipo: l.pagamento_tipo, valorFinal: l.valor,
     perguntarN: () => Math.max(0, Math.min(24, parseInt(prompt('Em quantos boletos fica o restante (depois da entrada no valor do kit)?', '3'), 10) || 0)) });
   if (r.erro) { msg('⚠ ' + r.erro, true); return; }
   if (r.cancelado || !r.novas.length) { msg(''); return; }
