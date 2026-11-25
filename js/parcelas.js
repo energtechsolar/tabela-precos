@@ -22,7 +22,7 @@ async function parcelasDaVenda({ leadId, orcamentoId, forma, valorFinal, pergunt
   const kit = kitProp || custo || 0;
   const f = String(forma || '').toLowerCase(), hoje = hojeParc();
   const bol = od.boleto && typeof od.boleto === 'object' ? od.boleto : null;
-  const bolOk = bol && +bol.entrada >= 0 && +bol.parcelas > 0 && +bol.parcela > 0 && ['negociada', 'opcoes'].includes(bol.modo);
+  const bolOk = bol && +bol.entrada >= 0 && +bol.parcelas > 0 && +bol.parcela > 0 && ['negociada', 'opcoes', 'rural'].includes(bol.modo);
   const parcelado = /\d+\s*x\s*de/.test(f);                          // "19x de R$ 1.000,00 no boleto..."
   const v1 = String(forma || '').match(/1º venc\.?\s*(\d{2})\/(\d{2})\/(\d{4})/);
   const venc1 = v1 ? `${v1[3]}-${v1[2]}-${v1[1]}` : null;
