@@ -50,7 +50,7 @@ async function paraJpeg(f) {
   const st = document.createElement('style');
   st.textContent = `
     :root { color-scheme: dark; }
-    .btn.btn-p { font-family:'Barlow',sans-serif; font-weight:700; font-size:13px; letter-spacing:0; }
+    .btn.btn-p, .btn[style*="font-size:11px"], .btn[style*="font-size:12px"] { font-family:'Barlow',sans-serif; font-weight:700; font-size:13px !important; letter-spacing:0; }
     input[type=month], input[type=date] { cursor:pointer; }
     .mes-nav { display:inline-flex; align-items:center; gap:4px; vertical-align:middle; }
     .mes-nav button { background:var(--card2,#222); border:1px solid var(--borda,#2e2e2e); color:var(--texto,#e0e0e0); border-radius:8px; width:34px; height:36px; cursor:pointer; font-size:14px; }
@@ -78,7 +78,7 @@ async function paraJpeg(f) {
     'instalacoes.html': ['js/agenda-extra.js?v=20261118a'],
     'equipe.html': ['js/equipe-dias.js?v=20261118a'],
     'financeiro.html': ['js/obra-resumo.js?v=20261118a'],
-    'conversas.html': ['js/leo-conversas.js?v=20261118a', 'js/conversas-ux.js?v=20261125a'],
+    'conversas.html': ['js/leo-conversas.js?v=20261118a', 'js/conversas-ux.js?v=20261125b'],
     'crm.html': ['js/contrato-v2.js?v=20261124a'],
   };
   const lista = EXTRAS[location.pathname.split('/').pop() || 'index.html'];
