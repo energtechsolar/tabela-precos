@@ -239,7 +239,18 @@
   // ── tabela de preços WEG (kits padrão de 6, 8, 10 placas...) ──
   const TELHADOS = [['ceramico', 'Cerâmico'], ['fibro_madeira', 'Fibrocimento (madeira)'], ['fibro_metalica', 'Fibrocimento (metálica)'],
     ['metalico', 'Metálico (minitrilho)'], ['metalico_longo', 'Metálico (perfil longo)'], ['laje', 'Laje'], ['zipado', 'Zipado']];
-  const T = { modulo: '610 Wp - BYD BIFACIAL [FINAME]', placas: '6, 8, 10', telhado: 'ceramico', uf: 'SC', cidade: 'QUILOMBO', inv: {}, mk: {} };
+  // linhas: { n, inv (modelo; vazio = sugerido), qtd (inversores), mk (markup; vazio = do kit padrão) }; várias linhas podem ter o mesmo n
+  const T = { modulo: '610 Wp - BYD BIFACIAL [FINAME]', placas: '6, 8, 10', telhado: 'ceramico', uf: 'SC', cidade: 'QUILOMBO', linhas: [] };
+  try { const g = JSON.parse(localStorage.getItem('weg_tabela') || 'null'); if (g && Array.isArray(g.linhas)) Object.assign(T, g); } catch (_) { /* sem armazenamento */ }
+  const guardarT = () => { try { localStorage.setItem('weg_tabela', JSON.stringify(T)); } catch (_) { /* sem armazenamento */ } };
+  const numsPlacas = () => [...new Set(String(T.placas).split(/[^0-9]+/).map(Number).filter(n => n > 0 && n <= 60))].sort((a, b) => a - b);
+  // o campo Placas manda: cada número tem pelo menos uma linha; linhas de números que saíram do campo somem
+  function sincronizarLinhas() {
+    const ns = numsPlacas();
+    const ficam = T.linhas.filter(l => ns.includes(l.n));
+    ns.forEach(n => { if (!ficam.some(l => l.n === n)) ficam.push({ n, inv: '', qtd: 1, mk: null }); });
+    T.linhas = ficam.sort((a, b) => a.n - b.n);
+  }
   let tecMods = null;
   async function carregarTec() {
     if (tecMods) return tecMods;
@@ -265,15 +276,17 @@
     if (!mods.some(m => m.codigo === T.modulo) && mods[0]) T.modulo = mods[0].codigo;
     const invs = wegInversores(cat).filter(x => !/micro/i.test(x.tipo));
     const finame = /\[FINAME\]/i.test(T.modulo);
-    const ns = [...new Set(String(T.placas).split(/[^0-9]+/).map(Number).filter(n => n > 0 && n <= 60))].sort((a, b) => a - b);
-    const linhas = ns.map(n => {
-      const sug = wegSugerirInversor(cat, T.modulo, n);
-      const inv = T.inv[n] || (sug && sug.codigo) || (invs[invs.length - 1] || {}).codigo;
-      const k = wegMontarKit(cat, { modulo: T.modulo, n, inversor: inv, telhado: T.telhado, uf: T.uf, cidade: T.cidade, frete: 'CIF - Sem descarga - Região Sul', tec: tec[T.modulo] });
+    sincronizarLinhas();
+    const linhas = T.linhas.map((r, i) => {
+      const n = r.n, sug = wegSugerirInversor(cat, T.modulo, n);
+      const inv = (r.inv && invs.some(x => x.codigo === r.inv) ? r.inv : '') || (sug && sug.codigo) || (invs[invs.length - 1] || {}).codigo;
+      const qtd = Math.max(1, Math.min(4, +r.qtd || 1));
+      const k = wegMontarKit(cat, { modulo: T.modulo, n, inversor: inv, qtdInv: qtd, telhado: T.telhado, uf: T.uf, cidade: T.cidade, frete: 'CIF - Sem descarga - Região Sul', tec: tec[T.modulo] });
       const pad = padraoPara(finame, n);
-      const mk = T.mk[n] ?? (pad ? Math.round(pad.mk * 10) / 10 : 70);
+      const mk = r.mk ?? (pad ? Math.round(pad.mk * 10) / 10 : 70);
       const preco = Math.round(k.custo * (1 + mk / 100) * 100) / 100;
-      return { n, inv, sug, k, pad, mk, preco };
+      const kwInv = qtd * (+((invs.find(x => x.codigo === inv) || {}).dados || {}).kW || 0);
+      return { i, n, inv, qtd, kwInv, sug, k, pad, mk, preco, repete: i > 0 && T.linhas[i - 1].n === n };
     });
     const opt = (v, t, sel) => `<option value="${esc(v)}"${v === sel ? ' selected' : ''}>${esc(t)}</option>`;
     el.innerHTML = `
@@ -286,23 +299,25 @@
         <span style="font-size:13px;color:var(--muted,#8a8a8a)">Kit ${finame ? '<b style="color:var(--verde,#4ade80)">Nacional (FINAME)</b>' : '<b>Importado</b>'} · frete CIF Sul</span>
       </div>
       <div style="overflow-x:auto"><table>
-        <thead><tr><th>Placas</th><th>kWp</th><th>Inversor</th><th class="n" title="Preço de lista da WEG, com frete">Lista WEG</th><th class="n">Custo Energtech</th><th class="n">Markup</th><th class="n">Preço de venda</th><th>Kit padrão de referência</th><th></th></tr></thead>
-        <tbody>${linhas.map(l => `<tr>
-          <td>${l.n}</td>
-          <td>${l.k.kwp ? l.k.kwp.toFixed(2).replace('.', ',') : '—'}</td>
-          <td><select class="admin-input" style="width:auto" onchange="wegTabInv(${l.n},this.value)">${invs.map(x => opt(x.codigo, x.codigo.replace(/ W\d+$/, '') + (l.sug && x.codigo === l.sug.codigo ? ' ★' : ''), l.inv)).join('')}</select></td>
-          <td class="n">${l.k.erros.length ? '—' : brl(l.k.total)}</td>
-          <td class="n">${l.k.erros.length ? '—' : brl(l.k.custo)}</td>
-          <td class="n"><input type="number" class="admin-input" style="width:72px;text-align:right" step="0.5" value="${l.mk}" onchange="wegTabMk(${l.n},this.value)"> %</td>
+        <thead><tr><th>Placas</th><th>kWp</th><th>Inversor</th><th>Qtd</th><th class="n">Custo Energtech<div style="font-weight:400;text-transform:none;letter-spacing:0">lista WEG</div></th><th class="n">Markup</th><th class="n">Preço de venda</th><th title="Kit padrão com a mesma quantidade de placas (passe o mouse para ver custo e markup)">Padrão</th><th></th></tr></thead>
+        <tbody>${linhas.map(l => `<tr${l.repete ? ' style="background:rgba(255,255,255,.02)"' : ''}>
+          <td style="white-space:nowrap">${l.repete ? '<span style="color:var(--muted,#8a8a8a)">↳</span> ' : ''}${l.n}<br><button type="button" class="admin-btn-add" style="margin:2px 0 0;padding:1px 7px" title="Outra opção de inversor para ${l.n} placas" onclick="wegTabVariar(${l.i})">＋</button>${l.repete ? `<button type="button" class="admin-btn-del" style="margin:2px 0 0 3px;padding:1px 7px" title="Tirar esta opção" onclick="wegTabTirar(${l.i})">✕</button>` : ''}</td>
+          <td style="white-space:nowrap">${l.k.kwp ? l.k.kwp.toFixed(2).replace('.', ',') : '—'}<div style="font-size:11px;color:var(--muted,#8a8a8a)">inv. ${String(l.kwInv).replace('.', ',')} kW${l.k.ratio ? ' · ' + l.k.ratio.toFixed(2).replace('.', ',') : ''}</div></td>
+          <td><select class="admin-input" style="width:auto" onchange="wegTabLinha(${l.i},'inv',this.value)">${invs.map(x => opt(x.codigo, x.codigo.replace(/ W\d+$/, '') + (l.sug && x.codigo === l.sug.codigo ? ' ★' : ''), l.inv)).join('')}</select></td>
+          <td><select class="admin-input" style="width:auto" onchange="wegTabLinha(${l.i},'qtd',+this.value)">${[1, 2, 3, 4].map(q => `<option value="${q}"${q === l.qtd ? ' selected' : ''}>${q}×</option>`).join('')}</select></td>
+          <td class="n">${l.k.erros.length ? '—' : brl(l.k.custo) + `<div style="font-size:11px;color:var(--muted,#8a8a8a)">${brl(l.k.total)}</div>`}</td>
+          <td class="n"><input type="number" class="admin-input" style="width:62px;text-align:right" step="0.5" value="${l.mk}" onchange="wegTabLinha(${l.i},'mk',this.value === '' ? null : +this.value)"> %</td>
           <td class="n"><b>${l.k.erros.length ? '—' : brl(l.preco)}</b></td>
-          <td style="font-size:12px;color:var(--muted,#8a8a8a);min-width:200px">${l.pad ? `${esc(l.pad.nome)} · ${l.pad.mod} pl. · ${esc(l.pad.inv)}${l.pad.igual ? '' : ' (mais próximo)'}<br>custo ${brl(l.pad.custo)} → <b style="color:var(--texto,#e0e0e0)">${brl(l.pad.preco)}</b> (${pct(l.pad.mk)})` : 'sem kit padrão com custo'}</td>
-          <td>${l.k.erros.length ? `<span class="erro" title="${esc(l.k.erros.join('\n'))}">❌</span>` : l.k.avisos.length ? `<span title="${esc(l.k.avisos.join('\n'))}" style="cursor:help">⚠ ${l.k.avisos.length}</span>` : '✓'}</td>
+          <td style="font-size:12px;color:var(--muted,#8a8a8a);white-space:nowrap">${l.pad ? `<span title="${esc(l.pad.nome)} · ${l.pad.mod} placas · ${esc(l.pad.inv)}${l.pad.igual ? '' : ' (mais próximo)'} · custo ${brl(l.pad.custo)} · markup ${pct(l.pad.mk)}">${esc(l.pad.nome)} · ${esc(l.pad.inv)}${l.pad.igual ? '' : ' *'}<br><b style="color:var(--texto,#e0e0e0)">${brl(l.pad.preco)}</b></span>` : '—'}</td>
+          <td style="white-space:nowrap">${l.k.erros.length ? `<span class="erro" title="${esc(l.k.erros.join('\n'))}">❌</span>` : l.k.avisos.length ? `<span title="${esc(l.k.avisos.join('\n'))}" style="cursor:help">⚠ ${l.k.avisos.length}</span>` : '✓'}</td>
         </tr>`).join('')}</tbody></table></div>
-      <div style="font-size:12px;color:var(--muted,#8a8a8a);margin-top:6px">⚠ passe o mouse para ver os avisos (sobrecarga, strings, região de vento). ★ inversor sugerido: o menor SIW200G com até 1,5 × a potência; dá para trocar na linha.</div>`;
+      <div style="font-size:12px;color:var(--muted,#8a8a8a);margin-top:6px">⚠ passe o mouse para ver os avisos (sobrecarga, strings, região de vento). ★ inversor sugerido: o menor SIW200G com até 1,5 × a potência; dá para trocar o modelo e a quantidade na linha. ＋ cria outra opção de inversor para a mesma quantidade de placas (ex.: 8 placas com 3 kW, 5 kW e 7,5 kW). Abaixo do kWp: potência total dos inversores e a relação kWp ÷ inversor.</div>`;
   }
-  window.wegTab = (campo, v) => { T[campo] = campo === 'uf' || campo === 'cidade' ? String(v).trim().toUpperCase() : v; if (campo === 'modulo') { T.inv = {}; T.mk = {}; } wegCatalogoDoBanco().then(renderTabelaWeg); };
-  window.wegTabInv = (n, v) => { T.inv[n] = v; wegCatalogoDoBanco().then(renderTabelaWeg); };
-  window.wegTabMk = (n, v) => { T.mk[n] = +v; wegCatalogoDoBanco().then(renderTabelaWeg); };
+  const redesenhar = () => { guardarT(); wegCatalogoDoBanco().then(renderTabelaWeg); };
+  window.wegTab = (campo, v) => { T[campo] = campo === 'uf' || campo === 'cidade' ? String(v).trim().toUpperCase() : v; if (campo === 'modulo') T.linhas.forEach(l => { l.inv = ''; l.mk = null; }); if (campo === 'placas') sincronizarLinhas(); redesenhar(); };
+  window.wegTabLinha = (i, campo, v) => { if (T.linhas[i]) T.linhas[i][campo] = v; redesenhar(); };
+  window.wegTabVariar = i => { const l = T.linhas[i]; if (l) T.linhas.splice(i + 1, 0, { n: l.n, inv: '', qtd: 1, mk: l.mk }); redesenhar(); };
+  window.wegTabTirar = i => { T.linhas.splice(i, 1); redesenhar(); };
 
   // a aba entra quando o painel admin é aberto (o HTML do painel já existe na página)
   const orig = window.mostrarPainel;
