@@ -10,7 +10,7 @@
 // Precisa do cliente Supabase global "sb". Devolve { novas, kit, aviso } — quem chama grava em "recebimentos".
 const somaMesesParc = (iso, n) => { const d = new Date(iso + 'T12:00:00'); const dia = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() + n); d.setDate(Math.min(dia, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); return d.toISOString().slice(0, 10); };
 const hojeParc = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
-async function parcelasDaVenda({ leadId, orcamentoId, forma, valorFinal, perguntarN }) {
+async function parcelasDaVenda({ leadId, orcamentoId, forma, tipo, valorFinal, perguntarN }) {
   const [o, c] = await Promise.all([
     sb.from('orcamentos').select('valor_final, modo_valor:dados->>modo_valor, valor_kit:dados->>valor_kit, repasse_pct:dados->>repasse_pct, boleto:dados->boleto').eq('id', orcamentoId).maybeSingle(),
     sb.from('orcamento_custos').select('custo_kit').eq('orcamento_id', orcamentoId).maybeSingle(),
@@ -28,11 +28,11 @@ async function parcelasDaVenda({ leadId, orcamentoId, forma, valorFinal, pergunt
   const venc1 = v1 ? `${v1[3]}-${v1[2]}-${v1[1]}` : null;
   const base = { lead_id: leadId, orcamento_id: orcamentoId };
   const novas = [];
-  if (/financ|finame|banco|bndes|caixa/.test(f)) {
+  if (pagFinanciado({ pagamento_tipo: tipo, forma_pagamento: forma })) {
     novas.push({ ...base, tipo: 'banco', descricao: 'Liberação do banco após a instalação (o kit o banco paga direto ao fornecedor)', valor: Math.round((total - kit) * 100) / 100, vencimento: null });
-  } else if ((/vista/.test(f) && !parcelado) || (!f && bol && bol.modo === 'avista')) {
+  } else if (tipo === 'avista' || (!tipo && ((/vista/.test(f) && !parcelado) || (!f && bol && bol.modo === 'avista')))) {
     novas.push({ ...base, tipo: 'entrada', descricao: 'Pagamento à vista', valor: total, vencimento: hoje });
-  } else if (bolOk && (bol.modo === 'negociada' || parcelado || /entrada|parcel|boleto/.test(f))) {
+  } else if (bolOk && (tipo === 'parcelado' || tipo === 'negociada' || bol.modo === 'negociada' || parcelado || /entrada|parcel|boleto/.test(f))) {
     const n = Math.round(+bol.parcelas), alvo = Math.round((+bol.total_prazo || +bol.entrada + +bol.parcela * n) * 100);
     if (+bol.entrada > 0) novas.push({ ...base, tipo: 'entrada', descricao: 'Entrada', valor: +bol.entrada, vencimento: hoje });
     const parc = Math.round(+bol.parcela * 100), ultima = alvo - Math.round(+bol.entrada * 100) - parc * (n - 1);
@@ -58,7 +58,7 @@ if (typeof sugerirParcelas === 'function' && typeof msgReceb === 'function') {
     const l = leads.find(x => x.id === leadId), p = l && propostaDoLead(l);
     if (!p) { msgReceb('⚠ Marque a proposta fechada (link "alterar" no bloco Negócio ganho).', true); return; }
     msgReceb('⏳ Calculando…');
-    const r = await parcelasDaVenda({ leadId, orcamentoId: p.id, forma: l.forma_pagamento, valorFinal: p.valor_final,
+    const r = await parcelasDaVenda({ leadId, orcamentoId: p.id, forma: l.forma_pagamento, tipo: l.pagamento_tipo, valorFinal: p.valor_final,
       perguntarN: () => Math.max(0, Math.min(24, parseInt(prompt('Em quantos boletos fica o restante (depois da entrada no valor do kit)?', '3'), 10) || 0)) });
     if (r.erro) { msgReceb('⚠ ' + r.erro, true); return; }
     if (r.cancelado || !r.novas.length) { msgReceb(''); return; }

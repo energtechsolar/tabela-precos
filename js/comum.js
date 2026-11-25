@@ -6,6 +6,17 @@ const sb = (window.supabase && window.supabase.createClient)
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
   : null;
 
+// Opção de pagamento do negócio ganho (leads.pagamento_tipo). Banco paga o kit ao fornecedor em caixa/finame/financiamento.
+// forma_pagamento é só o texto descritivo; o texto livre só decide em vendas antigas sem pagamento_tipo.
+const PAG_TIPOS = { avista: 'À vista', parcelado: 'Entrada + parcelas (boleto)', negociada: 'Condição negociada', caixa: 'Financiamento Caixa',
+  finame: 'Financiamento FINAME / PRONAF', financiamento: 'Financiamento bancário (outro banco)', outra: 'Outra condição (Energtech paga o kit)' };
+const PAG_FINANCIADO = ['caixa', 'finame', 'financiamento'];
+function pagFinanciado(l) {
+  if (!l) return false;
+  if (l.pagamento_tipo) return PAG_FINANCIADO.includes(l.pagamento_tipo);
+  return /financ|finame|banco|bndes|caixa/i.test(l.forma_pagamento || '');
+}
+
 // nome padrão dos arquivos: Tipo_Nome-do-Cliente_3,72kWp_AAAA-MM-DD_N01281.pdf
 function nomeArquivoPadrao(tipo, nome, kwp, numero, quando) {
   const limpa = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9 ]+/g, ' ').trim().replace(/\s+/g, '-');
@@ -100,7 +111,7 @@ async function paraJpeg(f) {
     'equipe.html': ['js/equipe-dias.js?v=20261125d'],
     'financeiro.html': ['js/obra-resumo.js?v=20261118a'],
     'conversas.html': ['js/leo-conversas.js?v=20261118a', 'js/conversas-ux.js?v=20261125b'],
-    'crm.html': ['js/contrato-v2.js?v=20261124a', 'js/parcelas.js?v=20261103a', 'js/ganho-pagamento.js?v=20261125m'],
+    'crm.html': ['js/contrato-v2.js?v=20261124a', 'js/parcelas.js?v=20261125p', 'js/ganho-pagamento.js?v=20261125p'],
     'index.html': ['js/weg-kit.js?v=20261125f', 'js/weg-admin.js?v=20261125k', 'js/weg-proposta.js?v=20261125i', 'js/pagamento.js?v=20261125m'],
   };
   const lista = EXTRAS[location.pathname.split('/').pop() || 'index.html'];

@@ -27,7 +27,7 @@ function blocoFormulario(l) {
   return `<h3>Respostas do formulário do anúncio</h3><div class="grade">${itens.map(([k, v]) =>
     `<div class="largo"><label>${esc(String(k).replace(/_/g, ' ').replace(/\?$/, ''))}</label><div>${esc(v)}</div></div>`).join('')}</div>`;
 }
-const COLUNAS_LEAD = 'id, nome, telefone, email, cidade, etapa, etapa_em, responsavel_email, proximo_contato, motivo_perda, origem, recebido_em, cpf_cnpj, endereco, cep, uc, concessionaria, titular_uc, rg, rg_orgao, data_nascimento, forma_pagamento, arquivado, orcamento_ganho_id, vendedor_id, documentos, form_meta:dados_brutos->campos, form_meta2:dados_brutos->meta->campos';
+const COLUNAS_LEAD = 'id, nome, telefone, email, cidade, etapa, etapa_em, responsavel_email, proximo_contato, motivo_perda, origem, recebido_em, cpf_cnpj, endereco, cep, uc, concessionaria, titular_uc, rg, rg_orgao, data_nascimento, forma_pagamento, pagamento_tipo, arquivado, orcamento_ganho_id, vendedor_id, documentos, form_meta:dados_brutos->campos, form_meta2:dados_brutos->meta->campos';
 let perfil = null, leads = [], orcs = [], equipe = [], pessoas = [], filtroFollow = false, filtroAlerta = false, CRM_CFG = {}, mostrarAntigos = false, verArquivados = false, arrastando = null, fichaId = null, perdaId = null, ganhoId = null;
 // documentos do negócio ganho (pasta privada "documentos"; nenhum é obrigatório, a ficha mostra o que falta)
 const DOCS_GANHO = [
@@ -456,15 +456,16 @@ function fecharGanho() { ganhoId = null; $('ov-ganho').classList.remove('visivel
 async function confirmarGanho() {
   const id = ganhoId; if (!id) return;
   const prop = +$('ganho-prop').value || null, pag = $('ganho-pag').value.trim() || null;
+  const tipo = typeof ganhoTipoAtual === 'function' ? ganhoTipoAtual() : null;
   $('ov-ganho').classList.remove('visivel'); ganhoId = null;
   const l = leads.find(x => x.id === id);
   if (l && l.etapa === 'ganho') {   // só trocando a proposta ou a forma de pagamento (mantém a data do ganho)
-    const mud = { orcamento_ganho_id: prop, forma_pagamento: pag, atualizado_em: new Date().toISOString() };
+    const mud = { orcamento_ganho_id: prop, forma_pagamento: pag, pagamento_tipo: tipo, atualizado_em: new Date().toISOString() };
     const { error } = await sb.from('leads').update(mud).eq('id', id);
     if (error) { alert('Não foi possível salvar: ' + error.message); return; }
     Object.assign(l, mud); render(); abrirFicha(id, true); return;
   }
-  await mudarEtapa(id, 'ganho', { ganhoOk: true, orcamento_ganho_id: prop, forma_pagamento: pag });
+  await mudarEtapa(id, 'ganho', { ganhoOk: true, orcamento_ganho_id: prop, forma_pagamento: pag, pagamento_tipo: tipo });
   const p = orcs.find(o => o.id === prop);
   await sb.from('lead_eventos').insert({ lead_id: id, texto: '🏆 Negócio ganho' + (p ? ' · proposta Nº ' + String(p.id).padStart(5, '0') + ' · ' + fmtR(p.valor_final) : '') + (pag ? ' · ' + pag : '') });
   abrirFicha(id, true);
@@ -700,7 +701,7 @@ async function sugerirParcelas(leadId) {
   const forma = (l.forma_pagamento || '').toLowerCase(), hoje = hojeISO();
   const base = { lead_id: leadId, orcamento_id: p.id };
   const novas = [];
-  if (/financ|finame|banco|bndes|caixa/.test(forma)) {
+  if (pagFinanciado(l)) {
     novas.push({ ...base, tipo: 'banco', descricao: 'Liberação do banco após a instalação (o kit o banco paga direto ao fornecedor)', valor: Math.round((total - kit) * 100) / 100, vencimento: null });
   } else if (/vista/.test(forma)) {
     novas.push({ ...base, tipo: 'entrada', descricao: 'Pagamento à vista', valor: total, vencimento: hoje });

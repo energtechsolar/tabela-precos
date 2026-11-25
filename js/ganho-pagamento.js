@@ -3,7 +3,9 @@
 //  Importado, imóvel rural .... à vista · entrada + parcelas (boleto)
 //  Importado, negociada ........ a condição combinada  ·  só à vista ........ à vista
 //  Nacional ................... à vista · financiamento FINAME / PRONAF (mesma linha)
-//  + "Outra" (digitar). O texto gravado em forma_pagamento segue o padrão que o Financeiro lê para gerar as parcelas.
+//  + "Outra" (digitar + dizer quem paga o kit ao fornecedor).
+//  A opção vai para leads.pagamento_tipo (é ela que decide financiado ou não no Financeiro, Instalações e parcelas);
+//  forma_pagamento guarda só o texto descritivo.
 (function () {
   if (typeof abrirGanho !== 'function' || typeof confirmarGanho !== 'function' || !document.getElementById('ganho-pag')) return;
   const R = v => (+v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -16,7 +18,18 @@
     #ganho-opcoes .gop:has(input:checked) { border-color:var(--verde,#4ade80); background:rgba(74,222,128,.06); }
     #ganho-opcoes .gop b { display:block; } #ganho-opcoes .gop span { font-size:13px; color:var(--muted,#8a8a8a); }`;
   document.head.appendChild(st);
-  let opcoes = [];
+  let opcoes = [], leadAtual = null;
+  // "Outra condição": quem paga o kit ao fornecedor
+  const quem = document.createElement('div');
+  quem.className = 'campo'; quem.id = 'ganho-quem'; quem.style.marginTop = '8px'; quem.style.display = 'none';
+  quem.innerHTML = '<label>Quem paga o kit ao fornecedor?</label><select class="input" id="ganho-quem-sel"><option value="">— escolha —</option>'
+    + '<option value="outra">Energtech (o cliente paga a Energtech)</option><option value="financiamento">Banco — financiamento (paga direto ao fornecedor)</option></select>';
+  campoTxt.after(quem);
+  window.ganhoTipoAtual = () => {
+    const sel = document.querySelector('input[name="ganho-op"]:checked'), x = sel ? opcoes[+sel.value] : null;
+    if (!x) return null;
+    return x.k === 'outra' ? (document.getElementById('ganho-quem-sel').value || null) : x.k;
+  };
 
   function textoParcelado(b) {
     const ent = +b.entrada || 0, n = +b.parcelas, p = +b.parcela, tot = +b.total_prazo || ent + p * n;
@@ -43,25 +56,32 @@
     }
     opcoes.push({ k: 'outra', t: 'Outra condição', d: 'digite abaixo', txt: '' });
     const atual = document.getElementById('ganho-pag').value.trim();
-    const marcada = opcoes.find(x => x.txt && x.txt === atual) || (atual ? opcoes[opcoes.length - 1] : null);
+    const tipoSalvo = leadAtual && leadAtual.pagamento_tipo;
+    const marcada = opcoes.find(x => x.txt && x.txt === atual)
+      || (tipoSalvo ? opcoes.find(x => x.k === tipoSalvo) : null)
+      || (atual || tipoSalvo ? opcoes[opcoes.length - 1] : null);
     box.innerHTML = '<label>Opção de pagamento escolhida pelo cliente</label>' + opcoes.map((x, i) => `<label class="gop"><input type="radio" name="ganho-op" value="${i}" ${x === marcada ? 'checked' : ''} onchange="ganhoOpcao(${i})"><div><b>${x.t}</b><span>${x.d}</span></div></label>`).join('');
-    campoTxt.style.display = marcada && marcada.k === 'outra' ? '' : 'none';
+    const ehOutra = !!(marcada && marcada.k === 'outra');
+    campoTxt.style.display = ehOutra ? '' : 'none'; quem.style.display = ehOutra ? '' : 'none';
+    document.getElementById('ganho-quem-sel').value = ehOutra && ['outra', 'financiamento'].includes(tipoSalvo) ? tipoSalvo : '';
+    if (marcada && marcada.k !== 'outra' && !atual) document.getElementById('ganho-pag').value = marcada.txt;
     const lbl = campoTxt.querySelector('label'); if (lbl) lbl.textContent = 'Forma de pagamento (texto)';
   }
   window.ganhoOpcao = i => {
     const x = opcoes[i]; if (!x) return;
     const inp = document.getElementById('ganho-pag');
-    if (x.k === 'outra') { if (opcoes.some(o => o.txt && o.txt === inp.value.trim())) inp.value = ''; campoTxt.style.display = ''; inp.focus(); }
-    else { inp.value = x.txt; campoTxt.style.display = 'none'; }
+    if (x.k === 'outra') { if (opcoes.some(o => o.txt && o.txt === inp.value.trim())) inp.value = ''; campoTxt.style.display = ''; quem.style.display = ''; inp.focus(); }
+    else { inp.value = x.txt; campoTxt.style.display = 'none'; quem.style.display = 'none'; }
   };
   document.getElementById('ganho-prop').addEventListener('change', () => { document.getElementById('ganho-pag').value = ''; montar(); });
 
   const _abrir = abrirGanho;
-  abrirGanho = function () { const r = _abrir.apply(this, arguments); montar(); return r; };
+  abrirGanho = function (id) { leadAtual = (typeof leads !== 'undefined' && leads.find(x => x.id === id)) || null; const r = _abrir.apply(this, arguments); montar(); return r; };
   const _confirmar = confirmarGanho;
   confirmarGanho = function () {
     if (!document.querySelector('input[name="ganho-op"]:checked') && !document.getElementById('ganho-pag').value.trim()) { alert('Escolha a opção de pagamento que o cliente fechou.'); return; }
     if (!document.getElementById('ganho-pag').value.trim()) { alert('Digite a forma de pagamento combinada.'); return; }
+    if (!ganhoTipoAtual()) { alert('Em "Outra condição", diga quem paga o kit ao fornecedor (Energtech ou banco).'); return; }
     return _confirmar.apply(this, arguments);
   };
 })();
