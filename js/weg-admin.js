@@ -52,6 +52,7 @@
       linhas,
       cidades: (R.cidades && R.cidades.dados) || {},
       frete: (R.frete && R.frete.dados) || {},
+      descontos: (R.descontos && R.descontos.dados) || { d1: 49, d2: 16 },
       lista: (R.frete && R.frete.lista) || (ativos[0] && ativos[0].lista) || null,
       atualizado_em: (R.frete && R.frete.atualizado_em) || null,
     };
@@ -90,6 +91,11 @@
       <div class="admin-section-titulo">Tabela de custo WEG (planilha de montagem de kits)</div>
       <div class="regiao-aviso" style="margin-bottom:10px">Todo mês, quando a WEG mandar a planilha nova, escolha o arquivo aqui. Antes de gravar o CRM mostra o que mudou. Só o admin vê estes valores.</div>
       <div class="weg-card" id="weg-situacao">Carregando…</div>
+      <div class="weg-card">Descontos do integrador sobre o preço de lista da WEG (em cascata):
+        <input type="number" class="admin-input admin-input-sm" id="weg-d1" step="0.5" min="0" max="90" style="width:70px"> % e depois
+        <input type="number" class="admin-input admin-input-sm" id="weg-d2" step="0.5" min="0" max="90" style="width:70px"> %
+        <span id="weg-fator" style="color:var(--muted,#8a8a8a);font-size:13px"></span>
+        <button class="admin-btn-add" style="margin:0 0 0 6px" onclick="wegSalvarDescontos()">Salvar descontos</button></div>
       <label class="admin-btn-add" style="display:inline-block">📂 Escolher planilha WEG (.xlsx)
         <input type="file" accept=".xlsx,.xlsm" style="display:none" onchange="wegImportarArquivo(this)"></label>
       <div id="weg-previa"></div>
@@ -101,8 +107,12 @@
     const el = document.getElementById('weg-situacao'); if (!el) return;
     try {
       const c = await wegCatalogoDoBanco(true);
-      if (!c.linhas.length) { el.innerHTML = 'Nenhuma lista WEG gravada ainda.'; return; }
+      if (!c.linhas.length) { el.innerHTML = 'Nenhuma lista WEG gravada ainda.'; ['weg-d1', 'weg-d2'].forEach((id, i) => { const x = document.getElementById(id); if (x) x.value = i ? c.descontos.d2 : c.descontos.d1; }); return; }
       const quando = c.atualizado_em ? new Date(c.atualizado_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+      const d1 = document.getElementById('weg-d1'), d2 = document.getElementById('weg-d2');
+      if (d1 && document.activeElement !== d1) d1.value = c.descontos.d1;
+      if (d2 && document.activeElement !== d2) d2.value = c.descontos.d2;
+      const f = document.getElementById('weg-fator'); if (f) f.textContent = '→ custo = lista × ' + wegFatorDesconto(c).toFixed(4).replace('.', ',');
       el.innerHTML = `Lista gravada: <b>${esc(c.lista || '—')}</b> · ${c.itens.length} itens ativos · ${Object.keys(c.cidades).length} cidades · gravada em ${quando}${refHtml(c, null)}`;
     } catch (e) { el.innerHTML = `<span class="erro">Não consegui ler a lista gravada: ${esc(e.message)}</span>`; }
   }
@@ -115,8 +125,8 @@
     const k = refKit(cat); if (!k) return '';
     const a = antes ? refKit(antes) : null;
     const dif = a ? k.total - a.total : 0;
-    return `<div style="margin-top:6px;color:var(--muted,#8a8a8a);font-size:13px">Kit de referência (10 × BYD 610 + SIW200G M050, cerâmico, Quilombo, CIF Sul): <b style="color:var(--texto,#e0e0e0)">${brl(k.total)}</b>`
-      + (a ? ` · antes ${brl(a.total)} · <span class="${dif > 0 ? 'sobe' : 'desce'}">${dif >= 0 ? '+' : ''}${brl(dif)} (${(dif / a.total * 100).toFixed(1).replace('.', ',')}%)</span>` : '') + '</div>';
+    return `<div style="margin-top:6px;color:var(--muted,#8a8a8a);font-size:13px">Kit de referência (10 × BYD 610 + SIW200G M050, cerâmico, Quilombo, CIF Sul): lista ${brl(k.total)} · custo Energtech <b style="color:var(--texto,#e0e0e0)">${brl(k.custo)}</b>`
+      + (a ? ` · custo antes ${brl(a.custo)} · <span class="${dif > 0 ? 'sobe' : 'desce'}">${dif >= 0 ? '+' : ''}${brl(dif * k.fatorDesconto)} (${(dif / a.total * 100).toFixed(1).replace('.', ',')}%)</span>` : '') + '</div>';
   }
 
   window.wegImportarArquivo = async function (input) {
@@ -131,6 +141,7 @@
       if (!cat.frete['CIF - Sem descarga - Região Sul']) throw new Error('Não achei o frete "CIF - Sem descarga - Região Sul" na planilha. Confira se é a planilha de montagem de kits.');
       if (Object.keys(cat.cidades).length < 1000) throw new Error('A aba "Cadastro cidades" veio vazia ou incompleta.');
       const antes = await wegCatalogoDoBanco(true);
+      cat.descontos = antes.descontos;
       novo = { cat, linhas: paraLinhas(cat), antes };
       prev.innerHTML = previaHtml(arq.name);
     } catch (e) {
@@ -210,6 +221,15 @@
       btn.disabled = false; btn.textContent = '💾 Tentar gravar de novo';
       mostrarMsgAdmin('admin-msg-weg', '❌ Não gravou: ' + (e.message || e), false);
     }
+  };
+
+  window.wegSalvarDescontos = async function () {
+    const d1 = +document.getElementById('weg-d1').value, d2 = +document.getElementById('weg-d2').value;
+    if (!(d1 >= 0 && d1 < 90 && d2 >= 0 && d2 < 90)) { mostrarMsgAdmin('admin-msg-weg', '❌ Descontos inválidos.', false); return; }
+    const { error } = await sb.from('fornecedor_regras').upsert({ fornecedor: FORN, chave: 'descontos', dados: { d1, d2 }, atualizado_em: new Date().toISOString() }, { onConflict: 'fornecedor,chave' });
+    if (error) { mostrarMsgAdmin('admin-msg-weg', '❌ Não gravou: ' + error.message, false); return; }
+    await mostrarSituacao();
+    mostrarMsgAdmin('admin-msg-weg', '✅ Descontos gravados.', true);
   };
 
   // a aba entra quando o painel admin é aberto (o HTML do painel já existe na página)
