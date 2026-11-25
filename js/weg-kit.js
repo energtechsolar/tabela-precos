@@ -1,7 +1,7 @@
 // Eider Sistemas / CRM — montagem de kit WEG a partir da planilha "Montagem de kits representantes-integradores".
 // Duas partes, sem tela (a tela usa estas funções):
 //   • wegLerPlanilha(XLSX, workbook) → { itens, cidades, frete, lista }   (lê as abas "Composição Preços" e "Cadastro cidades")
-//   • wegMontarKit(cat, opcoes)      → { itens, total, avisos, erros, ... } (mesmas regras da aba "Montar Kit Inversor String"
+//   • wegMontarKit(cat, opcoes)      → { itens, total (preço de lista), custo (com os descontos), avisos, erros, ... } (mesmas regras da aba "Montar Kit Inversor String"
 //                                       e "Montar Kit - Microinversor"; preço = custo da lista × frete)
 // Regras elétricas (só para inversores WEG): potência FV ≤ 1,5 × nominal (datasheet), curto-circuito do módulo ≤ limite da MPPT,
 // strings dentro de 600 V com a Voc no frio e dentro da faixa de MPPT em potência máxima.
@@ -62,6 +62,12 @@
     return { k3, k4 };
   }
 
+  // descontos do integrador sobre o preço de lista (fornecedor_regras 'descontos': { d1: 49, d2: 16 })
+  function fatorDesconto(cat) {
+    const d = (cat && cat.descontos) || {}, d1 = num(d.d1), d2 = num(d.d2);
+    return (1 - (d1 ?? 49) / 100) * (1 - (d2 ?? 16) / 100);
+  }
+
   // ── montagem ──
   // opcoes: { modulo, n, inversor, qtdInv, telhado: 'ceramico'|'fibro_madeira'|'fibro_metalica'|'metalico'|'metalico_longo'|'laje'|'zipado',
   //           regiao: 'HI'|'FGJ', uf, cidade, frete: nome da modalidade, tmin (°C, padrão −10), tec: dados elétricos do módulo (modulos_tecnicos) }
@@ -88,7 +94,7 @@
     } else {
       const pfv = kwp * 1000, pmax = t.pfvMax * 1000 * qtdInv;
       const ratio = kwp / (t.kw * qtdInv);
-      if (pfv > pmax + 0.5) erros.push(`Potência FV ${kwp.toFixed(2).replace('.', ',')} kWp passa do máximo do inversor (${(pmax / 1000).toFixed(2).replace('.', ',')} kWp = 1,5 × nominal, datasheet).`);
+      if (pfv > pmax + 0.5) avisos.push(`⚠ Sobrecarga: ${kwp.toFixed(2).replace('.', ',')} kWp passa do máximo do inversor pelo datasheet (${(pmax / 1000).toFixed(2).replace('.', ',')} kWp = 1,5 × nominal; relação ${ratio.toFixed(2).replace('.', ',')}). Montagem liberada: confira o clipping e a garantia.`);
       if (t.estimado) avisos.push('Limites elétricos deste inversor estimados pela família (1,5 × nominal): confira o datasheet.');
       // strings: 1 por MPPT; tensão com Voc no frio
       if (tec && tec.voc) {
@@ -160,7 +166,9 @@
     } else erros.push('Tipo de telhado sem regra de estrutura: ' + tel);
 
     const total = Math.round(itens.reduce((a, x) => a + x.total, 0) * 100) / 100;
-    return { itens, total, eletrico: Math.round(eletrico * 100) / 100, estrutura: Math.round((total - eletrico) * 100) / 100, kwp, finame,
+    // a lista da WEG é preço de venda (tabela); o custo do integrador tem dois descontos em cascata (padrão 49% e 16% → × 0,51 × 0,84)
+    const fd = fatorDesconto(cat);
+    return { itens, total, custo: Math.round(total * fd * 100) / 100, fatorDesconto: fd, eletrico: Math.round(eletrico * 100) / 100, estrutura: Math.round((total - eletrico) * 100) / 100, kwp, finame,
       tipoKit: finame ? 'nacional' : 'importado', ratio: o._ratio || null, strings: o._strings || null, qtdInv, isopleta: iso, avisos, erros };
   }
 
@@ -175,6 +183,6 @@
     return strings.find(x => kwp <= (num(x.dados.kW) || 0) * 1.5 + 1e-9) || null;
   }
 
-  const api = { wegLerPlanilha, wegMontarKit, wegInversores, wegSugerirInversor, tecnicoInversor, combos34 };
+  const api = { wegLerPlanilha, wegMontarKit, wegFatorDesconto: fatorDesconto, wegInversores, wegSugerirInversor, tecnicoInversor, combos34 };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else Object.assign(raiz, api);
 })(typeof window !== 'undefined' ? window : globalThis);
