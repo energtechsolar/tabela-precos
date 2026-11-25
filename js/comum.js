@@ -111,7 +111,7 @@ async function paraJpeg(f) {
     'equipe.html': ['js/equipe-dias.js?v=20261125d'],
     'financeiro.html': ['js/obra-resumo.js?v=20261118a'],
     'conversas.html': ['js/leo-conversas.js?v=20261118a', 'js/conversas-ux.js?v=20261125b'],
-    'crm.html': ['js/contrato-v2.js?v=20261124a', 'js/parcelas.js?v=20261125p', 'js/ganho-pagamento.js?v=20261125p'],
+    'crm.html': ['js/contrato-v2.js?v=20261124a', 'js/parcelas.js?v=20261125q', 'js/ganho-pagamento.js?v=20261125q'],
     'index.html': ['js/weg-kit.js?v=20261125f', 'js/weg-admin.js?v=20261125k', 'js/weg-proposta.js?v=20261125i', 'js/pagamento.js?v=20261125m'],
   };
   const lista = EXTRAS[location.pathname.split('/').pop() || 'index.html'];
