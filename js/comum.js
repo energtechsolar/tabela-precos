@@ -54,7 +54,8 @@ async function paraJpeg(f) {
     input[type=month], input[type=date] { cursor:pointer; }
     .mes-nav { display:inline-flex; align-items:center; gap:4px; vertical-align:middle; }
     .mes-nav button { background:var(--card2,#222); border:1px solid var(--borda,#2e2e2e); color:var(--texto,#e0e0e0); border-radius:8px; width:34px; height:36px; cursor:pointer; font-size:14px; }
-    .mes-nav button:hover { border-color:var(--amarelo,#FFC107); }`;
+    .mes-nav button:hover { border-color:var(--amarelo,#FFC107); }
+    .papel-obras button[onclick^="kitPagoBanco"] { display:none !important; }`;
   document.head.appendChild(st);
   document.addEventListener('click', e => {
     const i = e.target;
@@ -72,14 +73,31 @@ async function paraJpeg(f) {
   });
 })();
 
+// papel "obras" (agenda de obras, sem valores): nas telas Instalações e Clientes ele usa os mesmos botões da engenharia.
+// O banco continua decidindo o que ele lê e grava (sem diárias, custos, estoque nem "kit pago"). O papel real fica em perfil.papel_real
+// e a página ganha <html class="papel-obras"> (esconde o botão do kit pago).
+(function () {
+  const pg = location.pathname.split('/').pop();
+  if (!sb || !['instalacoes.html', 'clientes.html'].includes(pg)) return;
+  const rpc = sb.rpc.bind(sb);
+  sb.rpc = function (fn, args, opts) {
+    const q = rpc(fn, args, opts);
+    if (fn !== 'meu_perfil') return q;
+    return Promise.resolve(q).then(r => {
+      if (r && r.data && r.data.papel === 'obras') { r.data.papel_real = 'obras'; r.data.papel = 'engenheiro'; document.documentElement.classList.add('papel-obras'); }
+      return r;
+    });
+  };
+})();
+
 // barra de menu do topo, igual em todas as telas (js/menu-topo.js)
-(function () { const s = document.createElement('script'); s.src = 'js/menu-topo.js?v=20261125c'; s.async = false; document.body.appendChild(s); })();
+(function () { const s = document.createElement('script'); s.src = 'js/menu-topo.js?v=20261125d'; s.async = false; document.body.appendChild(s); })();
 
 // complementos de algumas telas: carregados depois do script da própria tela (assim a tela grande não precisa mudar)
 (function () {
   const EXTRAS = {
-    'instalacoes.html': ['js/agenda-extra.js?v=20261118a'],
-    'equipe.html': ['js/equipe-dias.js?v=20261118a'],
+    'instalacoes.html': ['js/agenda-extra.js?v=20261118a', 'js/obras-dias.js?v=20261125d'],
+    'equipe.html': ['js/equipe-dias.js?v=20261125d'],
     'financeiro.html': ['js/obra-resumo.js?v=20261118a'],
     'conversas.html': ['js/leo-conversas.js?v=20261118a', 'js/conversas-ux.js?v=20261125b'],
     'crm.html': ['js/contrato-v2.js?v=20261124a'],
