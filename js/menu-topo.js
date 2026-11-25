@@ -7,15 +7,17 @@
   const antigo = document.querySelector('body > .header');
   if (typeof sb === 'undefined' || !sb || !antigo || document.getElementById('topo')) return;
 
-  const interno = p => p.admin || p.papel === 'interno';
-  const obra = p => p.admin || ['interno', 'engenheiro'].includes(p.papel);
+  const papel = p => p.papel_real || p.papel;   // "obras" aparece como engenharia nas telas da agenda (ver comum.js)
+  const interno = p => p.admin || papel(p) === 'interno';
+  const obra = p => p.admin || ['interno', 'engenheiro'].includes(papel(p));
+  const agenda = p => obra(p) || papel(p) === 'obras';   // Instalações e Clientes: também o papel "obras" (sem valores)
   const PAGINAS = [
     { arq: 'crm.html', ico: '🗂', nome: 'CRM', pode: interno },
     { arq: 'conversas.html', ico: '💬', nome: 'Conversas', pode: interno },
     { arq: './', ico: '📄', nome: 'Precificador', pode: p => p.admin || p.vendedor || !!p.papel, atual: ['', 'index.html'] },
     { arq: 'painel.html', ico: '📊', nome: 'Orçamentos', pode: p => p.admin || p.vendedor },
-    { arq: 'clientes.html', ico: '👥', nome: 'Clientes', pode: obra },
-    { arq: 'instalacoes.html', ico: '📅', nome: 'Instalações', pode: obra },
+    { arq: 'clientes.html', ico: '👥', nome: 'Clientes', pode: agenda },
+    { arq: 'instalacoes.html', ico: '📅', nome: 'Instalações', pode: agenda },
     { arq: 'estoque.html', ico: '📦', nome: 'Estoque', pode: obra },
     { arq: 'financeiro.html', ico: '💰', nome: 'Financeiro', pode: p => p.admin },
     { arq: 'equipe.html', ico: '👷', nome: 'Equipe', pode: p => p.admin },
@@ -95,7 +97,7 @@
     const n = naoLidas();
     const lista = acoes().map(a => `<a href="#" onclick="${esc(a.on)}">${esc(a.t)}</a>`).join('');
     const infoEl = antigo.querySelector('#info-atualizacao');
-    const info = (perfil ? `<div class="info">👤 ${esc(perfil.nome || perfil.email)}${perfil.papel || perfil.admin ? ' · ' + esc(perfil.papel || 'admin') : ''}</div>` : '')
+    const info = (perfil ? `<div class="info">👤 ${esc(perfil.nome || perfil.email)}${papel(perfil) || perfil.admin ? ' · ' + esc(papel(perfil) || 'admin') : ''}</div>` : '')
       + (infoEl && infoEl.textContent.trim() ? `<div class="info">${esc(infoEl.textContent.trim())}</div>` : '');
     const primeiro = perfil ? String(perfil.nome || perfil.email || '').trim().split(/[\s@]+/)[0] : '';
     nav.innerHTML = `

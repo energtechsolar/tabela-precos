@@ -1,6 +1,8 @@
 // Eider Sistemas / CRM — tela Equipe: quadro do mês por pessoa (carregado pelo js/comum.js depois do script da tela).
 // Dias trabalhados (diárias lançadas + atividades feitas na agenda), dias "não trabalhado" com motivo e comentário,
 // e os dias úteis (segunda a sexta, sem feriado nacional) sem nenhum registro, para não ficar período em branco.
+// "Lançados por outras pessoas": dias ainda não pagos que outra pessoa lançou (ex.: o responsável pelas obras confirmando a agenda),
+// para o admin conferir antes de pagar.
 (function () {
   if (typeof render !== 'function' || typeof carregar !== 'function' || !document.getElementById('lancamentos')) return;
   const MOTIVOS = { chuva: '🌧 Chuva / tempo', sem_obra: '📭 Sem obra programada', folga: '🏖 Feriado / folga', falta: '🙋 Falta da pessoa' };
@@ -15,11 +17,26 @@
   const card = document.createElement('div'); card.className = 'card';
   card.innerHTML = '<h2>📅 Dias do mês por pessoa</h2><div id="dias-mes"><div class="muted">⏳ Carregando…</div></div>';
   document.getElementById('lancamentos').closest('.card').after(card);
+  const cardConf = document.createElement('div'); cardConf.className = 'card'; cardConf.style.display = 'none';
+  cardConf.innerHTML = '<h2>🔎 Lançados por outras pessoas — conferir antes de pagar</h2><div id="lanc-conferir"></div>';
+  card.after(cardConf);
 
   const _carregar = carregar;
   carregar = async function () { await _carregar.apply(this, arguments); await carregarDias(); };
   const _render = render;
-  render = function () { _render.apply(this, arguments); renderDias(); };
+  render = function () { _render.apply(this, arguments); renderDias(); renderConferir(); };
+  function renderConferir() {
+    const eu = typeof perfil !== 'undefined' && perfil ? String(perfil.email || '').toLowerCase() : '';
+    const lista = (typeof ABERTOS !== 'undefined' ? ABERTOS : []).filter(x => x.criado_por && String(x.criado_por).toLowerCase() !== eu && !x.pago_em);
+    cardConf.style.display = lista.length ? '' : 'none';
+    if (!lista.length) return;
+    const quem = e => { const p = (typeof PES !== 'undefined' ? PES : []).find(y => String(y.email || '').toLowerCase() === String(e).toLowerCase()); return p ? p.nome : String(e).split('@')[0]; };
+    const pes = id => ((typeof PES !== 'undefined' ? PES : []).find(y => y.id === id) || {}).nome || '#' + id;
+    $('lanc-conferir').innerHTML = `<div class="tabela-wrap"><table><thead><tr><th>Data</th><th>Pessoa</th><th>Lançamento</th><th>Obra</th><th>Lançado por</th><th class="num">Valor</th></tr></thead><tbody>
+      ${lista.map(x => `<tr><td>${dBR(x.data)}</td><td>${esc(pes(x.pessoa_id))}</td><td>${x.tipo === 'dia' ? num(+x.quantidade) + ' dia' + (+x.quantidade > 1 ? 's' : '') : esc(x.tipo)}</td>
+        <td>${esc((x.leads && x.leads.nome) || x.obra_nome || '—')}</td><td><span class="tag">${esc(quem(x.criado_por))}</span></td><td class="num">${fmtR(x.valor)}</td></tr>`).join('')}
+      </tbody></table></div><p class="muted" style="margin-top:6px">Ainda não pagos. Se algo estiver errado, ajuste ou exclua na lista de lançamentos acima (mês da data).</p>`;
+  }
 
   async function carregarDias() {
     const ym = $('f-mes').value; if (!ym) return;
