@@ -42,13 +42,43 @@ async function paraJpeg(f) {
   return new File([b], nome, { type: 'image/jpeg' });
 }
 
+// legibilidade e campos de mês (todas as telas)
+// - botões pequenos: letra normal (a condensada em negrito pesado ficava borrada em tamanho pequeno)
+// - color-scheme dark: ícone do calendário e listas aparecem claros no fundo escuro
+// - clicar em qualquer ponto do campo de mês/data abre o calendário; o filtro de mês (f-mes) ganha ◀ ▶
+(function () {
+  const st = document.createElement('style');
+  st.textContent = `
+    :root { color-scheme: dark; }
+    .btn.btn-p { font-family:'Barlow',sans-serif; font-weight:700; font-size:13px; letter-spacing:0; }
+    input[type=month], input[type=date] { cursor:pointer; }
+    .mes-nav { display:inline-flex; align-items:center; gap:4px; vertical-align:middle; }
+    .mes-nav button { background:var(--card2,#222); border:1px solid var(--borda,#2e2e2e); color:var(--texto,#e0e0e0); border-radius:8px; width:34px; height:36px; cursor:pointer; font-size:14px; }
+    .mes-nav button:hover { border-color:var(--amarelo,#FFC107); }`;
+  document.head.appendChild(st);
+  document.addEventListener('click', e => {
+    const i = e.target;
+    if (i && i.tagName === 'INPUT' && (i.type === 'month' || i.type === 'date') && !i.disabled && !i.readOnly && typeof i.showPicker === 'function') { try { i.showPicker(); } catch (_) { /* navegador sem suporte */ } }
+  });
+  const somarMes = (ym, n) => { const [a, m] = ym.split('-').map(Number); const d = new Date(a, m - 1 + n, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
+  document.addEventListener('DOMContentLoaded', () => {
+    const i = document.getElementById('f-mes'); if (!i || i.closest('.mes-nav')) return;
+    const nav = document.createElement('span'); nav.className = 'mes-nav'; i.parentNode.insertBefore(nav, i);
+    const bt = (txt, n, dica) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = txt; b.title = dica;
+      b.onclick = ev => { ev.preventDefault(); const hoje = new Date(); const atual = /^\d{4}-\d{2}$/.test(i.value) ? i.value : hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0');
+        i.value = somarMes(atual, n); i.dispatchEvent(new Event('change', { bubbles: true })); };
+      return b; };
+    nav.append(bt('◀', -1, 'Mês anterior'), i, bt('▶', 1, 'Próximo mês'));
+  });
+})();
+
 // complementos de algumas telas: carregados depois do script da própria tela (assim a tela grande não precisa mudar)
 (function () {
   const EXTRAS = {
     'instalacoes.html': ['js/agenda-extra.js?v=20261118a'],
     'equipe.html': ['js/equipe-dias.js?v=20261118a'],
     'financeiro.html': ['js/obra-resumo.js?v=20261118a'],
-    'conversas.html': ['js/leo-conversas.js?v=20261118a'],
+    'conversas.html': ['js/leo-conversas.js?v=20261118a', 'js/conversas-ux.js?v=20261125a'],
     'crm.html': ['js/contrato-v2.js?v=20261124a'],
   };
   const lista = EXTRAS[location.pathname.split('/').pop() || 'index.html'];
