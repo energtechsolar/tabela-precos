@@ -99,7 +99,10 @@
       <label class="admin-btn-add" style="display:inline-block">📂 Escolher planilha WEG (.xlsx)
         <input type="file" accept=".xlsx,.xlsm" style="display:none" onchange="wegImportarArquivo(this)"></label>
       <div id="weg-previa"></div>
-      <div class="admin-msg" id="admin-msg-weg"></div>`;
+      <div class="admin-msg" id="admin-msg-weg"></div>
+      <div class="admin-section-titulo" style="margin-top:18px">Tabela de preços WEG — markup dos kits padrão</div>
+      <div class="regiao-aviso" style="margin-bottom:10px">Preço de venda = custo Energtech × (1 + markup). O markup vem do kit padrão com a mesma quantidade de placas (FINAME → tabela Nacional; os outros → Importado); dá para ajustar na linha. Por enquanto só o admin vê esta tabela.</div>
+      <div class="weg-card" id="weg-tabela">Grave uma lista WEG para montar a tabela.</div>`;
     document.getElementById('admin-sec-config').after(sec);
   }
 
@@ -113,6 +116,7 @@
       if (d1 && document.activeElement !== d1) d1.value = c.descontos.d1;
       if (d2 && document.activeElement !== d2) d2.value = c.descontos.d2;
       const f = document.getElementById('weg-fator'); if (f) f.textContent = '→ custo = lista × ' + wegFatorDesconto(c).toFixed(4).replace('.', ',');
+      renderTabelaWeg(c);
       el.innerHTML = `Lista gravada: <b>${esc(c.lista || '—')}</b> · ${c.itens.length} itens ativos · ${Object.keys(c.cidades).length} cidades · gravada em ${quando}${refHtml(c, null)}`;
     } catch (e) { el.innerHTML = `<span class="erro">Não consegui ler a lista gravada: ${esc(e.message)}</span>`; }
   }
@@ -231,6 +235,74 @@
     await mostrarSituacao();
     mostrarMsgAdmin('admin-msg-weg', '✅ Descontos gravados.', true);
   };
+
+  // ── tabela de preços WEG (kits padrão de 6, 8, 10 placas...) ──
+  const TELHADOS = [['ceramico', 'Cerâmico'], ['fibro_madeira', 'Fibrocimento (madeira)'], ['fibro_metalica', 'Fibrocimento (metálica)'],
+    ['metalico', 'Metálico (minitrilho)'], ['metalico_longo', 'Metálico (perfil longo)'], ['laje', 'Laje'], ['zipado', 'Zipado']];
+  const T = { modulo: '610 Wp - BYD BIFACIAL [FINAME]', placas: '6, 8, 10', telhado: 'ceramico', uf: 'SC', cidade: 'QUILOMBO', inv: {}, mk: {} };
+  let tecMods = null;
+  async function carregarTec() {
+    if (tecMods) return tecMods;
+    const { data } = await sb.from('modulos_tecnicos').select('*');
+    tecMods = {}; (data || []).forEach(m => { tecMods[m.modelo] = m; });
+    return tecMods;
+  }
+  // markup do kit padrão (preço de tabela ÷ custo − 1) com a mesma quantidade de placas; sem igual, o mais próximo
+  function padraoPara(nacional, n) {
+    const lista = (nacional ? (typeof NACIONAL !== 'undefined' ? NACIONAL : []) : (typeof IMPORTADO !== 'undefined' ? IMPORTADO : []))
+      .map(k => ({ k, custo: typeof custoDoKit === 'function' ? custoDoKit(k) : null, mod: +k.mod || 0 }))
+      .filter(x => x.custo > 0 && +x.k.inv_r > 0 && x.mod > 0);
+    if (!lista.length) return null;
+    const dist = x => Math.abs(x.mod - n);
+    const melhor = lista.reduce((a, b) => (dist(b) < dist(a) ? b : a));
+    return { nome: melhor.k.nome, mod: melhor.mod, inv: melhor.k.inv, custo: melhor.custo, preco: +melhor.k.inv_r, mk: (+melhor.k.inv_r / melhor.custo - 1) * 100, igual: melhor.mod === n };
+  }
+  const pct = v => (+v).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%';
+  async function renderTabelaWeg(cat) {
+    const el = document.getElementById('weg-tabela'); if (!el || !cat || !cat.itens.length) return;
+    const tec = await carregarTec().catch(() => ({}));
+    const mods = cat.itens.filter(x => /^M[óo]dulo/i.test(x.tipo || '') && +x.dados.Wp > 0);   // fora as baterias
+    if (!mods.some(m => m.codigo === T.modulo) && mods[0]) T.modulo = mods[0].codigo;
+    const invs = wegInversores(cat).filter(x => !/micro/i.test(x.tipo));
+    const finame = /\[FINAME\]/i.test(T.modulo);
+    const ns = [...new Set(String(T.placas).split(/[^0-9]+/).map(Number).filter(n => n > 0 && n <= 60))].sort((a, b) => a - b);
+    const linhas = ns.map(n => {
+      const sug = wegSugerirInversor(cat, T.modulo, n);
+      const inv = T.inv[n] || (sug && sug.codigo) || (invs[invs.length - 1] || {}).codigo;
+      const k = wegMontarKit(cat, { modulo: T.modulo, n, inversor: inv, telhado: T.telhado, uf: T.uf, cidade: T.cidade, frete: 'CIF - Sem descarga - Região Sul', tec: tec[T.modulo] });
+      const pad = padraoPara(finame, n);
+      const mk = T.mk[n] ?? (pad ? Math.round(pad.mk * 10) / 10 : 70);
+      const preco = Math.round(k.custo * (1 + mk / 100) * 100) / 100;
+      return { n, inv, sug, k, pad, mk, preco };
+    });
+    const opt = (v, t, sel) => `<option value="${esc(v)}"${v === sel ? ' selected' : ''}>${esc(t)}</option>`;
+    el.innerHTML = `
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px">
+        <select class="admin-input" style="width:auto" onchange="wegTab('modulo',this.value)">${mods.map(m => opt(m.codigo, m.codigo, T.modulo)).join('')}</select>
+        <select class="admin-input" style="width:auto" onchange="wegTab('telhado',this.value)">${TELHADOS.map(t => opt(t[0], t[1], T.telhado)).join('')}</select>
+        <label style="font-size:13px">Placas <input class="admin-input" style="width:110px" value="${esc(T.placas)}" onchange="wegTab('placas',this.value)"></label>
+        <label style="font-size:13px">Cidade <input class="admin-input" style="width:140px" value="${esc(T.cidade)}" onchange="wegTab('cidade',this.value)"></label>
+        <input class="admin-input" style="width:50px" value="${esc(T.uf)}" maxlength="2" onchange="wegTab('uf',this.value)">
+        <span style="font-size:13px;color:var(--muted,#8a8a8a)">Kit ${finame ? '<b style="color:var(--verde,#4ade80)">Nacional (FINAME)</b>' : '<b>Importado</b>'} · frete CIF Sul</span>
+      </div>
+      <div style="overflow-x:auto"><table>
+        <thead><tr><th>Placas</th><th>kWp</th><th>Inversor</th><th class="n" title="Preço de lista da WEG, com frete">Lista WEG</th><th class="n">Custo Energtech</th><th class="n">Markup</th><th class="n">Preço de venda</th><th>Kit padrão de referência</th><th></th></tr></thead>
+        <tbody>${linhas.map(l => `<tr>
+          <td>${l.n}</td>
+          <td>${l.k.kwp ? l.k.kwp.toFixed(2).replace('.', ',') : '—'}</td>
+          <td><select class="admin-input" style="width:auto" onchange="wegTabInv(${l.n},this.value)">${invs.map(x => opt(x.codigo, x.codigo.replace(/ W\d+$/, '') + (l.sug && x.codigo === l.sug.codigo ? ' ★' : ''), l.inv)).join('')}</select></td>
+          <td class="n">${l.k.erros.length ? '—' : brl(l.k.total)}</td>
+          <td class="n">${l.k.erros.length ? '—' : brl(l.k.custo)}</td>
+          <td class="n"><input type="number" class="admin-input" style="width:72px;text-align:right" step="0.5" value="${l.mk}" onchange="wegTabMk(${l.n},this.value)"> %</td>
+          <td class="n"><b>${l.k.erros.length ? '—' : brl(l.preco)}</b></td>
+          <td style="font-size:12px;color:var(--muted,#8a8a8a);min-width:200px">${l.pad ? `${esc(l.pad.nome)} · ${l.pad.mod} pl. · ${esc(l.pad.inv)}${l.pad.igual ? '' : ' (mais próximo)'}<br>custo ${brl(l.pad.custo)} → <b style="color:var(--texto,#e0e0e0)">${brl(l.pad.preco)}</b> (${pct(l.pad.mk)})` : 'sem kit padrão com custo'}</td>
+          <td>${l.k.erros.length ? `<span class="erro" title="${esc(l.k.erros.join('\n'))}">❌</span>` : l.k.avisos.length ? `<span title="${esc(l.k.avisos.join('\n'))}" style="cursor:help">⚠ ${l.k.avisos.length}</span>` : '✓'}</td>
+        </tr>`).join('')}</tbody></table></div>
+      <div style="font-size:12px;color:var(--muted,#8a8a8a);margin-top:6px">⚠ passe o mouse para ver os avisos (sobrecarga, strings, região de vento). ★ inversor sugerido: o menor SIW200G com até 1,5 × a potência; dá para trocar na linha.</div>`;
+  }
+  window.wegTab = (campo, v) => { T[campo] = campo === 'uf' || campo === 'cidade' ? String(v).trim().toUpperCase() : v; if (campo === 'modulo') { T.inv = {}; T.mk = {}; } wegCatalogoDoBanco().then(renderTabelaWeg); };
+  window.wegTabInv = (n, v) => { T.inv[n] = v; wegCatalogoDoBanco().then(renderTabelaWeg); };
+  window.wegTabMk = (n, v) => { T.mk[n] = +v; wegCatalogoDoBanco().then(renderTabelaWeg); };
 
   // a aba entra quando o painel admin é aberto (o HTML do painel já existe na página)
   const orig = window.mostrarPainel;
