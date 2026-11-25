@@ -307,7 +307,7 @@
           <td><select class="admin-input" style="width:auto" onchange="wegTabLinha(${l.i},'qtd',+this.value)">${[1, 2, 3, 4].map(q => `<option value="${q}"${q === l.qtd ? ' selected' : ''}>${q}×</option>`).join('')}</select></td>
           <td class="n">${l.k.erros.length ? '—' : brl(l.k.custo) + `<div style="font-size:11px;color:var(--muted,#8a8a8a)">${brl(l.k.total)}</div>`}</td>
           <td class="n"><input type="number" class="admin-input" style="width:62px;text-align:right" step="0.5" value="${l.mk}" onchange="wegTabLinha(${l.i},'mk',this.value === '' ? null : +this.value)"> %</td>
-          <td class="n"><b>${l.k.erros.length ? '—' : brl(l.preco)}</b></td>
+          <td class="n"><b>${l.k.erros.length ? '—' : brl(l.preco)}</b>${l.k.erros.length ? '' : `<div style="font-size:11px;color:var(--verde,#4ade80)" title="Preço de venda − custo Energtech (antes de comissão, impostos e instalação)">venda − custo ${brl(l.preco - l.k.custo)}</div>`}</td>
           <td style="font-size:12px;color:var(--muted,#8a8a8a);white-space:nowrap">${l.pad ? `<span title="${esc(l.pad.nome)} · ${l.pad.mod} placas · ${esc(l.pad.inv)}${l.pad.igual ? '' : ' (mais próximo)'} · custo ${brl(l.pad.custo)} · markup ${pct(l.pad.mk)}">${esc(l.pad.nome)} · ${esc(l.pad.inv)}${l.pad.igual ? '' : ' *'}<br><b style="color:var(--texto,#e0e0e0)">${brl(l.pad.preco)}</b></span>` : '—'}</td>
           <td style="white-space:nowrap">${l.k.erros.length ? `<span class="erro" title="${esc(l.k.erros.join('\n'))}">❌</span>` : l.k.avisos.length ? `<span title="${esc(l.k.avisos.join('\n'))}" style="cursor:help">⚠ ${l.k.avisos.length}</span>` : '✓'}</td>
         </tr>`).join('')}</tbody></table></div>
