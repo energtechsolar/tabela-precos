@@ -53,6 +53,8 @@
     return t;
   }
   function ehInversorMono(it) { return /^(Micro-?inversor|Inversor) Monof/i.test(it.tipo); }
+  // trifásicos de geração solar até 75 kW (sem os de bomba CFW500 e sem os de 800 V, que são de usina)
+  function ehInversorTri(it) { return /^Inversor Trif/i.test(it.tipo) && !/800\s*V/.test(it.tipo) && (num(it.dados.kW) || 0) <= 75; }
 
   // combinações de kits de 3 e 4 módulos (mesma regra da planilha)
   function combos34(n) {
@@ -84,7 +86,9 @@
     const inv = achar(o.inversor); if (!inv) { erros.push('Inversor não encontrado na lista: ' + o.inversor); return { itens, total: 0, avisos, erros }; }
     const tec = o.tec || null, t = tecnicoInversor(inv), finame = /\[FINAME\]/i.test(mod.codigo);
     if (/127/.test(inv.tipo)) avisos.push('⚠ ATENÇÃO: inversor ' + inv.tipo + '. Confirme a tensão do padrão do cliente antes de usar.');
-    if (!ehInversorMono(inv)) avisos.push('Inversor fora da linha monofásica: as regras elétricas não foram conferidas.');
+    const tri = ehInversorTri(inv);
+    if (tri) avisos.push('Inversor trifásico (' + inv.tipo.replace(/^Inversor /, '') + '): tensão das strings e corrente não conferidas pelo CRM (sem datasheet). Confira no projeto.');
+    else if (!ehInversorMono(inv)) avisos.push('Inversor fora da linha monofásica: as regras elétricas não foram conferidas.');
 
     add(n, mod);
     let qtdInv = Math.max(1, Math.round(+o.qtdInv || 1)), entradas = 0;
@@ -95,9 +99,10 @@
       const pfv = kwp * 1000, pmax = t.pfvMax * 1000 * qtdInv;
       const ratio = kwp / (t.kw * qtdInv);
       if (pfv > pmax + 0.5) avisos.push(`⚠ Sobrecarga: ${kwp.toFixed(2).replace('.', ',')} kWp passa do máximo do inversor pelo datasheet (${(pmax / 1000).toFixed(2).replace('.', ',')} kWp = 1,5 × nominal; relação ${ratio.toFixed(2).replace('.', ',')}). Montagem liberada: confira o clipping e a garantia.`);
-      if (t.estimado) avisos.push('Limites elétricos deste inversor estimados pela família (1,5 × nominal): confira o datasheet.');
-      // strings: 1 por MPPT; tensão com Voc no frio
-      if (tec && tec.voc) {
+      if (t.estimado && !tri) avisos.push('Limites elétricos deste inversor estimados pela família (1,5 × nominal): confira o datasheet.');
+      // strings: 1 por MPPT; tensão com Voc no frio (só monofásicos WEG, com datasheet)
+      if (tri) { /* sem conferência de strings */ }
+      else if (tec && tec.voc) {
         const tmin = o.tmin ?? -10, vocF = tec.voc * (1 + (tec.tc_voc / 100) * (tmin - 25));
         const maxSerie = Math.floor(t.vmax / vocF), mppts = t.mppt * qtdInv;
         const nStr = Math.max(1, Math.ceil(n / maxSerie));
@@ -172,17 +177,27 @@
       tipoKit: finame ? 'nacional' : 'importado', ratio: o._ratio || null, strings: o._strings || null, qtdInv, isopleta: iso, avisos, erros };
   }
 
-  // inversores para a lista: monofásicos (string até 10,5 kW e micro); sugere o menor com potência FV ≤ 1,5 × nominal
+  // inversores para a lista: monofásicos (string até 10,5 kW e micro) e trifásicos de geração até 75 kW
   function wegInversores(cat) {
-    return cat.itens.filter(x => ehInversorMono(x) && (num(x.dados.kW) || 0) <= 10.5).sort((a, b) => (num(a.dados.kW) - num(b.dados.kW)) || (a.preco - b.preco));
+    return cat.itens.filter(x => (ehInversorMono(x) && (num(x.dados.kW) || 0) <= 10.5) || ehInversorTri(x))
+      .sort((a, b) => ((ehInversorTri(a) ? 1 : 0) - (ehInversorTri(b) ? 1 : 0)) || (num(a.dados.kW) - num(b.dados.kW)) || (a.preco - b.preco));
   }
-  function wegSugerirInversor(cat, modulo, n) {
+  // sugestão: { inv, qtd }. Até ~15,7 kWp: o menor SIW200G monofásico com potência FV ≤ 1,5 × nominal.
+  // Acima disso: trifásico 380 V (ou 220 V, se pedido), o de menor preço que aguenta (1,5 × nominal); se nenhum sozinho aguenta,
+  // 2, 3… iguais. Ficam fora da sugestão automática a linha SIW400H e o SIW610 (bem mais caros; escolha manual).
+  function wegSugerir(cat, modulo, n, opt) {
+    opt = opt || {};
     const mod = cat.itens.find(x => norm(x.codigo) === norm(modulo)); if (!mod) return null;
-    const kwp = n * (num(mod.dados.Wp) || 0) / 1000;
-    const strings = wegInversores(cat).filter(x => !/micro/i.test(x.tipo) && !/127/.test(x.tipo) && /^SIW200G/.test(norm(x.codigo)));
-    return strings.find(x => kwp <= (num(x.dados.kW) || 0) * 1.5 + 1e-9) || null;
+    const kwp = n * (num(mod.dados.Wp) || 0) / 1000, cabe = (x, q) => kwp <= (num(x.dados.kW) || 0) * 1.5 * q + 1e-9;
+    const monos = wegInversores(cat).filter(x => ehInversorMono(x) && !/micro/i.test(x.tipo) && !/127/.test(x.tipo) && /^SIW200G/.test(norm(x.codigo)));
+    if (!opt.tri) { const m = monos.find(x => cabe(x, 1)); if (m) return { inv: m, qtd: 1 }; }
+    const v = opt.rede === '220' ? /220\s*V/ : /380\s*V/;
+    const tris = cat.itens.filter(x => ehInversorTri(x) && v.test(x.tipo) && !/^SIW400H|^SIW610/.test(norm(x.codigo))).sort((a, b) => a.preco - b.preco);
+    for (let q = 1; q <= 4; q++) { const t = tris.find(x => cabe(x, q)); if (t) return { inv: t, qtd: q }; }
+    return null;
   }
+  function wegSugerirInversor(cat, modulo, n, opt) { const s = wegSugerir(cat, modulo, n, opt); return s ? s.inv : null; }
 
-  const api = { wegLerPlanilha, wegMontarKit, wegFatorDesconto: fatorDesconto, wegInversores, wegSugerirInversor, tecnicoInversor, combos34 };
+  const api = { wegLerPlanilha, wegMontarKit, wegFatorDesconto: fatorDesconto, wegInversores, wegSugerirInversor, wegSugerir, ehInversorTri, tecnicoInversor, combos34 };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else Object.assign(raiz, api);
 })(typeof window !== 'undefined' ? window : globalThis);

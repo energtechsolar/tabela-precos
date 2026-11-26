@@ -10,7 +10,8 @@
   const MODULO = { nacional: '610 Wp - BYD BIFACIAL [FINAME]', importado: '615 Wp - WEG BIFACIAL' };
   const TELHADO = { fibrocimento: 'fibro_madeira', ceramico: 'ceramico', metalico: 'metalico', aluzinco: 'metalico', laje: 'laje' };
   const NOME_TELHADO = { fibro_madeira: 'Fibrocimento (madeira)', ceramico: 'Cerâmico', metalico: 'Metálico', laje: 'Laje' };
-  const escolha = {};   // inversor escolhido no card WEG, por quantidade de placas + tipo
+  const escolha = {}, escolhaQtd = {};   // inversor e quantidade escolhidos no card WEG, por quantidade de placas + tipo
+  const rotuloInv = x => x.codigo.replace(/ W\d+$/, '') + ' · ' + kwBR(x.dados.kW) + ' kW' + (/Trif/i.test(x.tipo) ? ' tri ' + ((x.tipo.match(/\d+\s*V/) || [''])[0]).replace(/\s/g, '') : '');
   let tec = null;
 
   const st = document.createElement('style');
@@ -78,21 +79,24 @@
     const selTelhado = `<select onchange="opcWegTelhado(this.value)">${[['fibrocimento', 'Fibrocimento'], ['ceramico', 'Cerâmico'], ['metalico', 'Metálico'], ['aluzinco', 'Aluzinco'], ['laje', 'Laje'], ['solo', 'Solo']].map(([v, t]) => `<option value="${v}"${v === estr ? ' selected' : ''}>Telhado: ${t}</option>`).join('')}</select>`;
     if (!telhado) { card.innerHTML = `<div class="opc-forn">Fornecedor: <b>WEG</b></div>${selTelhado}<div class="opc-det">Estrutura de solo ainda não é montada pela lista WEG.</div>`; return; }
     const invs = wegInversores(cat).filter(x => !/micro/i.test(x.tipo));
-    const sug = wegSugerirInversor(cat, modulo, n);
+    const sg = typeof wegSugerir === 'function' ? wegSugerir(cat, modulo, n) : null, sug = sg && sg.inv;
     const chave = tipo + n, inv = escolha[chave] || (sug && sug.codigo);
+    const qtd = escolhaQtd[chave] || (escolha[chave] ? 1 : (sg ? sg.qtd : 1));
+    if (!inv) { card.innerHTML = `<div class="opc-forn">Fornecedor: <b>WEG</b></div><div class="opc-det">Nenhum inversor da lista WEG atende ${n} placas (até 4 trifásicos de 75 kW). Use o Kit personalizado.</div>`; return; }
     const { cidade, uf } = cidadeUf();
-    const k = wegMontarKit(cat, { modulo, n, inversor: inv, telhado, uf, cidade, frete: 'CIF - Sem descarga - Região Sul', tec: tec[modulo] });
+    const k = wegMontarKit(cat, { modulo, n, inversor: inv, qtdInv: qtd, telhado, uf, cidade, frete: 'CIF - Sem descarga - Região Sul', tec: tec[modulo] });
     if (k.erros.length) { card.innerHTML = `<div class="opc-forn">Fornecedor: <b>WEG</b></div><div class="opc-det">❌ ${escHtml(k.erros.join(' '))}</div>`; return; }
     const cu = custoDe(base), mk = cu ? base.inv_r / cu - 1 : 0.7;
     const venda = Math.round(k.custo * (1 + mk) * 100) / 100;
     const invIt = invs.find(x => x.codigo === inv) || {};
-    const kwInv = +invIt.dados.kW || 0;
-    window._opcWeg = { k, modulo, inv, kwInv, telhado, venda, mk, tipo, n, base, cidade, uf };
+    const kwUni = +(invIt.dados || {}).kW || 0, kwInv = kwUni * qtd;
+    window._opcWeg = { k, modulo, inv, invTipo: invIt.tipo || '', kwUni, kwInv, qtd, telhado, venda, mk, tipo, n, base, cidade, uf };
     card.innerHTML = `
       <div class="opc-forn">Fornecedor: <b>WEG</b> · ${tipo === 'nacional' ? 'Nacional (FINAME)' : 'Importado'}</div>
       <div class="opc-nome">Kit WEG · ${kwBR(k.kwp)} kWp</div>
       <div class="opc-det">${n} × ${escHtml(modulo.replace(/ - /, ' '))}<br>
-        <select onchange="opcWegInv('${chave}',this.value)">${invs.map(x => `<option value="${escHtml(x.codigo)}"${x.codigo === inv ? ' selected' : ''}>${escHtml(x.codigo.replace(/ W\d+$/, ''))} · ${kwBR(x.dados.kW)} kW${sug && x.codigo === sug.codigo ? ' ★' : ''}</option>`).join('')}</select><br>
+        <select onchange="opcWegInv('${chave}',this.value)">${invs.map(x => `<option value="${escHtml(x.codigo)}"${x.codigo === inv ? ' selected' : ''}>${escHtml(rotuloInv(x))}${sug && x.codigo === sug.codigo ? ' ★' : ''}</option>`).join('')}</select>
+        <select onchange="opcWegQtd('${chave}',this.value)">${[1, 2, 3, 4].map(q => `<option value="${q}"${q === qtd ? ' selected' : ''}>${q}×</option>`).join('')}</select><br>
         ${selTelhado}<br>${escHtml(cidade)}/${escHtml(uf)} (${k.isopleta} m/s) · relação ${kwBR(k.kwp / kwInv)}</div>
       <div class="opc-preco">${brl(venda)}</div>
       <div class="opc-adm">🔒 custo ${brl(k.custo)} · markup ${(mk * 100).toFixed(1).replace('.', ',')}% (do ${escHtml(base.nome)})</div>
@@ -101,6 +105,7 @@
   }
 
   window.opcWegInv = (chave, v) => { escolha[chave] = v; desenharOpcoes(); };
+  window.opcWegQtd = (chave, v) => { escolhaQtd[chave] = +v || 1; if (!escolha[chave] && window._opcWeg) escolha[chave] = window._opcWeg.inv; desenharOpcoes(); };
   window.opcWegTelhado = v => { const e = document.getElementById('prop-estrutura'); if (e) e.value = v; desenharOpcoes(); };
   window.opcUsarTabela = pos => { if (!_sugestao) return; _sugestao.pos = pos; mostrarSugestao(); usarSugestao(); };
   window.opcUsarWeg = () => {
@@ -108,11 +113,12 @@
     const marcaMod = /BYD/.test(w.modulo) ? 'BYD' : /LONGI/.test(w.modulo) ? 'LONGI' : /TRINA/.test(w.modulo) ? 'TRINA' : 'WEG';
     const wp = +(w.modulo.match(/^(\d+)/) || [])[1] || 0;
     const modInv = w.inv.replace(/ W\d+$/, '');
-    const qtdInv = w.k.qtdInv || 1;
+    const qtdInv = w.qtd || w.k.qtdInv || 1;
+    const fase = /Trif/i.test(w.invTipo) ? 'TRIFÁSICO ' + ((w.invTipo.match(/\d+\s*V/) || ['380 V'])[0]).replace(/\s/g, '') : 'MONOFÁSICO 220V';
     const estrutura = { fibro_madeira: 'fibrocimento', ceramico: 'ceramico', metalico: 'metalico', laje: 'laje' }[w.telhado];
     const itens = [
       `${w.n} X MÓDULO FOTOVOLTAICO ${wp}W BIFACIAL (${marcaMod})${/FINAME/.test(w.modulo) ? ' — FINAME' : ''}`,
-      `${qtdInv} X INVERSOR ${kwBR(w.kwInv)} kW MONOFÁSICO 220V (WEG ${modInv})`,
+      `${qtdInv} X INVERSOR ${kwBR(w.kwUni)} kW ${fase} (WEG ${modInv})`,
       `ESTRUTURA PARA TELHADO ${NOME_TELHADO[w.telhado].toUpperCase()} (WEG)`,
       'CABO SOLAR 6 mm² PRETO E VERMELHO',
       'CONECTORES MC4',
@@ -124,7 +130,7 @@
     abrirKitPersonalizado({
       uid, tipo_sistema: 'ongrid', nome_livre: `Kit WEG ${kwBR(w.k.kwp)} kWp`,
       mod: w.n, potW: wp, marca_mod: marcaMod,
-      inv_lista: [{ qtd: qtdInv, kw: kwBR(w.kwInv), marca: 'WEG ' + modInv }],
+      inv_lista: [{ qtd: qtdInv, kw: kwBR(w.kwUni), marca: 'WEG ' + modInv }],
       estrutura, inv_r: w.venda, origem: w.tipo, pagamento: pag,
       entrada: pag === 'parcelado' ? Math.ceil(w.k.custo / 100) * 100 : 0,
       com_pct: w.base.com_pct != null ? +w.base.com_pct : 0.06, art: true, itens,
