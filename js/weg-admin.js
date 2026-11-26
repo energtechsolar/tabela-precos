@@ -248,7 +248,7 @@
   function sincronizarLinhas() {
     const ns = numsPlacas();
     const ficam = T.linhas.filter(l => ns.includes(l.n));
-    ns.forEach(n => { if (!ficam.some(l => l.n === n)) ficam.push({ n, inv: '', qtd: 1, mk: null }); });
+    ns.forEach(n => { if (!ficam.some(l => l.n === n)) ficam.push({ n, inv: '', qtd: null, mk: null }); });
     T.linhas = ficam.sort((a, b) => a.n - b.n);
   }
   let tecMods = null;
@@ -278,9 +278,10 @@
     const finame = /\[FINAME\]/i.test(T.modulo);
     sincronizarLinhas();
     const linhas = T.linhas.map((r, i) => {
-      const n = r.n, sug = wegSugerirInversor(cat, T.modulo, n);
-      const inv = (r.inv && invs.some(x => x.codigo === r.inv) ? r.inv : '') || (sug && sug.codigo) || (invs[invs.length - 1] || {}).codigo;
-      const qtd = Math.max(1, Math.min(4, +r.qtd || 1));
+      const n = r.n, sg = typeof wegSugerir === 'function' ? wegSugerir(cat, T.modulo, n) : null, sug = sg && sg.inv;
+      const manual = r.inv && invs.some(x => x.codigo === r.inv);
+      const inv = (manual ? r.inv : '') || (sug && sug.codigo) || (invs[invs.length - 1] || {}).codigo;
+      const qtd = Math.max(1, Math.min(4, +r.qtd || (manual ? 1 : (sg ? sg.qtd : 1))));
       const k = wegMontarKit(cat, { modulo: T.modulo, n, inversor: inv, qtdInv: qtd, telhado: T.telhado, uf: T.uf, cidade: T.cidade, frete: 'CIF - Sem descarga - Região Sul', tec: tec[T.modulo] });
       const pad = padraoPara(finame, n);
       const mk = r.mk ?? (pad ? Math.round(pad.mk * 10) / 10 : 70);
@@ -303,7 +304,7 @@
         <tbody>${linhas.map(l => `<tr${l.repete ? ' style="background:rgba(255,255,255,.02)"' : ''}>
           <td style="white-space:nowrap">${l.repete ? '<span style="color:var(--muted,#8a8a8a)">↳</span> ' : ''}${l.n}<br><button type="button" class="admin-btn-add" style="margin:2px 0 0;padding:1px 7px" title="Outra opção de inversor para ${l.n} placas" onclick="wegTabVariar(${l.i})">＋</button>${l.repete ? `<button type="button" class="admin-btn-del" style="margin:2px 0 0 3px;padding:1px 7px" title="Tirar esta opção" onclick="wegTabTirar(${l.i})">✕</button>` : ''}</td>
           <td style="white-space:nowrap">${l.k.kwp ? l.k.kwp.toFixed(2).replace('.', ',') : '—'}<div style="font-size:11px;color:var(--muted,#8a8a8a)">inv. ${String(l.kwInv).replace('.', ',')} kW${l.k.ratio ? ' · ' + l.k.ratio.toFixed(2).replace('.', ',') : ''}</div></td>
-          <td><select class="admin-input" style="width:auto" onchange="wegTabLinha(${l.i},'inv',this.value)">${invs.map(x => opt(x.codigo, x.codigo.replace(/ W\d+$/, '') + (l.sug && x.codigo === l.sug.codigo ? ' ★' : ''), l.inv)).join('')}</select></td>
+          <td><select class="admin-input" style="width:auto" onchange="wegTabLinha(${l.i},'inv',this.value)">${invs.map(x => opt(x.codigo, x.codigo.replace(/ W\d+$/, '') + (/Trif/i.test(x.tipo) ? ' · tri ' + ((x.tipo.match(/\d+\s*V/) || [''])[0]).replace(/\s/g, '') : '') + (l.sug && x.codigo === l.sug.codigo ? ' ★' : ''), l.inv)).join('')}</select></td>
           <td><select class="admin-input" style="width:auto" onchange="wegTabLinha(${l.i},'qtd',+this.value)">${[1, 2, 3, 4].map(q => `<option value="${q}"${q === l.qtd ? ' selected' : ''}>${q}×</option>`).join('')}</select></td>
           <td class="n">${l.k.erros.length ? '—' : brl(l.k.custo) + `<div style="font-size:11px;color:var(--muted,#8a8a8a)">${brl(l.k.total)}</div>`}</td>
           <td class="n"><input type="number" class="admin-input" style="width:62px;text-align:right" step="0.5" value="${l.mk}" onchange="wegTabLinha(${l.i},'mk',this.value === '' ? null : +this.value)"> %</td>
@@ -311,12 +312,12 @@
           <td style="font-size:12px;color:var(--muted,#8a8a8a);white-space:nowrap">${l.pad ? `<span title="${esc(l.pad.nome)} · ${l.pad.mod} placas · ${esc(l.pad.inv)}${l.pad.igual ? '' : ' (mais próximo)'} · custo ${brl(l.pad.custo)} · markup ${pct(l.pad.mk)}">${esc(l.pad.nome)} · ${esc(l.pad.inv)}${l.pad.igual ? '' : ' *'}<br><b style="color:var(--texto,#e0e0e0)">${brl(l.pad.preco)}</b><div style="font-size:11px;color:var(--verde,#4ade80)">venda − custo ${brl(l.pad.preco - l.pad.custo)}</div></span>` : '—'}</td>
           <td style="white-space:nowrap">${l.k.erros.length ? `<span class="erro" title="${esc(l.k.erros.join('\n'))}">❌</span>` : l.k.avisos.length ? `<span title="${esc(l.k.avisos.join('\n'))}" style="cursor:help">⚠ ${l.k.avisos.length}</span>` : '✓'}</td>
         </tr>`).join('')}</tbody></table></div>
-      <div style="font-size:12px;color:var(--muted,#8a8a8a);margin-top:6px">⚠ passe o mouse para ver os avisos (sobrecarga, strings, região de vento). ★ inversor sugerido: o menor SIW200G com até 1,5 × a potência; dá para trocar o modelo e a quantidade na linha. ＋ cria outra opção de inversor para a mesma quantidade de placas (ex.: 8 placas com 3 kW, 5 kW e 7,5 kW). Abaixo do kWp: potência total dos inversores e a relação kWp ÷ inversor.</div>`;
+      <div style="font-size:12px;color:var(--muted,#8a8a8a);margin-top:6px">⚠ passe o mouse para ver os avisos (sobrecarga, strings, região de vento). ★ inversor sugerido: até ~15 kWp o menor SIW200G monofásico; acima disso o trifásico 380 V mais barato que aguenta (até 1,5 × a potência; 2× ou mais se precisar); dá para trocar o modelo e a quantidade na linha. ＋ cria outra opção de inversor para a mesma quantidade de placas (ex.: 8 placas com 3 kW, 5 kW e 7,5 kW). Abaixo do kWp: potência total dos inversores e a relação kWp ÷ inversor.</div>`;
   }
   const redesenhar = () => { guardarT(); wegCatalogoDoBanco().then(renderTabelaWeg); };
   window.wegTab = (campo, v) => { T[campo] = campo === 'uf' || campo === 'cidade' ? String(v).trim().toUpperCase() : v; if (campo === 'modulo') T.linhas.forEach(l => { l.inv = ''; l.mk = null; }); if (campo === 'placas') sincronizarLinhas(); redesenhar(); };
   window.wegTabLinha = (i, campo, v) => { if (T.linhas[i]) T.linhas[i][campo] = v; redesenhar(); };
-  window.wegTabVariar = i => { const l = T.linhas[i]; if (l) T.linhas.splice(i + 1, 0, { n: l.n, inv: '', qtd: 1, mk: l.mk }); redesenhar(); };
+  window.wegTabVariar = i => { const l = T.linhas[i]; if (l) T.linhas.splice(i + 1, 0, { n: l.n, inv: '', qtd: null, mk: l.mk }); redesenhar(); };
   window.wegTabTirar = i => { T.linhas.splice(i, 1); redesenhar(); };
 
   // a aba entra quando o painel admin é aberto (o HTML do painel já existe na página)
