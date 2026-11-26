@@ -38,15 +38,29 @@
   const custoDe = k => (typeof custoDoKit === 'function' ? custoDoKit(k) : null);
 
   const original = mostrarSugestao;
+  let ultimaSug = null;
   mostrarSugestao = function () {
+    if (_sugestao && _sugestao !== ultimaSug) { ultimaSug = _sugestao; Object.keys(nWeg).forEach(k => delete nWeg[k]); }
+    if (_sugestao && modoDimensionado(_sugestao)) { desenharOpcoes(); return; }
     const r = original.apply(this, arguments);
     desenharOpcoes();
     return r;
   };
 
+  // consumo acima do maior kit da tabela: para o admin, o kit WEG é dimensionado pelo consumo (no lugar do kit pequeno da tabela)
+  const nWeg = {};   // placas ajustadas com − / + no modo dimensionado, por tipo
+  const wpModulo = tipo => +(MODULO[tipo].match(/^(\d+)/) || [])[1] || 610;
+  const gerDe = (n, tipo, ori) => Math.round(n * wpModulo(tipo) / 1000 * fatorRegiao() * FATOR_ORIENTACAO[ori]);
+  function placasPara(s) {
+    const porPlaca = wpModulo(s.tipo) / 1000 * fatorRegiao() * FATOR_ORIENTACAO[s.ori];
+    return Math.max(1, Math.ceil(s.consumo / porPlaca));
+  }
+  const modoDimensionado = s => s.falta && s.pos === s.ordem.length - 1 && !s.verTabela && adminLogado && typeof wegCatalogoDoBanco === 'function';
+
   function desenharOpcoes() {
     const s = _sugestao, box = document.getElementById('campo-sug');
     if (!s || !box) return;
+    if (modoDimensionado(s)) return desenharDimensionado(s, box);
     const base = s.ordem[s.pos].it, n = +base.mod || 0;
     const adicional = +document.getElementById('slider-adicional').value, descPct = +document.getElementById('slider-desconto').value;
     const mesmos = s.ordem.map((x, pos) => ({ ...x, pos })).filter(x => +x.it.mod === n && !x.it.personalizado);
@@ -65,6 +79,25 @@
     sec.innerHTML = `<div class="opc-tit">Sistemas com ${n} placas</div><div class="opc-grade">${cards.join('')}<div class="opc-card" id="opc-weg"><div class="opc-forn">Fornecedor: <b>WEG</b></div><div class="opc-det">Montando…</div></div></div>`;
     cardWeg(s, base, n).catch(e => { const el = document.getElementById('opc-weg'); if (el) el.remove(); console.warn('WEG:', e); });
   }
+
+  function desenharDimensionado(s, box) {
+    const maior = s.ordem[s.ordem.length - 1].it;
+    const n = nWeg[s.tipo] || placasPara(s), g = gerDe(n, s.tipo, s.ori), sobra = g - s.consumo;
+    box.innerHTML = `
+      <div class="linha">⚠ Nenhum kit da tabela Energtech cobre ~${Math.round(s.consumo).toLocaleString('pt-BR')} kWh/mês (o maior é o ${escHtml(maior.nome)}, ${maior.mod} placas). Kit WEG dimensionado para o consumo:</div>
+      <div class="nome">${n} placas · ${kwBR(n * wpModulo(s.tipo) / 1000)} kWp</div>
+      <div class="linha">Gera ~${g.toLocaleString('pt-BR')} kWh/mês · cliente precisa ~${Math.round(s.consumo).toLocaleString('pt-BR')} kWh/mês ${sobra >= 0 ? '(sobra ' + Math.round(sobra).toLocaleString('pt-BR') + ')' : '(faltam ' + Math.round(-sobra).toLocaleString('pt-BR') + ')'}</div>
+      <div class="campo-nav">
+        <button onclick="opcWegPlacas(-2)">− 2 placas</button>
+        <button onclick="opcWegVerTabela()">Ver kits da tabela</button>
+        <button onclick="opcWegPlacas(2)">+ 2 placas</button>
+      </div>
+      <div id="opc-sec"><div class="opc-grade"><div class="opc-card" id="opc-weg"><div class="opc-forn">Fornecedor: <b>WEG</b></div><div class="opc-det">Montando…</div></div></div></div>`;
+    box.classList.add('visivel');
+    cardWeg(s, maior, n).catch(e => { const el = document.getElementById('opc-weg'); if (el) el.innerHTML = '❌ ' + escHtml(e.message || e); console.warn('WEG:', e); });
+  }
+  window.opcWegPlacas = d => { const s = _sugestao; if (!s) return; nWeg[s.tipo] = Math.max(2, (nWeg[s.tipo] || placasPara(s)) + d); desenharOpcoes(); };
+  window.opcWegVerTabela = () => { if (!_sugestao) return; _sugestao.verTabela = true; mostrarSugestao(); };
 
   async function cardWeg(s, base, n) {
     const el = () => document.getElementById('opc-weg');
