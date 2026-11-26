@@ -10,6 +10,8 @@
   const MODULO = { nacional: '610 Wp - BYD BIFACIAL [FINAME]', importado: '615 Wp - WEG BIFACIAL' };
   const TELHADO = { fibrocimento: 'fibro_madeira', ceramico: 'ceramico', metalico: 'metalico', aluzinco: 'metalico', laje: 'laje' };
   const NOME_TELHADO = { fibro_madeira: 'Fibrocimento (madeira)', ceramico: 'Cerâmico', metalico: 'Metálico', laje: 'Laje' };
+  const modEscolhido = {};   // módulo escolhido no card WEG, por tipo (importado/nacional); padrão = MODULO[tipo]
+  const moduloDe = tipo => modEscolhido[tipo] || MODULO[tipo];
   const escolha = {}, escolhaQtd = {};   // inversor e quantidade escolhidos no card WEG, por quantidade de placas + tipo
   const rotuloInv = x => x.codigo.replace(/ W\d+$/, '') + ' · ' + kwBR(x.dados.kW) + ' kW' + (/Trif/i.test(x.tipo) ? ' tri ' + ((x.tipo.match(/\d+\s*V/) || [''])[0]).replace(/\s/g, '') : '');
   let tec = null;
@@ -49,7 +51,7 @@
 
   // consumo acima do maior kit da tabela: para o admin, o kit WEG é dimensionado pelo consumo (no lugar do kit pequeno da tabela)
   const nWeg = {};   // placas ajustadas com − / + no modo dimensionado, por tipo
-  const wpModulo = tipo => +(MODULO[tipo].match(/^(\d+)/) || [])[1] || 610;
+  const wpModulo = tipo => +(moduloDe(tipo).match(/^(\d+)/) || [])[1] || 610;
   const gerDe = (n, tipo, ori) => Math.round(n * wpModulo(tipo) / 1000 * fatorRegiao() * FATOR_ORIENTACAO[ori]);
   function placasPara(s) {
     const porPlaca = wpModulo(s.tipo) / 1000 * fatorRegiao() * FATOR_ORIENTACAO[s.ori];
@@ -105,7 +107,11 @@
     const cat = await wegCatalogoDoBanco();
     if (!cat.itens.length) { el() && el().remove(); return; }
     if (!tec) { const { data } = await sb.from('modulos_tecnicos').select('*'); tec = {}; (data || []).forEach(m => { tec[m.modelo] = m; }); }
-    const tipo = s.tipo, modulo = MODULO[tipo];
+    const tipo = s.tipo;
+    const mods = cat.itens.filter(x => /^M[óo]dulo/i.test(x.tipo || '') && +x.dados.Wp > 0).sort((a, b) => +a.dados.Wp - +b.dados.Wp || a.codigo.localeCompare(b.codigo));
+    if (modEscolhido[tipo] && !mods.some(m => m.codigo === modEscolhido[tipo])) delete modEscolhido[tipo];
+    const modulo = moduloDe(tipo);
+    const selMod = `<select onchange="opcWegModulo('${tipo}',this.value)">${mods.map(m => `<option value="${escHtml(m.codigo)}"${m.codigo === modulo ? ' selected' : ''}>Módulo ${escHtml(m.codigo.replace(/ - /, ' '))}</option>`).join('')}</select>`;
     const estr = (document.getElementById('prop-estrutura') || {}).value || 'fibrocimento';
     const telhado = TELHADO[estr];
     const card = el(); if (!card) return;
@@ -127,7 +133,7 @@
     card.innerHTML = `
       <div class="opc-forn">Fornecedor: <b>WEG</b> · ${tipo === 'nacional' ? 'Nacional (FINAME)' : 'Importado'}</div>
       <div class="opc-nome">Kit WEG · ${kwBR(k.kwp)} kWp</div>
-      <div class="opc-det">${n} × ${escHtml(modulo.replace(/ - /, ' '))}<br>
+      <div class="opc-det">${n} × ${selMod}<br>
         <select onchange="opcWegInv('${chave}',this.value)">${invs.map(x => `<option value="${escHtml(x.codigo)}"${x.codigo === inv ? ' selected' : ''}>${escHtml(rotuloInv(x))}${sug && x.codigo === sug.codigo ? ' ★' : ''}</option>`).join('')}</select>
         <select onchange="opcWegQtd('${chave}',this.value)">${[1, 2, 3, 4].map(q => `<option value="${q}"${q === qtd ? ' selected' : ''}>${q}×</option>`).join('')}</select><br>
         ${selTelhado}<br>${escHtml(cidade)}/${escHtml(uf)} (${k.isopleta} m/s) · relação ${kwBR(k.kwp / kwInv)}</div>
@@ -137,6 +143,7 @@
       <button class="usar" onclick="opcUsarWeg()">Gerar proposta deste sistema</button>`;
   }
 
+  window.opcWegModulo = (tipo, v) => { modEscolhido[tipo] = v; delete nWeg[tipo]; desenharOpcoes(); };
   window.opcWegInv = (chave, v) => { escolha[chave] = v; desenharOpcoes(); };
   window.opcWegQtd = (chave, v) => { escolhaQtd[chave] = +v || 1; if (!escolha[chave] && window._opcWeg) escolha[chave] = window._opcWeg.inv; desenharOpcoes(); };
   window.opcWegTelhado = v => { const e = document.getElementById('prop-estrutura'); if (e) e.value = v; desenharOpcoes(); };
