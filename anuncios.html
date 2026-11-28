@@ -104,10 +104,12 @@
           <select class="select" id="f-nivel" onchange="render()">
             <option value="anuncio">Por anúncio</option><option value="conjunto">Por conjunto</option><option value="campanha">Por campanha</option>
           </select>
+          <button class="btn btn-sec btn-p" id="btn-gastos" onclick="atualizarGastos()" title="Busca na Meta o gasto dos últimos 30 dias (todo dia de madrugada isso já é feito sozinho)">🔄 Atualizar gastos</button>
         </div></div>
       <div class="tabela-wrap"><table id="t-anuncios"></table></div>
       <p class="nota">Clique numa linha para ver os leads. Entram os leads de formulário (Meta) e os que chamaram no WhatsApp pelo botão do anúncio (número ligado à API oficial).
-        O gasto de cada anúncio (custo por lead e por venda) entra no próximo passo, pela API de Marketing da Meta.</p>
+        <b>Gasto</b> vem da Meta (atualizado toda madrugada). <b>Leads Meta</b> = quantos leads a Meta diz que entregou; se for bem maior que <b>Leads</b> (os que chegaram ao CRM), algum lead está se perdendo no caminho.
+        <span id="gastos-info"></span></p>
     </div>
     <div class="status-msg" id="msg"></div>
   </div>
@@ -126,7 +128,7 @@ const fmtR = v => (+v || 0).toLocaleString('pt-BR', { style:'currency', currency
 const dBR = iso => iso ? String(iso).slice(0, 10).split('-').reverse().join('/') : '—';
 const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
 const ORIGENS = { meta: '📣 Anúncio Meta', indicacao: '🤝 Indicação', luvik: 'Luvik', datacrazy: 'DataCrazy', whatsapp: '💬 WhatsApp', outro: 'Outro' };
-let perfil = null, LEADS = [], ORC = {}, ETAPA_NOME = {}, aberto = null;
+let perfil = null, LEADS = [], ORC = {}, ETAPA_NOME = {}, aberto = null, GASTOS = [], AD_INFO = {};
 
 function msg(t, erro) { const m = $('msg'); m.textContent = t || ''; m.classList.toggle('erro', !!erro); }
 function mostrar(qual, texto) {
@@ -157,10 +159,12 @@ async function entrar() {
 }
 async function sair() { await sb.auth.signOut(); perfil = null; await iniciar(); }
 
-async function lerTudo(tabela, colunas) {
+async function lerTudo(tabela, colunas, filtro) {
   const out = [];
   for (let de = 0; ; de += 1000) {
-    const { data, error } = await sb.from(tabela).select(colunas).range(de, de + 999);
+    let q = sb.from(tabela).select(colunas).range(de, de + 999);
+    if (filtro) q = filtro(q);
+    const { data, error } = await q;
     if (error) throw error;
     out.push(...data);
     if (data.length < 1000) break;
@@ -170,11 +174,16 @@ async function lerTudo(tabela, colunas) {
 async function carregar() {
   msg('⏳ Carregando…');
   try {
-    const [l, o, c] = await Promise.all([
+    const [l, o, c, g] = await Promise.all([
       lerTudo('leads', 'id, nome, cidade, origem, etapa, status, motivo_perda, recebido_em, arquivado, orcamento_ganho_id, dados_brutos'),
       lerTudo('orcamentos', 'id, lead_id, valor_final'),
       sb.from('config').select('dados').eq('id', 'crm').maybeSingle(),
+      lerTudo('anuncio_gastos', 'data, ad_id, ad_nome, conjunto, campanha, gasto, leads_meta, atualizado_em', q => q.order('data')).catch(() => []),
     ]);
+    GASTOS = g; AD_INFO = {};
+    g.forEach(x => { AD_INFO[x.ad_id] = { anuncio: x.ad_nome, conjunto: x.conjunto, campanha: x.campanha }; });
+    const ult = g.reduce((m, x) => x.atualizado_em > m ? x.atualizado_em : m, '');
+    $('gastos-info').textContent = ult ? ' Última atualização dos gastos: ' + new Date(ult).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) + '.' : ' Gastos ainda não importados da Meta.';
     LEADS = l;
     ORC = { porId: {}, comLead: new Set() };
     o.forEach(x => { ORC.porId[x.id] = x; if (x.lead_id) ORC.comLead.add(x.lead_id); });
@@ -197,11 +206,11 @@ function medir(lista) {
   return m;
 }
 function anuncioDe(l) {
-  const d = l.dados_brutos || {}, w = d.anuncio || {};
+  const d = l.dados_brutos || {}, w = d.anuncio || {}, info = AD_INFO[String(d.ad_id || w.id || '')] || {};
   return {
-    anuncio: d.ad_name || w.titulo || (d.ad_id || w.id ? 'Anúncio ' + (d.ad_id || w.id) : null),
-    conjunto: d.adset_name || (w.id ? 'WhatsApp (clique no anúncio)' : null),
-    campanha: d.campaign_name || (w.id ? 'WhatsApp (clique no anúncio)' : null),
+    anuncio: d.ad_name || info.anuncio || w.titulo || (d.ad_id || w.id ? 'Anúncio ' + (d.ad_id || w.id) : null),
+    conjunto: d.adset_name || info.conjunto || (w.id ? 'WhatsApp (clique no anúncio)' : null),
+    campanha: d.campaign_name || info.campanha || (w.id ? 'WhatsApp (clique no anúncio)' : null),
     canal: w.id ? 'WhatsApp' : (d.ad_id || d.ad_name ? 'Formulário' : null),
   };
 }
@@ -209,45 +218,72 @@ function noPeriodo(l) {
   const dias = +$('f-periodo').value; if (!dias) return true;
   return l.recebido_em && (Date.now() - new Date(l.recebido_em)) / 864e5 <= dias;
 }
+function gastoNoPeriodo(x) {
+  const dias = +$('f-periodo').value; if (!dias) return true;
+  return (Date.now() - new Date(x.data + 'T12:00:00')) / 864e5 <= dias;
+}
+const custo = (g, n) => g && n ? fmtR(g / n) : '—';
 const motivosTxt = m => Object.entries(m.motivos).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, n]) => `${esc(k)} (${n})`).join(', ') || '—';
-function linhaMet(rotulo, m, extra, dica) {
+function linhaMet(rotulo, m, extra, dica, gst) {
   const conv = pct(m.ganhos, m.leads);
+  const colG = gst === undefined ? '' : `<td class="num">${gst && gst.gasto ? fmtR(gst.gasto) : '—'}</td><td class="num muted">${gst && gst.leadsMeta != null ? gst.leadsMeta : '—'}</td>
+    <td class="num">${custo(gst && gst.gasto, m.leads)}</td><td class="num">${gst && gst.gasto && !m.ganhos ? '<span class="ruim">sem venda</span>' : '<b>' + custo(gst && gst.gasto, m.ganhos) + '</b>'}</td>`;
   return `<td>${rotulo}${extra || ''}</td><td class="num">${m.leads}</td><td class="num">${m.atendidos} <span class="muted">${pct(m.atendidos, m.leads)}%</span></td>
     <td class="num">${m.orcamento} <span class="muted">${pct(m.orcamento, m.leads)}%</span></td>
     <td class="num"><span class="${m.ganhos ? 'bom' : m.leads >= 10 ? 'ruim' : ''}">${m.ganhos}</span> <span class="muted">${conv}%</span></td>
-    <td class="num">${m.valor ? fmtR(m.valor) : '—'}</td><td class="num">${m.perdidos}</td><td style="font-size:12px;color:var(--muted)">${dica !== undefined ? dica : motivosTxt(m)}</td>`;
+    <td class="num">${m.valor ? fmtR(m.valor) : '—'}</td><td class="num">${m.perdidos}</td>${colG}<td style="font-size:12px;color:var(--muted)">${dica !== undefined ? dica : motivosTxt(m)}</td>`;
 }
-const CAB = `<thead><tr><th>%s</th><th class="num">Leads</th><th class="num">Atendidos</th><th class="num">Orçamento</th><th class="num">Vendas</th><th class="num">Valor vendido</th><th class="num">Perdidos</th><th>Principais motivos de perda</th></tr></thead>`;
+const CAB = `<thead><tr><th>%s</th><th class="num">Leads</th><th class="num">Atendidos</th><th class="num">Orçamento</th><th class="num">Vendas</th><th class="num">Valor vendido</th><th class="num">Perdidos</th>%g<th>Principais motivos de perda</th></tr></thead>`;
+const CAB_G = '<th class="num">Gasto</th><th class="num">Leads Meta</th><th class="num">Custo por lead</th><th class="num">Custo por venda</th>';
 
 function render() {
   const base = LEADS.filter(l => !l.arquivado || l.etapa === 'ganho' || l.etapa === 'perdido').filter(noPeriodo);
   const tot = medir(base), meta = medir(base.filter(l => l.origem === 'meta'));
+  const gst = GASTOS.filter(gastoNoPeriodo), gastoTot = gst.reduce((s, x) => s + (+x.gasto || 0), 0);
   $('kpis').innerHTML = [
     [tot.leads, 'leads no período'], [tot.ganhos, 'vendas'], [fmtR(tot.valor), 'valor vendido'],
-    [meta.leads, 'leads de anúncio'], [meta.ganhos, 'vendas de anúncio'], [tot.semAtend, 'leads ainda sem atendimento'],
+    [meta.leads, 'leads de anúncio'], [meta.ganhos, 'vendas de anúncio'],
+    ...(GASTOS.length ? [[fmtR(gastoTot), 'gasto em anúncios'], [custo(gastoTot, meta.ganhos), 'custo por venda de anúncio']] : []),
+    [tot.semAtend, 'leads ainda sem atendimento'],
   ].map(([v, t]) => `<div class="kpi"><b>${v}</b><span>${t}</span></div>`).join('');
   // por origem
   const porOrigem = {};
   base.forEach(l => { const k = l.origem || 'outro'; (porOrigem[k] = porOrigem[k] || []).push(l); });
-  $('t-origem').innerHTML = CAB.replace('%s', 'Origem') + '<tbody>' + Object.entries(porOrigem)
+  $('t-origem').innerHTML = CAB.replace('%s', 'Origem').replace('%g', '') + '<tbody>' + Object.entries(porOrigem)
     .map(([k, ls]) => [k, medir(ls)]).sort((a, b) => b[1].leads - a[1].leads)
     .map(([k, m]) => `<tr>${linhaMet(esc(ORIGENS[k] || k), m)}</tr>`).join('') + '</tbody>';
   // por anúncio
   const nivel = $('f-nivel').value, grupos = {};
-  base.forEach(l => { const a = anuncioDe(l); const k = a[nivel]; if (!k) return; (grupos[k] = grupos[k] || { ls: [], canais: new Set() }).ls.push(l); if (a.canal) grupos[k].canais.add(a.canal); });
+  const grupo = k => (grupos[k] = grupos[k] || { ls: [], canais: new Set(), gasto: 0, leadsMeta: null });
+  base.forEach(l => { const a = anuncioDe(l); const k = a[nivel]; if (!k) return; grupo(k).ls.push(l); if (a.canal) grupos[k].canais.add(a.canal); });
+  gst.forEach(x => { const k = { anuncio: x.ad_nome, conjunto: x.conjunto, campanha: x.campanha }[nivel] || 'Anúncio ' + x.ad_id; const g = grupo(k);
+    g.gasto += +x.gasto || 0; if (x.leads_meta != null) g.leadsMeta = (g.leadsMeta || 0) + x.leads_meta; });
   const semAnuncio = base.filter(l => l.origem === 'meta' && !anuncioDe(l)[nivel]).length;
-  const linhas = Object.entries(grupos).map(([k, g]) => ({ k, g, m: medir(g.ls) })).sort((a, b) => b.m.leads - a.m.leads);
+  const linhas = Object.entries(grupos).map(([k, g]) => ({ k, g, m: medir(g.ls) })).sort((a, b) => b.m.leads - a.m.leads || b.g.gasto - a.g.gasto);
+  const comG = GASTOS.length > 0, nCol = comG ? 12 : 8;
   const maxL = Math.max(1, ...linhas.map(x => x.m.leads));
-  $('t-anuncios').innerHTML = CAB.replace('%s', { anuncio: 'Anúncio', conjunto: 'Conjunto', campanha: 'Campanha' }[nivel]) + '<tbody>' + (linhas.length ? linhas.map((x, i) => {
+  $('t-anuncios').innerHTML = CAB.replace('%s', { anuncio: 'Anúncio', conjunto: 'Conjunto', campanha: 'Campanha' }[nivel]).replace('%g', comG ? CAB_G : '') + '<tbody>' + (linhas.length ? linhas.map((x, i) => {
     const extra = `<div class="barra" style="margin-top:4px;width:${Math.max(8, x.m.leads / maxL * 100)}%"><i style="width:${pct(x.m.ganhos, x.m.leads) * 5}%"></i></div><div class="muted" style="font-size:11px">${[...x.g.canais].join(' · ')}</div>`;
-    let h = `<tr class="clic${aberto === x.k ? ' aberto' : ''}" onclick="abrir(${i})">${linhaMet('<b>' + esc(x.k) + '</b>', x.m, extra)}</tr>`;
+    let h = `<tr class="clic${aberto === x.k ? ' aberto' : ''}" onclick="abrir(${i})">${linhaMet('<b>' + esc(x.k) + '</b>', x.m, extra, undefined, comG ? x.g : undefined)}</tr>`;
     if (aberto === x.k) h += x.g.ls.slice().sort((a, b) => String(b.recebido_em).localeCompare(String(a.recebido_em))).map(l => `<tr class="sub"><td colspan="2"><a href="crm.html?lead=${l.id}">${esc(l.nome || 'Lead ' + l.id)}</a> <span class="muted">${esc(l.cidade || '')}</span></td>
       <td colspan="2">${dBR(l.recebido_em)}</td><td colspan="2">${esc(ETAPA_NOME[l.etapa] || l.etapa || '—')}${l.etapa === 'ganho' && ORC.porId[l.orcamento_ganho_id] ? ' · ' + fmtR(ORC.porId[l.orcamento_ganho_id].valor_final) : ''}</td>
-      <td colspan="2" class="muted">${esc(l.motivo_perda || '')}</td></tr>`).join('');
+      <td colspan="${nCol - 6}" class="muted">${esc(l.motivo_perda || '')}</td></tr>`).join('');
     return h;
-  }).join('') : '<tr><td colspan="8" class="muted">Nenhum lead de anúncio no período.</td></tr>') + '</tbody>';
+  }).join('') : `<tr><td colspan="${nCol}" class="muted">Nenhum lead de anúncio no período.</td></tr>`) + '</tbody>';
   window._linhasAnuncio = linhas;
-  if (semAnuncio) $('t-anuncios').insertAdjacentHTML('beforeend', `<tbody><tr><td colspan="8" class="muted">+ ${semAnuncio} lead(s) de anúncio sem a informação do ${nivel}.</td></tr></tbody>`);
+  if (semAnuncio) $('t-anuncios').insertAdjacentHTML('beforeend', `<tbody><tr><td colspan="${nCol}" class="muted">+ ${semAnuncio} lead(s) de anúncio sem a informação do ${nivel}.</td></tr></tbody>`);
+}
+async function atualizarGastos() {
+  const b = $('btn-gastos'); b.disabled = true; b.textContent = '⏳ Buscando na Meta…';
+  try {
+    const { data, error } = await sb.functions.invoke('meta-gastos', { body: { dias: 30 } });
+    let erro = error ? (await (error.context && error.context.json ? error.context.json().then(j => j.erro).catch(() => null) : null)) || error.message : null;
+    const r = data && data.res && data.res[0];
+    if (!erro && r && r.erro) erro = r.erro;
+    if (erro) msg('⚠ Não consegui buscar os gastos: ' + erro, true);
+    else { await carregar(); msg('✅ Gastos atualizados' + (r ? ': ' + fmtR(r.gasto) + ' em ' + r.dias + ' dias' : '') + '.'); }
+  } catch (e) { msg('⚠ ' + (e.message || e), true); }
+  b.disabled = false; b.textContent = '🔄 Atualizar gastos';
 }
 window.abrir = i => { const x = (window._linhasAnuncio || [])[i]; if (!x) return; aberto = aberto === x.k ? null : x.k; render(); };
 iniciar();
