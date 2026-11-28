@@ -21,6 +21,7 @@
     { arq: 'estoque.html', ico: '📦', nome: 'Estoque', pode: obra },
     { arq: 'financeiro.html', ico: '💰', nome: 'Financeiro', pode: p => p.admin },
     { arq: 'equipe.html', ico: '👷', nome: 'Equipe', pode: p => p.admin },
+    { arq: 'anuncios.html', ico: '📣', nome: 'Anúncios', pode: p => p.admin },
     { arq: 'usinas.html', ico: '☀️', nome: 'Usinas', pode: p => p.admin && temUsinas },
   ];
   const aqui = location.pathname.split('/').pop() || '';
