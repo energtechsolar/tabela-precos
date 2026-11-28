@@ -102,7 +102,7 @@ async function paraJpeg(f) {
 })();
 
 // barra de menu do topo, igual em todas as telas (js/menu-topo.js)
-(function () { const s = document.createElement('script'); s.src = 'js/menu-topo.js?v=20261125d'; s.async = false; document.body.appendChild(s); })();
+(function () { const s = document.createElement('script'); s.src = 'js/menu-topo.js?v=20261128a'; s.async = false; document.body.appendChild(s); })();
 
 // complementos de algumas telas: carregados depois do script da própria tela (assim a tela grande não precisa mudar)
 (function () {
